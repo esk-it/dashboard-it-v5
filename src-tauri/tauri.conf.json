@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "ITManager-Dashboard",
-  "version": "4.0.1",
-  "identifier": "com.esk-it.itmanager-dashboard",
+  "version": "5.0.1",
+  "identifier": "com.esk-it.itmanager-dashboard-v5",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -24,14 +24,6 @@
       "csp": null
     }
   },
-  "plugins": {
-    "updater": {
-      "endpoints": [
-        "https://github.com/esk-it/dashboard-it/releases/latest/download/latest.json"
-      ],
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDE1RTY1RTI1OTM3QzlGMDYKUldRR24zeVRKVjdtRlo2TVpIaHV5QVlPQjJRbHcrVXg3T2hrWGU2ZVJFYWVKMDJwRjVkcG1LNHEK"
-    }
-  },
   "bundle": {
     "active": true,
     "targets": "all",
@@ -43,5 +35,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/esk-it/dashboard-it-v5/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVEQjA2NjBCOTc4RDFEMzcKUldRM0hZMlhDMmF3N1NyWHI5MUJKQ3UwNkZuT09aNkxDajJtL25PYmJnZkM4Q1pNZFp1L1NSRE4K"
+    }
   }
 }

@@ -368,6 +368,18 @@ async def init_db():
             details TEXT NOT NULL DEFAULT '',
             FOREIGN KEY (machine_id) REFERENCES machines(id) ON DELETE CASCADE
         )""",
+        # --- Users (auth) ---
+        """CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL DEFAULT '',
+            password_hash TEXT NOT NULL,
+            display_name TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'user',
+            avatar_url TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_login TEXT
+        )""",
         # --- Quick Links / Launcher ---
         """CREATE TABLE IF NOT EXISTS quick_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

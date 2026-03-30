@@ -45,3 +45,6 @@ backend/backups/
 # Signing keys & CI artifacts
 SIGNING_KEY.txt
 *.zip
+
+# Claude Code local settings
+.claude/settings.local.json

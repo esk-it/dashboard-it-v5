@@ -1,7 +1,12 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems } from '../stores/navigation.js';
+  import { theme, toggleTheme } from '../stores/theme.js';
+  import { logout } from '../stores/auth.js';
   import logoUrl from '../../assets/logo.png';
+
+  const dispatch = createEventDispatcher();
 
   let hovered = false;
   let appVersion = '';
@@ -97,6 +102,26 @@
           {/if}
         </div>
       {/each}
+
+      <!-- Theme toggle -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="nav-item theme-toggle" title={hovered ? '' : 'Thème'} on:click={toggleTheme}>
+        <span class="nav-emoji">{$theme === 'glass' ? '\u{1F319}' : '\u2600\uFE0F'}</span>
+        {#if hovered}
+          <span class="nav-label">{$theme === 'glass' ? 'Mode clair' : 'Mode sombre'}</span>
+        {/if}
+      </div>
+
+      <!-- Lock / Logout -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <div class="nav-item" title={hovered ? '' : 'Verrouiller'} on:click={() => { logout(); dispatch('lock'); }}>
+        <span class="nav-emoji">{'\u{1F512}'}</span>
+        {#if hovered}
+          <span class="nav-label">Verrouiller</span>
+        {/if}
+      </div>
 
       <!-- Version -->
       <div class="version">

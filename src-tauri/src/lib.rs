@@ -127,21 +127,21 @@ async fn check_for_updates(handle: tauri::AppHandle) -> Result<(), Box<dyn std::
 
         log::info!("User accepted update, starting download...");
 
-        // Show progress overlay
+        // Show progress overlay in the webview
         if let Some(window) = handle.get_webview_window("main") {
             let _ = window.eval(&format!(r#"
                 (function() {{
                     var overlay = document.createElement('div');
                     overlay.id = '__update_overlay';
                     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
-                    overlay.innerHTML = '<div style="background:#1a1a2e;border-radius:16px;padding:40px;min-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1)">' +
+                    overlay.innerHTML = '<div style="background:var(--bg-card,#1a1a2e);border-radius:16px;padding:40px;min-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.1)">' +
                         '<div style="font-size:40px;margin-bottom:16px">\u2B07\uFE0F</div>' +
-                        '<div style="color:#fff;font-size:18px;font-weight:600;margin-bottom:8px">Mise \u00e0 jour v{}</div>' +
-                        '<div id="__update_status" style="color:rgba(255,255,255,0.6);font-size:13px;margin-bottom:20px">T\u00e9l\u00e9chargement en cours...</div>' +
+                        '<div style="color:var(--text-primary,#fff);font-size:18px;font-weight:600;margin-bottom:8px">Mise \u00e0 jour v{}</div>' +
+                        '<div id="__update_status" style="color:var(--text-muted,rgba(255,255,255,0.6));font-size:13px;margin-bottom:20px">T\u00e9l\u00e9chargement en cours...</div>' +
                         '<div style="background:rgba(255,255,255,0.1);border-radius:8px;height:8px;overflow:hidden;margin-bottom:12px">' +
-                        '  <div id="__update_bar" style="height:100%;width:0%;background:linear-gradient(90deg,#4f46e5,#7c3aed);border-radius:8px;transition:width 0.3s ease"></div>' +
+                        '  <div id="__update_bar" style="height:100%;width:0%;background:linear-gradient(90deg,#452B90,#7c3aed);border-radius:8px;transition:width 0.3s ease"></div>' +
                         '</div>' +
-                        '<div id="__update_pct" style="color:rgba(255,255,255,0.5);font-size:12px">0%</div>' +
+                        '<div id="__update_pct" style="color:var(--text-muted,rgba(255,255,255,0.5));font-size:12px">0%</div>' +
                     '</div>';
                     document.body.appendChild(overlay);
                 }})();

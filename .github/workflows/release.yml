@@ -55,23 +55,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
-          echo "=== ENV CHECK ==="
-          echo "TAURI_SIGNING_PRIVATE_KEY length: ${#TAURI_SIGNING_PRIVATE_KEY}"
-          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD: [${TAURI_SIGNING_PRIVATE_KEY_PASSWORD}]"
-          echo ""
-
           npx tauri build
-
-          echo ""
-          echo "=== BUILD OUTPUT ==="
-          echo "NSIS dir contents:"
-          ls -la src-tauri/target/release/bundle/nsis/ || echo "  (no nsis dir)"
-          echo "MSI dir contents:"
-          ls -la src-tauri/target/release/bundle/msi/ || echo "  (no msi dir)"
-          echo "All .sig files:"
-          find src-tauri/target/release/bundle -name "*.sig" 2>/dev/null || echo "  (no .sig files found)"
-          echo "All .nsis.zip files:"
-          find src-tauri/target/release/bundle -name "*.nsis.zip" 2>/dev/null || echo "  (no .nsis.zip files found)"
 
       - name: Sign bundles and create release
         shell: bash
@@ -84,68 +68,37 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           BUNDLE_DIR="src-tauri/target/release/bundle"
 
-          echo "=== VERSION: $VERSION, TAG: $TAG ==="
-
-          # ── Always create zip with standard Deflate compression ──
-          # Tauri/PowerShell may use Deflate64 or zstd which the updater can't read
+          # Find NSIS exe
           NSIS_EXE=$(find "$BUNDLE_DIR/nsis" -name "*.exe" 2>/dev/null | head -1)
           if [ -z "$NSIS_EXE" ]; then
-            echo "FATAL: No .exe found in NSIS bundle dir!"
+            echo "FATAL: No .exe found!"
             exit 1
           fi
 
-          # Recreate zip with STORE method (no compression = method 0)
-          # The tauri-plugin-updater uses zip crate WITHOUT deflate feature enabled,
-          # so it can ONLY read Store (method 0) zips, not Deflate (method 8).
-          # cd into the dir so the exe is stored at zip root (no subdirectory paths)
+          # Create zip with STORE method (no compression = max compatibility)
           NSIS_DIR=$(dirname "$NSIS_EXE")
           NSIS_EXE_NAME=$(basename "$NSIS_EXE")
           NSIS_ZIP_NAME="${NSIS_EXE_NAME%.exe}.nsis.zip"
-          NSIS_ZIP_NEW="$NSIS_DIR/$NSIS_ZIP_NAME"
-          rm -f "$NSIS_ZIP_NEW"
-          echo "Creating zip with STORE method (no compression, max compatibility)..."
+          rm -f "$NSIS_DIR/$NSIS_ZIP_NAME"
           pushd "$NSIS_DIR"
           7z a -tzip -mx=0 "$NSIS_ZIP_NAME" "$NSIS_EXE_NAME"
-          echo "Zip contents (verify Method = Store):"
-          7z l -slt "$NSIS_ZIP_NAME" | grep -E "^(Path|Method|Size)" | head -10
           popd
-          NSIS_ZIP="$NSIS_ZIP_NEW"
-          echo "Zip created: $(ls -la "$NSIS_ZIP")"
+          NSIS_ZIP="$NSIS_DIR/$NSIS_ZIP_NAME"
 
-          # Sign the new zip
-          echo "Signing zip..."
+          # Sign the zip
           npx tauri signer sign "$NSIS_ZIP"
+          NSIS_ZIP_SIG=$(cat "${NSIS_ZIP}.sig")
 
-          if [ -f "${NSIS_ZIP}.sig" ]; then
-            NSIS_ZIP_SIG=$(cat "${NSIS_ZIP}.sig")
-            echo "Signing succeeded! (sig length: ${#NSIS_ZIP_SIG})"
-          else
-            echo "FATAL: Signing failed - no .sig file created"
-            exit 1
-          fi
-
-          echo ""
-          echo "=== SIGNATURE PREVIEW ==="
-          echo "${NSIS_ZIP_SIG:0:60}..."
-
-          # ── Extract release notes from commit message ──
+          # Extract release notes from commit message
           RELEASE_NOTES_JSON=$(git log -1 --pretty=format:"%s" 2>/dev/null | sed 's/"/\\"/g' | sed 's/^v[0-9.]* [-—] //' || echo "Nouvelle version")
-          echo "Release notes: $RELEASE_NOTES_JSON"
 
-          # ── Build latest.json ──
+          # Build latest.json
           NOW=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           NSIS_ZIP_NAME=$(basename "$NSIS_ZIP")
           DOWNLOAD_URL="https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$NSIS_ZIP_NAME"
-
           printf '{\n  "version": "%s",\n  "notes": "%s",\n  "pub_date": "%s",\n  "platforms": {\n    "windows-x86_64": {\n      "signature": "%s",\n      "url": "%s"\n    }\n  }\n}\n' "$VERSION" "$RELEASE_NOTES_JSON" "$NOW" "$NSIS_ZIP_SIG" "$DOWNLOAD_URL" > latest.json
 
-          echo ""
-          echo "=== latest.json ==="
-          cat latest.json
-
-          # ── Create GitHub Release ──
-          echo ""
-          echo "=== CREATING RELEASE ==="
+          # Create GitHub Release
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "ITManager Dashboard $TAG" \
@@ -154,8 +107,7 @@ jobs:
 
           sleep 3
 
-          # ── Upload assets ──
-          echo "=== UPLOADING ASSETS ==="
+          # Upload assets
           NSIS_EXE=$(find "$BUNDLE_DIR/nsis" -name "*.exe" 2>/dev/null | head -1)
           MSI_FILE=$(find "$BUNDLE_DIR/msi" -name "*.msi" 2>/dev/null | head -1)
 
@@ -166,12 +118,9 @@ jobs:
             fi
           done
 
-          # Upload any .sig files too
+          # Upload .sig files
           find "$BUNDLE_DIR" -name "*.sig" 2>/dev/null | while read sigfile; do
-            echo "Uploading sig: $sigfile"
             gh release upload "$TAG" "$sigfile" --repo "$GITHUB_REPOSITORY" --clobber
           done
 
-          echo ""
-          echo "=== DONE ==="
-          echo "Release $TAG published with signed updater!"
+          echo "Release $TAG published!"

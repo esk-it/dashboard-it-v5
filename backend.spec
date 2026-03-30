@@ -71,6 +71,10 @@ a = Analysis(
         'backend.routers.parc',
         'backend.routers.security',
         'backend.routers.bastion',
+        'backend.routers.monitoring',
+        'backend.routers.glpi',
+        'backend.routers.launcher',
+        'backend.routers.auth',
         'backend.routers.tools',
         'backend.schemas',
         'backend.schemas.bastion',
@@ -83,6 +87,8 @@ a = Analysis(
         'backend.schemas.supplier',
         'backend.schemas.task',
         'backend.schemas.wiki',
+        'backend.schemas.monitoring',
+        'backend.schemas.glpi',
         # RSS feeds
         'feedparser',
         'sgmllib',
@@ -96,6 +102,11 @@ a = Analysis(
         'httpx._transports.default',
         # Multipart
         'multipart',
+        'python_multipart',
+        # Auth (JWT + bcrypt)
+        'jwt',
+        'bcrypt',
+        'bcrypt._bcrypt',
     ],
     hookspath=[],
     hooksconfig={},

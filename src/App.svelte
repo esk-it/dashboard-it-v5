@@ -2,12 +2,16 @@
   import { onMount } from 'svelte';
   import { currentPage } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
+  import { isAuthenticated, currentUser, checkAuth, logout } from './lib/stores/auth.js';
   import GlassBackground from './lib/components/GlassBackground.svelte';
   import SplashScreen from './lib/components/SplashScreen.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Toast from './lib/components/Toast.svelte';
   import SearchPalette from './lib/components/SearchPalette.svelte';
   import QuickCreate from './lib/components/QuickCreate.svelte';
+  import LoginPage from './lib/pages/LoginPage.svelte';
+  import RegisterPage from './lib/pages/RegisterPage.svelte';
+  import LockScreenPage from './lib/pages/LockScreenPage.svelte';
   import HomePage from './lib/pages/HomePage.svelte';
   import PlaceholderPage from './lib/pages/PlaceholderPage.svelte';
   import PlanningPage from './lib/pages/PlanningPage.svelte';
@@ -27,13 +31,13 @@
   let showSearch = false;
   let showQuickCreate = false;
   let splashDone = false;
+  let authPage = 'login'; // 'login' | 'register' | 'lock'
 
   // Reload settings after splash is done (backend is ready by then)
-  $: if (splashDone) loadSettings();
+  $: if (splashDone && $isAuthenticated) loadSettings();
 
   // Warn before closing if a form might be open (global beforeunload)
   function handleBeforeUnload(e) {
-    // Check if any dialog/modal is open by looking for overlay elements
     const hasOpenDialog = document.querySelector('.dialog-overlay, .modal-overlay');
     if (hasOpenDialog) {
       e.preventDefault();
@@ -41,7 +45,9 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
+    // Check if user already has a valid session
+    await checkAuth();
     loadSettings();
 
     function handleKeydown(e) {
@@ -50,7 +56,6 @@
         showSearch = !showSearch;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        // Don't override browser new window if not in Tauri
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         e.preventDefault();
         showQuickCreate = !showQuickCreate;
@@ -64,6 +69,10 @@
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   });
+
+  function handleLock() {
+    authPage = 'lock';
+  }
 </script>
 
 <SplashScreen on:done={() => splashDone = true} />
@@ -71,54 +80,68 @@
 <GlassBackground />
 
 {#if splashDone}
-  <Sidebar />
-
-<main class="content">
-  {#key $currentPage}
-  <div class="page-transition">
-  {#if $currentPage === '/'}
-    <HomePage />
-  {:else if $currentPage === '/news'}
-    <NewsPage />
-  {:else if $currentPage === '/planning'}
-    <PlanningPage />
-  {:else if $currentPage === '/tasks'}
-    <TasksPage />
-  {:else if $currentPage === '/documents'}
-    <DocumentsPage />
-  {:else if $currentPage === '/suppliers'}
-    <SuppliersPage />
-  {:else if $currentPage === '/parc'}
-    <ParcPage />
-  {:else if $currentPage === '/security'}
-    <SecurityPage />
-  {:else if $currentPage === '/wiki'}
-    <WikiPage />
-  {:else if $currentPage === '/changelog'}
-    <ChangelogPage />
-  {:else if $currentPage === '/monitoring'}
-    <MonitoringPage />
-  {:else if $currentPage === '/launcher'}
-    <LauncherPage />
-  {:else if $currentPage === '/tools'}
-    <ToolsPage />
-  {:else if $currentPage === '/settings'}
-    <SettingsPage />
+  {#if !$isAuthenticated}
+    {#if authPage === 'register'}
+      <RegisterPage on:switch-to-login={() => authPage = 'login'} />
+    {:else if authPage === 'lock'}
+      <LockScreenPage
+        user={$currentUser}
+        on:unlock={() => authPage = 'login'}
+        on:switch-user={() => { logout(); authPage = 'login'; }}
+      />
+    {:else}
+      <LoginPage on:switch-to-register={() => authPage = 'register'} />
+    {/if}
   {:else}
-    <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
+    <Sidebar on:lock={handleLock} />
+
+    <main class="content">
+      {#key $currentPage}
+      <div class="page-transition">
+      {#if $currentPage === '/'}
+        <HomePage />
+      {:else if $currentPage === '/news'}
+        <NewsPage />
+      {:else if $currentPage === '/planning'}
+        <PlanningPage />
+      {:else if $currentPage === '/tasks'}
+        <TasksPage />
+      {:else if $currentPage === '/documents'}
+        <DocumentsPage />
+      {:else if $currentPage === '/suppliers'}
+        <SuppliersPage />
+      {:else if $currentPage === '/parc'}
+        <ParcPage />
+      {:else if $currentPage === '/security'}
+        <SecurityPage />
+      {:else if $currentPage === '/wiki'}
+        <WikiPage />
+      {:else if $currentPage === '/changelog'}
+        <ChangelogPage />
+      {:else if $currentPage === '/monitoring'}
+        <MonitoringPage />
+      {:else if $currentPage === '/launcher'}
+        <LauncherPage />
+      {:else if $currentPage === '/tools'}
+        <ToolsPage />
+      {:else if $currentPage === '/settings'}
+        <SettingsPage />
+      {:else}
+        <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
+      {/if}
+      </div>
+      {/key}
+    </main>
+
+    <Toast />
+
+    {#if showSearch}
+      <SearchPalette on:close={() => showSearch = false} />
+    {/if}
+    {#if showQuickCreate}
+      <QuickCreate on:close={() => showQuickCreate = false} />
+    {/if}
   {/if}
-  </div>
-  {/key}
-</main>
-
-<Toast />
-
-{#if showSearch}
-  <SearchPalette on:close={() => showSearch = false} />
-{/if}
-{#if showQuickCreate}
-  <QuickCreate on:close={() => showQuickCreate = false} />
-{/if}
 {/if}
 
 <style>
