@@ -178,25 +178,28 @@
     letter-spacing: -0.3px;
   }
 
+  /* ── YashAdmin collapse toggle — exact match ── */
   .nav-control {
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 1.75rem;
-    height: 1.75rem;
+    width: 2.25rem;
+    height: 2.25rem;
     border-radius: 50%;
     background: var(--bg-base);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-secondary);
+    border: 0.1875rem solid var(--secondary);
+    color: var(--secondary);
     transition: all 0.2s ease;
     flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   }
 
   .nav-control:hover {
-    background: var(--primary);
-    border-color: var(--primary);
+    background: var(--secondary);
+    border-color: var(--secondary);
     color: #fff;
+    transform: scale(1.1);
   }
 
   /* ═══════════════════════════════════════

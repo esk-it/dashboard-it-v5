@@ -2,9 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
-  // Auth store will be added later
-  const currentUser = { subscribe: (fn) => { fn(null); return () => {}; } };
-  function logout() {}
+  import { currentUser, logout } from '../stores/auth.js';
   import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();

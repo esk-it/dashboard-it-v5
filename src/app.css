@@ -203,10 +203,29 @@
   border-color: var(--border-subtle) !important;
 }
 
-[data-theme="glass-light"] aside,
-[data-theme="glass-light"] .sidebar,
-[data-theme="glass-light"] nav {
+/* Light — Sidebar & nav-header */
+[data-theme="glass-light"] .deznav,
+[data-theme="glass-light"] .nav-header {
   background: var(--bg-sidebar) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-theme="glass-light"] .deznav .nav-text,
+[data-theme="glass-light"] .deznav .menu-icon {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="glass-light"] .deznav .mm-active a,
+[data-theme="glass-light"] .deznav .mm-active .nav-text {
+  color: var(--primary) !important;
+}
+
+[data-theme="glass-light"] .nav-header .brand-title {
+  color: var(--text-heading) !important;
+}
+
+[data-theme="glass-light"] .deznav .menu-title {
+  color: var(--text-muted) !important;
 }
 
 /* Light — Dialogs */

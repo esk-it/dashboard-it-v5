@@ -2,12 +2,15 @@
   import { onMount } from 'svelte';
   import { currentPage, sidebarOpen } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
+  import { isAuthenticated, checkAuth, logout } from './lib/stores/auth.js';
   import SplashScreen from './lib/components/SplashScreen.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Navbar from './lib/components/Navbar.svelte';
   import Toast from './lib/components/Toast.svelte';
   import SearchPalette from './lib/components/SearchPalette.svelte';
   import QuickCreate from './lib/components/QuickCreate.svelte';
+  import LoginPage from './lib/pages/LoginPage.svelte';
+  import LockScreenPage from './lib/pages/LockScreenPage.svelte';
   import HomePage from './lib/pages/HomePage.svelte';
   import PlaceholderPage from './lib/pages/PlaceholderPage.svelte';
   import PlanningPage from './lib/pages/PlanningPage.svelte';
@@ -65,9 +68,14 @@
 <SplashScreen on:done={() => splashDone = true} />
 
 {#if splashDone}
+  {#if $currentPage === '/login'}
+    <LoginPage />
+  {:else if $currentPage === '/lock'}
+    <LockScreenPage />
+  {:else}
   <!-- YashAdmin layout: nav-header + sidebar (in Sidebar component), header on top, content-body below -->
   <Sidebar />
-  <Navbar on:search={() => showSearch = !showSearch} on:lock={() => {}} />
+  <Navbar on:search={() => showSearch = !showSearch} on:lock={() => currentPage.set('/lock')} />
 
   <div class="content-body" class:sidebar-collapsed={!$sidebarOpen}>
     {#key $currentPage}
@@ -114,6 +122,7 @@
   {/if}
   {#if showQuickCreate}
     <QuickCreate on:close={() => showQuickCreate = false} />
+  {/if}
   {/if}
 {/if}
 
