@@ -78,7 +78,7 @@
     right: 0;
     bottom: 0;
     z-index: 999999;
-    background: #070B14;
+    background: var(--bg-base, #070B14);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -111,14 +111,14 @@
     object-fit: contain;
     z-index: 2;
     position: relative;
-    filter: drop-shadow(0 0 20px rgba(6, 166, 201, 0.4));
+    filter: drop-shadow(0 0 20px rgba(69, 43, 144, 0.5));
     animation: iconPulse 2s ease-in-out infinite;
   }
   .splash-icon {
     font-size: 48px;
     z-index: 2;
     position: relative;
-    filter: drop-shadow(0 0 20px rgba(6, 166, 201, 0.5));
+    filter: drop-shadow(0 0 20px rgba(69, 43, 144, 0.6));
     animation: iconPulse 2s ease-in-out infinite;
   }
 
@@ -131,7 +131,7 @@
 
   .ring {
     position: absolute;
-    border: 2px solid rgba(6, 166, 201, 0.3);
+    border: 2px solid rgba(69, 43, 144, 0.4);
     border-radius: 50%;
     top: 50%;
     left: 50%;
@@ -170,10 +170,10 @@
 
   .splash-progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #06A6C9, #7c3aed);
+    background: linear-gradient(90deg, #452B90, #7c3aed);
     border-radius: 2px;
     transition: width 0.4s ease;
-    box-shadow: 0 0 12px rgba(6, 166, 201, 0.4);
+    box-shadow: 0 0 12px rgba(69, 43, 144, 0.5);
   }
 
   .splash-status {
@@ -204,13 +204,13 @@
       width: 70px;
       height: 70px;
       opacity: 0.6;
-      border-color: rgba(6, 166, 201, 0.4);
+      border-color: rgba(69, 43, 144, 0.5);
     }
     100% {
       width: 140px;
       height: 140px;
       opacity: 0;
-      border-color: rgba(6, 166, 201, 0);
+      border-color: rgba(69, 43, 144, 0);
     }
   }
 </style>

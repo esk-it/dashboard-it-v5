@@ -1,5 +1,6 @@
 <script>
   import { toasts } from '../stores/toast.js';
+  import { CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-svelte';
 
   const typeColors = {
     success: 'var(--success)',
@@ -8,18 +9,20 @@
     info: 'var(--info)',
   };
 
-  const typeEmojis = {
-    success: '✅',
-    error: '\u274C',
-    warning: '\u26A0\uFE0F',
-    info: 'ℹ\uFE0F',
+  const typeIcons = {
+    success: CheckCircle,
+    error: XCircle,
+    warning: AlertTriangle,
+    info: Info,
   };
 </script>
 
 <div class="toast-container">
   {#each $toasts as toast (toast.id)}
     <div class="toast-item" style="border-left-color: {typeColors[toast.type] || typeColors.info};">
-      <span class="toast-icon">{typeEmojis[toast.type] || typeEmojis.info}</span>
+      <span class="toast-icon" style="color: {typeColors[toast.type] || typeColors.info};">
+        <svelte:component this={typeIcons[toast.type] || typeIcons.info} size={16} />
+      </span>
       <span class="toast-message">{toast.message}</span>
     </div>
   {/each}

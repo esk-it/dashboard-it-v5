@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { Globe, Rss, Search, ExternalLink } from 'lucide-svelte';
 
   // ── State ──────────────────────────────────────────────
   let feeds = [];
@@ -209,7 +210,7 @@
     <aside class="feeds-panel">
       <div class="feeds-header">
         <h3>Flux RSS</h3>
-        <span class="feeds-header-icon">&#x1F4E1;</span>
+        <span class="feeds-header-icon"><Rss size={16} /></span>
       </div>
 
       {#if loadingFeeds}
@@ -252,7 +253,7 @@
           <div class="articles-header-right">
             <!-- Search -->
             <div class="search-box">
-              <span class="search-icon">&#x1F50D;</span>
+              <span class="search-icon"><Search size={13} /></span>
               <input
                 type="text"
                 placeholder="Rechercher..."
@@ -361,7 +362,7 @@
                         {#if article.summary}
                           <p class="article-summary">{truncate(article.summary)}</p>
                         {/if}
-                        <span class="article-link-icon" title="Ouvrir dans le navigateur">&#x2197;</span>
+                        <span class="article-link-icon" title="Ouvrir dans le navigateur"><ExternalLink size={14} /></span>
                       </div>
                     {/each}
                   </div>
@@ -405,7 +406,7 @@
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
                           {/if}
                         </button>
-                        <span class="article-link-icon">&#x2197;</span>
+                        <span class="article-link-icon"><ExternalLink size={14} /></span>
                       </div>
                     </div>
                   </div>
@@ -436,7 +437,7 @@
         </div>
         <div class="reading-actions">
           <button class="btn-open-browser" on:click={() => openInBrowser()} title="Ouvrir dans le navigateur">
-            {'\u{1F310}'} Navigateur
+            <Globe size={14} /> Navigateur
           </button>
           <button class="btn-close-reading" on:click={closeReading}>{'\u2715'}</button>
         </div>
@@ -451,7 +452,7 @@
       </div>
       <div class="reading-footer">
         <button class="btn-open-browser full" on:click={() => openInBrowser()}>
-          {'\u{1F310}'} Lire l'article complet dans le navigateur
+          <Globe size={14} /> Lire l'article complet dans le navigateur
         </button>
       </div>
     </div>
@@ -463,11 +464,11 @@
   .reading-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 90;
     display: flex; justify-content: center; align-items: center;
-    backdrop-filter: blur(4px); animation: fadeIn 0.15s ease;
+    backdrop-filter: blur(4px); animation: pageSlideIn 0.15s ease;
   }
   .reading-panel {
     width: 720px; max-width: 95vw; max-height: 90vh;
-    background: var(--bg-card-solid, #1a1a2e);
+    background: var(--bg-card-solid, var(--bg-base));
     border: 1px solid var(--border-subtle); border-radius: 16px;
     display: flex; flex-direction: column; overflow: hidden;
     box-shadow: 0 20px 60px rgba(0,0,0,0.4);
@@ -486,7 +487,7 @@
   .reading-date { font-size: 12px; color: var(--text-muted); }
   .reading-actions { display: flex; gap: 8px; align-items: center; }
   .btn-open-browser {
-    background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle);
+    background: var(--overlay-white-06); border: 1px solid var(--border-subtle);
     border-radius: 8px; padding: 5px 12px; color: var(--text-secondary);
     font-size: 12px; cursor: pointer; font-family: inherit; transition: all 0.15s;
   }
@@ -519,7 +520,7 @@
 
   /* ── Page ──────────────────────────────────────────────── */
   .news-page {
-    animation: fadeIn 0.35s ease-out;
+    animation: pageSlideIn 0.35s ease-out;
     height: calc(100vh - 56px);
   }
 
@@ -836,7 +837,7 @@
 
   .article-card:hover {
     border-color: var(--border-hover);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--overlay-white-04);
   }
 
   .article-card.article-read {
@@ -956,7 +957,7 @@
 
   .article-list-item:hover {
     border-color: var(--border-hover);
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--overlay-white-04);
   }
 
   .article-list-item.article-read {

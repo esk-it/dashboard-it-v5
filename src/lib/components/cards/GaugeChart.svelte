@@ -1,10 +1,13 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../api/client.js';
   import GlassCard from '../GlassCard.svelte';
+  import ApexCharts from 'apexcharts';
 
   let percent = 0;
   let loading = true;
+  let chartEl;
+  let chart;
 
   export function refresh() {
     fetchData();
@@ -12,6 +15,10 @@
 
   onMount(() => {
     fetchData();
+  });
+
+  onDestroy(() => {
+    if (chart) chart.destroy();
   });
 
   async function fetchData() {
@@ -23,65 +30,85 @@
       percent = 0;
     }
     loading = false;
+    renderChart();
   }
 
-  // SVG arc math
-  const cx = 100;
-  const cy = 100;
-  const r = 80;
-  const startAngle = Math.PI;
-  const endAngle = 2 * Math.PI;
+  function renderChart() {
+    if (!chartEl) return;
 
-  function polarToCartesian(angle) {
-    return {
-      x: cx + r * Math.cos(angle),
-      y: cy + r * Math.sin(angle),
+    if (chart) {
+      chart.updateSeries([Math.round(percent)]);
+      return;
+    }
+
+    const options = {
+      series: [Math.round(percent)],
+      chart: {
+        type: 'radialBar',
+        height: 220,
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 800
+        }
+      },
+      colors: ['#452B90'],
+      plotOptions: {
+        radialBar: {
+          hollow: {
+            size: '60%',
+            background: 'transparent'
+          },
+          track: {
+            background: 'rgba(var(--primary-rgb), 0.1)',
+            strokeWidth: '100%'
+          },
+          dataLabels: {
+            show: true,
+            name: {
+              show: true,
+              fontSize: '13px',
+              color: 'var(--text-secondary)',
+              offsetY: -8
+            },
+            value: {
+              show: true,
+              fontSize: '28px',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              offsetY: 4,
+              formatter: (val) => val + '%'
+            }
+          }
+        }
+      },
+      labels: ['Completion'],
+      stroke: {
+        lineCap: 'round'
+      }
     };
+
+    chart = new ApexCharts(chartEl, options);
+    chart.render();
   }
 
-  function describeArc(startA, endA) {
-    const start = polarToCartesian(startA);
-    const end = polarToCartesian(endA);
-    const largeArc = endA - startA > Math.PI ? 1 : 0;
-    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  $: if (!loading && chartEl && !chart) {
+    renderChart();
   }
-
-  $: filledAngle = startAngle + (percent / 100) * (endAngle - startAngle);
-  $: trackPath = describeArc(startAngle, endAngle);
-  $: fillPath = percent > 0 ? describeArc(startAngle, Math.min(filledAngle, endAngle - 0.01)) : '';
 </script>
 
 <GlassCard padding="0">
   <div class="card-inner">
     <div class="card-header">
-      <h3>{'\u{1F4C8}'} Compl&eacute;tion du mois</h3>
+      <h3>Compl&eacute;tion du mois</h3>
     </div>
 
     <div class="gauge-container">
-      <svg viewBox="0 0 200 120" class="gauge-svg">
-        <!-- Track -->
-        <path
-          d={trackPath}
-          fill="none"
-          stroke="rgba(255,255,255,0.06)"
-          stroke-width="14"
-          stroke-linecap="round"
-        />
-        <!-- Fill -->
-        {#if percent > 0}
-          <path
-            d={fillPath}
-            fill="none"
-            stroke="var(--accent)"
-            stroke-width="14"
-            stroke-linecap="round"
-            class="gauge-fill"
-          />
-        {/if}
-      </svg>
-      <div class="gauge-label">
-        <span class="gauge-value">{Math.round(percent)}%</span>
-      </div>
+      {#if !loading}
+        <div bind:this={chartEl}></div>
+      {:else}
+        <div class="loading">Chargement...</div>
+      {/if}
     </div>
   </div>
 </GlassCard>
@@ -104,34 +131,23 @@
   }
 
   .gauge-container {
-    position: relative;
+    padding: 8px 20px 16px;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 8px 20px 20px;
   }
 
-  .gauge-svg {
+  .gauge-container > div {
     width: 100%;
-    max-width: 220px;
+    max-width: 280px;
   }
 
-  .gauge-fill {
-    filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.5));
-    transition: d 0.6s ease;
-  }
-
-  .gauge-label {
-    position: absolute;
-    bottom: 28px;
+  .loading {
     display: flex;
-    flex-direction: column;
     align-items: center;
-  }
-
-  .gauge-value {
-    font-size: 28px;
-    font-weight: 700;
-    color: var(--text-primary);
+    justify-content: center;
+    height: 200px;
+    color: var(--text-muted);
+    font-size: 13px;
   }
 </style>

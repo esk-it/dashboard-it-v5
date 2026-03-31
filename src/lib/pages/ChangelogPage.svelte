@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { Search, Pencil, Trash2, User, Calendar } from 'lucide-svelte';
 
   // ── Constants ──────────────────────────────────────────────
   const IMPACT_LEVELS = [
@@ -18,7 +19,7 @@
     'Application':   '#22C55E',
     'Infrastructure':'#F59E0B',
     'Poste':         '#EC4899',
-    'Active Directory': '#06A6C9',
+    'Active Directory': 'var(--primary)',
     'Messagerie':    '#F97316',
   };
 
@@ -199,7 +200,7 @@
     if (!name) return;
     addingCategory = true;
     try {
-      const colors = ['#3B82F6','#8B5CF6','#EF4444','#22C55E','#F59E0B','#EC4899','#06A6C9','#F97316','#64748B'];
+      const colors = ['#3B82F6','#8B5CF6','#EF4444','#22C55E','#F59E0B','#EC4899','var(--primary)','#F97316','#64748B'];
       const color = colors[categories.length % colors.length];
       await api.post('/api/changelog/categories', { name, color_hex: color });
       await fetchCategories();
@@ -264,7 +265,7 @@
         {/each}
       </select>
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon"><Search size={14} /></span>
         <input type="text" placeholder="Rechercher..." on:input={onSearchInput} class="search-input" />
       </div>
     </div>
@@ -316,8 +317,8 @@
                   {/if}
                 </div>
                 <div class="timeline-actions">
-                  <button class="btn-icon" on:click={() => openEditDialog(entry)} title="Modifier">{'\u270F\uFE0F'}</button>
-                  <button class="btn-icon btn-icon-danger" on:click={() => { confirmDeleteId = entry.id; }} title="Supprimer">{'\u{1F5D1}\uFE0F'}</button>
+                  <button class="btn-icon" on:click={() => openEditDialog(entry)} title="Modifier"><Pencil size={14} /></button>
+                  <button class="btn-icon btn-icon-danger" on:click={() => { confirmDeleteId = entry.id; }} title="Supprimer"><Trash2 size={14} /></button>
                 </div>
               </div>
               <h3 class="timeline-title">{entry.title}</h3>
@@ -326,10 +327,10 @@
               {/if}
               <div class="timeline-meta">
                 {#if entry.author}
-                  <span class="meta-item">{'\u{1F464}'} {entry.author}</span>
+                  <span class="meta-item"><User size={12} /> {entry.author}</span>
                 {/if}
                 {#if entry.event_date}
-                  <span class="meta-item">{'\u{1F4C5}'} {formatDate(entry.event_date)}</span>
+                  <span class="meta-item"><Calendar size={12} /> {formatDate(entry.event_date)}</span>
                 {/if}
               </div>
             </div>
@@ -436,7 +437,7 @@
 <style>
   /* ── Page ──────────────────────────────────────────────── */
   .changelog-page {
-    animation: fadeIn 0.35s ease-out;
+    animation: pageSlideIn 0.35s ease-out;
   }
 
   /* ── Stats bar ─────────────────────────────────────────── */
@@ -596,7 +597,7 @@
     gap: 12px;
     margin-bottom: 12px;
     position: relative;
-    animation: fadeIn 0.3s ease-out;
+    animation: pageSlideIn 0.3s ease-out;
   }
 
   /* Date column on the left */
@@ -631,7 +632,7 @@
     top: 18px;
     bottom: -12px;
     width: 2px;
-    background: linear-gradient(180deg, var(--border-subtle), rgba(255,255,255,0.03));
+    background: linear-gradient(180deg, var(--border-subtle), var(--overlay-white-03));
     left: 50%;
     transform: translateX(-50%);
   }
@@ -670,8 +671,8 @@
 
   .tag-badge {
     font-size: 10px; padding: 1px 6px; border-radius: 4px;
-    background: rgba(255,255,255,0.06); color: var(--text-muted);
-    border: 1px solid rgba(255,255,255,0.06);
+    background: var(--overlay-white-06); color: var(--text-muted);
+    border: 1px solid var(--overlay-white-06);
   }
 
   .timeline-card-header {
@@ -743,7 +744,7 @@
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
   }
 
   .btn-icon-danger:hover {
@@ -813,7 +814,7 @@
   }
 
   .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
     color: var(--text-primary);
   }
 
@@ -877,7 +878,7 @@
   }
 
   .form-input {
-    background: var(--bg-input, rgba(255,255,255,0.05));
+    background: var(--bg-input, var(--overlay-white-05));
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     color: var(--text-primary);

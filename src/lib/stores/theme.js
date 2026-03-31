@@ -1,9 +1,10 @@
 import { writable } from 'svelte/store';
 
-// Theme: 'glass' (dark) or 'glass-light'
+// Theme: 'dark' or 'light'
 const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('itm-theme') : null;
-export const theme = writable(stored || 'glass');
-export const accent = writable('#06A6C9');
+// Migrate old theme names
+const initial = stored === 'glass' ? 'dark' : stored === 'glass-light' ? 'light' : (stored || 'dark');
+export const theme = writable(initial);
 
 // Apply theme to DOM
 theme.subscribe(value => {
@@ -14,5 +15,5 @@ theme.subscribe(value => {
 });
 
 export function toggleTheme() {
-  theme.update(t => t === 'glass' ? 'glass-light' : 'glass');
+  theme.update(t => t === 'dark' ? 'light' : 'dark');
 }

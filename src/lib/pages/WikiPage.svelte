@@ -3,6 +3,7 @@
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
   import { marked } from 'marked';
+  import { FolderOpen, Tag, FileText, Link, Code, FileCode, Search } from 'lucide-svelte';
 
   // ── Constants ──────────────────────────────────────────────
   const CATEGORY_COLORS = {
@@ -13,7 +14,7 @@
     'Poste':         '#F59E0B',
     'Infrastructure':'#EC4899',
     'Messagerie':    '#F97316',
-    'Active Directory': '#06A6C9',
+    'Active Directory': 'var(--primary)',
     'Procédure':     '#029AC0',
   };
 
@@ -209,7 +210,7 @@
     const colors = {
       PROC: '#6C63FF', DOC: '#22C55E', GUIDE: '#F59E0B', FORM: '#EC4899', NOTE: '#64748B',
       SI: '#3B82F6', RES: '#8B5CF6', SEC: '#EF4444', PED: '#22C55E', ADM: '#F97316',
-      TEL: '#06A6C9', IMP: '#D97706', SRV: '#7C3AED',
+      TEL: 'var(--primary)', IMP: '#D97706', SRV: '#7C3AED',
       INST: '#10B981', CONF: '#6366F1', MAJ: '#F59E0B', DIAG: '#EF4444',
       DEPL: '#8B5CF6', SAV: '#22D3EE', REST: '#EC4899', MIGR: '#F97316',
     };
@@ -499,10 +500,10 @@
         <!-- Sidebar tabs -->
         <div class="sidebar-tabs">
           <button class="stab" class:stab-active={showRefSidebar === false} on:click={() => showRefSidebar = false}>
-            {'\u{1F4C2}'} Cat{'\u00e9'}gories
+            <FolderOpen size={13} /> Cat{'\u00e9'}gories
           </button>
           <button class="stab" class:stab-active={showRefSidebar === true} on:click={() => showRefSidebar = true}>
-            {'\u{1F3F7}\uFE0F'} R{'\u00e9'}f{'\u00e9'}rences
+            <Tag size={13} /> R{'\u00e9'}f{'\u00e9'}rences
           </button>
         </div>
 
@@ -593,7 +594,7 @@
               {#if refTree.unclassified.length > 0}
                 <button class="cat-item" class:cat-active={filterSegment === '_none'}
                   on:click={() => { filterSegment = filterSegment === '_none' ? '' : '_none'; filterCategory = ''; }}>
-                  <span class="cat-name">{'\u{1F4C4}'} Sans r{'\u00e9'}f{'\u00e9'}rence</span>
+                  <span class="cat-name"><FileText size={12} /> Sans r{'\u00e9'}f{'\u00e9'}rence</span>
                   <span class="cat-count">{refTree.unclassified.length}</span>
                 </button>
               {/if}
@@ -732,7 +733,7 @@
           <!-- Related procedures -->
           {#if relatedArticles.length > 0}
             <div class="related-section">
-              <h3>{'\u{1F517}'} Proc{'\u00e9'}dures li{'\u00e9'}es</h3>
+              <h3><Link size={15} /> Proc{'\u00e9'}dures li{'\u00e9'}es</h3>
               <div class="related-list">
                 {#each relatedArticles as rel}
                   {@const rParts = parseRefFromTitle(rel.title)}
@@ -791,7 +792,7 @@
       <div class="modal-body">
         <!-- Reference generator -->
           <div class="ref-generator">
-            <span class="ref-gen-label">{'\u{1F3F7}\uFE0F'} R{'\u00e9'}f{'\u00e9'}rence :</span>
+            <span class="ref-gen-label"><Tag size={12} /> R{'\u00e9'}f{'\u00e9'}rence :</span>
             <select class="ref-gen-select" bind:value={refType}>
               <option value="">—</option>
               <option value="PROC">PROC</option>
@@ -894,9 +895,9 @@
               <button type="button" class="md-btn" title="Liste num{'\u00e9'}rot{'\u00e9'}e" on:click={() => mdPrefix('1. ')}>1.</button>
               <button type="button" class="md-btn" title="Case {'\u00e0'} cocher" on:click={() => mdPrefix('- [ ] ')}>{'\u2610'}</button>
               <span class="md-sep"></span>
-              <button type="button" class="md-btn" title="Code inline" on:click={() => mdWrap('`','`')}>{'\u{1F4BB}'}</button>
-              <button type="button" class="md-btn" title="Bloc de code" on:click={() => mdWrap('\n```\n','\n```\n')}>{'\u{1F4C4}'}</button>
-              <button type="button" class="md-btn" title="Lien" on:click={() => mdWrap('[','](url)')}>{'\u{1F517}'}</button>
+              <button type="button" class="md-btn" title="Code inline" on:click={() => mdWrap('`','`')}><Code size={14} /></button>
+              <button type="button" class="md-btn" title="Bloc de code" on:click={() => mdWrap('\n```\n','\n```\n')}><FileCode size={14} /></button>
+              <button type="button" class="md-btn" title="Lien" on:click={() => mdWrap('[','](url)')}><Link size={14} /></button>
               <button type="button" class="md-btn" title="Citation" on:click={() => mdPrefix('> ')}>{'\u275D'}</button>
               <button type="button" class="md-btn" title="Ligne horizontale" on:click={() => mdInsert('\n---\n')}>—</button>
             </div>
@@ -922,7 +923,7 @@
 <style>
   /* ── Page ──────────────────────────────────────────────── */
   .wiki-page {
-    animation: fadeIn 0.35s ease-out;
+    animation: pageSlideIn 0.35s ease-out;
     height: calc(100vh - 56px);
   }
 
@@ -1008,7 +1009,7 @@
   .cat-count {
     font-size: 11px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-06);
     padding: 1px 6px;
     border-radius: 8px;
     flex-shrink: 0;
@@ -1149,7 +1150,7 @@
 
   .article-row:hover {
     border-color: var(--border-hover);
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--overlay-white-03);
   }
 
   .article-row-left {
@@ -1237,7 +1238,7 @@
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
   }
 
   .btn-icon-danger:hover {
@@ -1246,7 +1247,7 @@
 
   /* ── Article View ───────────────────────────────────────── */
   .article-view {
-    animation: fadeIn 0.25s ease-out;
+    animation: pageSlideIn 0.25s ease-out;
   }
 
   .article-view-header {
@@ -1468,7 +1469,7 @@
   }
 
   .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
     color: var(--text-primary);
   }
 
@@ -1538,7 +1539,7 @@
   }
 
   .form-input {
-    background: var(--bg-input, rgba(255,255,255,0.05));
+    background: var(--bg-input, var(--overlay-white-05));
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     color: var(--text-primary);
@@ -1602,9 +1603,9 @@
     --kr-blockquote-bg: rgba(236, 72, 153, 0.08);
     --kr-blockquote-border: #EC4899;
     --kr-blockquote-text: #F9A8D4;
-    --kr-h2-bg: rgba(255, 255, 255, 0.04);
-    --kr-h3-bg: rgba(255, 255, 255, 0.03);
-    --kr-h4-bg: rgba(255, 255, 255, 0.02);
+    --kr-h2-bg: var(--overlay-white-04);
+    --kr-h3-bg: var(--overlay-white-03);
+    --kr-h4-bg: var(--overlay-white-02);
 
     font-family: "Segoe UI", Inter, sans-serif;
     line-height: 1.7;
@@ -1630,7 +1631,7 @@
     margin-top: 40px;
     margin-bottom: 8px;
     border-left: 6px solid var(--kr-secondary);
-    border-bottom: 2px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 2px solid var(--overlay-white-04);
     border-radius: 6px;
     font-size: 1.45rem;
   }
@@ -1784,7 +1785,7 @@
 
   /* ── TOC (Table of Contents) ── */
   .kreisker-content :global(.procedure-toc) {
-    background-color: rgba(255, 255, 255, 0.03);
+    background-color: var(--overlay-white-03);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     padding: 14px 18px;
@@ -1868,31 +1869,31 @@
   .md-toolbar {
     display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
     padding: 6px 8px; margin-bottom: 4px;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: var(--overlay-white-04);
+    border: 1px solid var(--overlay-white-08);
     border-radius: 8px 8px 0 0;
     border-bottom: none;
   }
   .md-btn {
-    background: none; border: none; color: rgba(255,255,255,0.6);
+    background: none; border: none; color: var(--text-secondary);
     padding: 4px 8px; border-radius: 5px; cursor: pointer;
     font-size: 0.8rem; font-family: inherit; transition: all 0.15s;
     min-width: 28px; text-align: center;
   }
-  .md-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .md-btn:hover { background: var(--overlay-white-10); color: #fff; }
   .md-sep {
-    width: 1px; height: 18px; background: rgba(255,255,255,0.1);
+    width: 1px; height: 18px; background: var(--overlay-white-10);
     margin: 0 4px;
   }
 
   /* ── Sidebar tabs ───────────────────────────────────────── */
-  .sidebar-tabs { display: flex; gap: 2px; padding: 0 0 8px; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
+  .sidebar-tabs { display: flex; gap: 2px; padding: 0 0 8px; border-bottom: 1px solid var(--overlay-white-06); margin-bottom: 8px; }
   .stab {
     flex: 1; background: none; border: none; color: var(--text-muted);
     font-size: 0.72rem; padding: 6px 4px; cursor: pointer; border-radius: 6px;
     font-family: inherit; transition: all 0.15s; text-align: center;
   }
-  .stab:hover { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
+  .stab:hover { background: var(--overlay-white-04); color: var(--text-secondary); }
   .stab.stab-active { background: rgba(var(--accent-rgb),0.12); color: var(--accent); font-weight: 600; }
 
   /* ── Reference tree ─────────────────────────────────────── */
@@ -1902,16 +1903,16 @@
   .ref-chevron { transition: transform 0.2s; flex-shrink: 0; color: var(--text-muted); }
   .ref-chevron.ref-open { transform: rotate(90deg); }
   .ref-type { font-weight: 600; }
-  .ref-domain-node { margin-left: 14px; padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.06); }
-  .ref-tool-node { margin-left: 14px; padding-left: 8px; border-left: 1px solid rgba(255,255,255,0.06); }
+  .ref-domain-node { margin-left: 14px; padding-left: 8px; border-left: 1px solid var(--overlay-white-06); }
+  .ref-tool-node { margin-left: 14px; padding-left: 8px; border-left: 1px solid var(--overlay-white-06); }
   .ref-article-item {
     display: flex; align-items: center; gap: 6px;
     margin-left: 14px; padding: 5px 8px 5px 16px;
-    border-left: 1px solid rgba(255,255,255,0.04);
+    border-left: 1px solid var(--overlay-white-04);
     cursor: pointer; border-radius: 6px; transition: background 0.15s;
     font-size: 0.78rem; color: var(--text-secondary);
   }
-  .ref-article-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+  .ref-article-item:hover { background: var(--overlay-white-05); color: var(--text-primary); }
   .ref-article-title {
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
   }
@@ -1939,11 +1940,11 @@
   .related-item {
     display: flex; align-items: center; gap: 8px;
     padding: 8px 12px; border-radius: 8px;
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.05);
+    background: var(--overlay-white-03);
+    border: 1px solid var(--overlay-white-05);
     cursor: pointer; transition: all 0.15s;
   }
-  .related-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+  .related-item:hover { background: var(--overlay-white-06); border-color: var(--overlay-white-10); }
   .related-item.related-strong { border-left: 3px solid var(--accent); }
   .related-title { flex: 1; font-size: 0.85rem; color: var(--text-primary); }
   .related-match { font-size: 0.7rem; color: var(--text-muted); white-space: nowrap; }
@@ -1958,14 +1959,14 @@
   }
   .ref-gen-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
   .ref-gen-select {
-    padding: 4px 8px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 4px 8px; background: var(--overlay-white-06);
+    border: 1px solid var(--overlay-white-10); border-radius: 6px;
     color: var(--text-primary); font-size: 0.78rem; font-family: inherit;
   }
   .ref-gen-select option { background: #1e1e2e; }
   .ref-gen-input {
-    padding: 4px 8px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 4px 8px; background: var(--overlay-white-06);
+    border: 1px solid var(--overlay-white-10); border-radius: 6px;
     color: var(--text-primary); font-size: 0.78rem; font-family: inherit;
   }
   .ref-gen-apply {

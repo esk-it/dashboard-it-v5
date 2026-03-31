@@ -2,6 +2,7 @@
   import { createEventDispatcher, onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { currentPage } from '../stores/navigation.js';
+  import { Search, CheckSquare, FileText, Contact, File } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();
 
@@ -77,11 +78,11 @@
     return groups;
   }
 
-  const typeEmojis = {
-    'task': '✅',
-    'document': '\u{1F4C4}',
-    'supplier': '\u{1F4C7}',
-    'page': '\u{1F4C3}',
+  const typeIcons = {
+    'task': CheckSquare,
+    'document': FileText,
+    'supplier': Contact,
+    'page': File,
   };
 </script>
 
@@ -90,7 +91,7 @@
 <div class="overlay" on:click={handleOverlayClick} on:keydown={handleKeydown}>
   <div class="palette">
     <div class="search-header">
-      <span class="search-icon">{'\u{1F50D}'}</span>
+      <span class="search-icon"><Search size={18} /></span>
       <input
         bind:this={inputEl}
         bind:value={query}
@@ -111,7 +112,7 @@
         {#each Object.entries(groupedResults) as [type, items]}
           <div class="result-group">
             <div class="group-label">
-              <span>{typeEmojis[type] || '\u{1F4C3}'}</span>
+              <span class="group-icon"><svelte:component this={typeIcons[type] || File} size={13} /></span>
               <span>{type}</span>
             </div>
             {#each items as item, i}
@@ -175,8 +176,15 @@
   }
 
   .search-icon {
-    font-size: 18px;
     flex-shrink: 0;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+  }
+  .group-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-muted);
   }
 
   .search-input {

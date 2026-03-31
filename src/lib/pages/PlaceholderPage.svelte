@@ -1,10 +1,11 @@
 <script>
+  import { Construction } from 'lucide-svelte';
   export let title = '';
-  export let emoji = '';
+  export let icon = Construction;
 </script>
 
 <div class="placeholder">
-  <span class="placeholder-emoji">{emoji}</span>
+  <span class="placeholder-icon"><svelte:component this={icon} size={48} /></span>
   <h2>{title}</h2>
   <p>Ce module sera bient&ocirc;t disponible.</p>
 </div>
@@ -16,14 +17,14 @@
     align-items: center;
     justify-content: center;
     min-height: 60vh;
-    animation: fadeIn 0.3s ease-out;
+    animation: pageSlideIn 0.3s ease-out;
     gap: 12px;
   }
 
-  .placeholder-emoji {
-    font-size: 56px;
+  .placeholder-icon {
     margin-bottom: 8px;
     opacity: 0.6;
+    color: var(--text-muted);
   }
 
   h2 {

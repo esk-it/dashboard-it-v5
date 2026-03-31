@@ -1,11 +1,12 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentPage } from './lib/stores/navigation.js';
+  import { currentPage, sidebarOpen } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
   import { isAuthenticated, currentUser, checkAuth, logout } from './lib/stores/auth.js';
   import GlassBackground from './lib/components/GlassBackground.svelte';
   import SplashScreen from './lib/components/SplashScreen.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
+  import Navbar from './lib/components/Navbar.svelte';
   import Toast from './lib/components/Toast.svelte';
   import SearchPalette from './lib/components/SearchPalette.svelte';
   import QuickCreate from './lib/components/QuickCreate.svelte';
@@ -27,6 +28,9 @@
   import LauncherPage from './lib/pages/LauncherPage.svelte';
   import ToolsPage from './lib/pages/ToolsPage.svelte';
   import SettingsPage from './lib/pages/SettingsPage.svelte';
+  import ChatPage from './lib/pages/ChatPage.svelte';
+  import EmailPage from './lib/pages/EmailPage.svelte';
+  import UserManagerPage from './lib/pages/UserManagerPage.svelte';
 
   let showSearch = false;
   let showQuickCreate = false;
@@ -73,6 +77,10 @@
   function handleLock() {
     authPage = 'lock';
   }
+
+  function handleSearch() {
+    showSearch = !showSearch;
+  }
 </script>
 
 <SplashScreen on:done={() => splashDone = true} />
@@ -93,45 +101,55 @@
       <LoginPage on:switch-to-register={() => authPage = 'register'} />
     {/if}
   {:else}
-    <Sidebar on:lock={handleLock} />
-
-    <main class="content">
-      {#key $currentPage}
-      <div class="page-transition">
-      {#if $currentPage === '/'}
-        <HomePage />
-      {:else if $currentPage === '/news'}
-        <NewsPage />
-      {:else if $currentPage === '/planning'}
-        <PlanningPage />
-      {:else if $currentPage === '/tasks'}
-        <TasksPage />
-      {:else if $currentPage === '/documents'}
-        <DocumentsPage />
-      {:else if $currentPage === '/suppliers'}
-        <SuppliersPage />
-      {:else if $currentPage === '/parc'}
-        <ParcPage />
-      {:else if $currentPage === '/security'}
-        <SecurityPage />
-      {:else if $currentPage === '/wiki'}
-        <WikiPage />
-      {:else if $currentPage === '/changelog'}
-        <ChangelogPage />
-      {:else if $currentPage === '/monitoring'}
-        <MonitoringPage />
-      {:else if $currentPage === '/launcher'}
-        <LauncherPage />
-      {:else if $currentPage === '/tools'}
-        <ToolsPage />
-      {:else if $currentPage === '/settings'}
-        <SettingsPage />
-      {:else}
-        <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
-      {/if}
+    <div class="app-wrapper" class:sidebar-collapsed={!$sidebarOpen}>
+      <Sidebar />
+      <div class="main-wrapper">
+        <Navbar on:search={handleSearch} on:lock={handleLock} />
+        <main class="content">
+          {#key $currentPage}
+          <div class="page-transition">
+          {#if $currentPage === '/'}
+            <HomePage />
+          {:else if $currentPage === '/news'}
+            <NewsPage />
+          {:else if $currentPage === '/planning'}
+            <PlanningPage />
+          {:else if $currentPage === '/tasks'}
+            <TasksPage />
+          {:else if $currentPage === '/documents'}
+            <DocumentsPage />
+          {:else if $currentPage === '/suppliers'}
+            <SuppliersPage />
+          {:else if $currentPage === '/parc'}
+            <ParcPage />
+          {:else if $currentPage === '/security'}
+            <SecurityPage />
+          {:else if $currentPage === '/wiki'}
+            <WikiPage />
+          {:else if $currentPage === '/changelog'}
+            <ChangelogPage />
+          {:else if $currentPage === '/monitoring'}
+            <MonitoringPage />
+          {:else if $currentPage === '/launcher'}
+            <LauncherPage />
+          {:else if $currentPage === '/tools'}
+            <ToolsPage />
+          {:else if $currentPage === '/settings'}
+            <SettingsPage />
+          {:else if $currentPage === '/chat'}
+            <ChatPage />
+          {:else if $currentPage === '/email'}
+            <EmailPage />
+          {:else if $currentPage === '/users'}
+            <UserManagerPage />
+          {:else}
+            <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
+          {/if}
+          </div>
+          {/key}
+        </main>
       </div>
-      {/key}
-    </main>
+    </div>
 
     <Toast />
 
@@ -145,16 +163,37 @@
 {/if}
 
 <style>
+  .app-wrapper {
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .main-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-left: 250px;
+    transition: margin-left 250ms ease;
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .sidebar-collapsed .main-wrapper {
+    margin-left: 75px;
+  }
+
   .content {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     padding: 28px 32px;
-    min-height: 100vh;
   }
+
   .page-transition {
     animation: pageIn 0.25s ease-out;
   }
+
   @keyframes pageIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }

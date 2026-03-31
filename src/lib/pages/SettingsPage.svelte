@@ -1,12 +1,13 @@
 <script>
   import { onMount } from 'svelte';
+  import { Palette, Settings, Plug, Lock, Rss, Save, RefreshCw, Link, Search, Trash2, Download, ShieldCheck, Monitor, ClipboardList } from 'lucide-svelte';
 
   const API = 'http://localhost:8010/api/settings';
 
   let activePanel = 0;
 
   // Theme settings
-  let theme = { theme: 'glass', accent: '#06A6C9' };
+  let theme = { theme: 'dark', accent: '#06A6C9' };
 
   // General settings
   let general = {
@@ -139,12 +140,12 @@
   const feedCategories = ['S\u00e9curit\u00e9', 'Tech', 'Infra', 'Autre'];
 
   const panels = [
-    { label: 'Apparence', emoji: '\u{1F3A8}' },
-    { label: 'G\u00e9n\u00e9ral', emoji: '\u2699\uFE0F' },
-    { label: 'Int\u00e9grations', emoji: '\u{1F50C}' },
-    { label: 'S\u00e9curit\u00e9 DB', emoji: '\u{1F512}' },
-    { label: 'Flux RSS', emoji: '\u{1F4E1}' },
-    { label: 'Sauvegarde', emoji: '\u{1F4BE}' },
+    { label: 'Apparence', icon: Palette },
+    { label: 'G\u00e9n\u00e9ral', icon: Settings },
+    { label: 'Int\u00e9grations', icon: Plug },
+    { label: 'S\u00e9curit\u00e9 DB', icon: Lock },
+    { label: 'Flux RSS', icon: Rss },
+    { label: 'Sauvegarde', icon: Save },
   ];
 
   onMount(async () => {
@@ -241,14 +242,14 @@
 
   function applyTheme(themeName, save = true) {
     const root = document.documentElement;
-    if (themeName === 'glass-light') {
-      root.setAttribute('data-theme', 'glass-light');
+    if (themeName === 'light') {
+      root.setAttribute('data-theme', 'light');
       root.style.colorScheme = 'light';
       document.body.style.background = '#E8ECF2';
     } else {
-      root.removeAttribute('data-theme');
+      root.setAttribute('data-theme', 'dark');
       root.style.colorScheme = 'dark';
-      document.body.style.background = '#070B14';
+      document.body.style.background = 'var(--bg-base)';
     }
     // Reset inline overrides — let CSS variables from app.css handle it
     const varProps = ['--bg-base','--bg-card','--bg-card-solid','--bg-sidebar','--bg-hover',
@@ -491,9 +492,9 @@
 
 <div class="settings-page">
   <div class="page-header">
-    <h1>{'\u2699\uFE0F'} Param{'\u00e8'}tres</h1>
+    <h1><Settings size={22} /> Param{'\u00e8'}tres</h1>
     {#if saved}
-      <span class="saved-badge">{'\u2705'} Enregistr{'\u00e9'}</span>
+      <span class="saved-badge">Enregistr{'\u00e9'}</span>
     {/if}
   </div>
 
@@ -502,7 +503,7 @@
     <div class="panel-nav">
       {#each panels as p, idx}
         <button class="panel-btn" class:active={activePanel === idx} on:click={() => activePanel = idx}>
-          <span class="panel-emoji">{p.emoji}</span>
+          <span class="panel-emoji"><svelte:component this={p.icon} size={16} /></span>
           {p.label}
         </button>
       {/each}
@@ -514,7 +515,7 @@
       <!-- ═══════════════ 0: APPARENCE ═══════════════ -->
       {#if activePanel === 0}
         <div class="panel">
-          <h2>{'\u{1F3A8}'} Apparence</h2>
+          <h2><Palette size={20} /> Apparence</h2>
 
           <div class="setting-section">
             <h3>Couleur d'accent</h3>
@@ -532,13 +533,13 @@
           <div class="setting-section">
             <h3>Th{'\u00e8'}me</h3>
             <div class="theme-options">
-              <button class="theme-card" class:active={theme.theme === 'glass'} on:click={() => { theme.theme = 'glass'; applyTheme('glass'); }}>
-                <div class="theme-preview glass-preview"></div>
-                <span>Glass Dark</span>
+              <button class="theme-card" class:active={theme.theme === 'dark'} on:click={() => { theme.theme = 'dark'; applyTheme('dark'); }}>
+                <div class="theme-preview dark-preview"></div>
+                <span>Dark</span>
               </button>
-              <button class="theme-card" class:active={theme.theme === 'glass-light'} on:click={() => { theme.theme = 'glass-light'; applyTheme('glass-light'); }}>
-                <div class="theme-preview glass-light-preview"></div>
-                <span>Glass Light</span>
+              <button class="theme-card" class:active={theme.theme === 'light'} on:click={() => { theme.theme = 'light'; applyTheme('light'); }}>
+                <div class="theme-preview light-preview"></div>
+                <span>Light</span>
               </button>
             </div>
           </div>
@@ -565,7 +566,7 @@
                 <div class="icon-editor-item">
                   <button class="icon-editor-btn" on:click={() => iconPickerOpen = iconPickerOpen === mod.key ? null : mod.key}>
                     <span class="icon-editor-current">{general.module_icons?.[mod.key] || mod.emoji}</span>
-                    <span class="icon-editor-edit">{'\u270F\uFE0F'}</span>
+                    <span class="icon-editor-edit"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></span>
                   </button>
                   <span class="icon-editor-label">{mod.label}</span>
 
@@ -597,7 +598,7 @@
       <!-- ═══════════════ 1: GENERAL ═══════════════ -->
       {:else if activePanel === 1}
         <div class="panel">
-          <h2>{'\u2699\uFE0F'} G{'\u00e9'}n{'\u00e9'}ral</h2>
+          <h2><Settings size={20} /> G{'\u00e9'}n{'\u00e9'}ral</h2>
 
           <div class="setting-section">
             <h3>Profil</h3>
@@ -686,8 +687,8 @@
           </div>
 
           <div class="setting-section">
-            <h3>{'\u{1F504}'} Mises {'\u00e0'} jour</h3>
-            <p style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-bottom:12px">
+            <h3><RefreshCw size={14} /> Mises {'\u00e0'} jour</h3>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px">
               V{'\u00e9'}rifier et installer les mises {'\u00e0'} jour du Dashboard IT.
             </p>
             <button class="btn-export" on:click={manualCheckUpdate} disabled={updateChecking}>
@@ -704,19 +705,19 @@
             <h3>Export de donn{'\u00e9'}es</h3>
             <div class="export-buttons">
               <button class="btn-export" on:click={() => exportCsv('tasks')}>
-                {'\u{1F4E5}'} Exporter t{'\u00e2'}ches (CSV)
+                <Download size={14} /> Exporter t{'\u00e2'}ches (CSV)
               </button>
               <button class="btn-export" on:click={() => exportCsv('documents')}>
-                {'\u{1F4E5}'} Exporter documents (CSV)
+                <Download size={14} /> Exporter documents (CSV)
               </button>
             </div>
           </div>
 
           <div class="setting-section danger-section">
-            <h3>{'\u26A0\uFE0F'} Zone dangereuse</h3>
+            <h3>Zone dangereuse</h3>
             {#if !showResetConfirm}
               <button class="btn-danger" on:click={() => showResetConfirm = true}>
-                {'\u{1F5D1}\uFE0F'} R{'\u00e9'}initialiser toutes les donn{'\u00e9'}es
+                <Trash2 size={14} /> R{'\u00e9'}initialiser toutes les donn{'\u00e9'}es
               </button>
             {:else}
               <div class="reset-confirm">
@@ -743,11 +744,11 @@
       <!-- ═══════════════ 2: INTEGRATIONS ═══════════════ -->
       {:else if activePanel === 2}
         <div class="panel">
-          <h2>{'\u{1F50C}'} Int{'\u00e9'}grations</h2>
+          <h2><Plug size={20} /> Int{'\u00e9'}grations</h2>
 
           <div class="integration-card">
             <div class="int-header">
-              <span class="int-icon">{'\u{1F6E1}\uFE0F'}</span>
+              <span class="int-icon"><ShieldCheck size={20} /></span>
               <div class="int-info">
                 <h3>WithSecure Elements</h3>
                 <p>Protection endpoint — OAuth2 Client Credentials</p>
@@ -764,7 +765,7 @@
                     <span>Client ID : {wsConfig.client_id}</span>
                   </div>
                   <div class="gw-status-item">
-                    <span>{'\u{1F511}'}</span>
+                    <span><Lock size={12} /></span>
                     <span>Secret : {wsConfig.client_secret}</span>
                   </div>
                 </div>
@@ -785,7 +786,7 @@
                   <input type="password" bind:value={wsForm.client_secret}
                     placeholder="Client Secret"
                     class="glpi-input" />
-                  <button class="btn-small" style="background:var(--accent,#06A6C9);color:#fff;font-weight:600"
+                  <button class="btn-small" style="background:var(--accent,var(--primary));color:#fff;font-weight:600"
                     on:click={saveWsConfig}
                     disabled={wsSaving || !wsForm.client_id || !wsForm.client_secret}>
                     {wsSaving ? 'Enregistrement...' : 'Enregistrer'}
@@ -797,7 +798,7 @@
 
           <div class="integration-card">
             <div class="int-header">
-              <span class="int-icon">{'\u{1F4BB}'}</span>
+              <span class="int-icon"><Monitor size={20} /></span>
               <div class="int-info">
                 <h3>GLPI</h3>
                 <p>Inventaire du parc informatique via l'API REST GLPI</p>
@@ -814,21 +815,21 @@
                     <span>URL : {glpiConfig.url}</span>
                   </div>
                   <div class="gw-status-item">
-                    <span>{'\u{1F511}'}</span>
+                    <span><Lock size={12} /></span>
                     <span>App-Token : {glpiConfig.app_token}</span>
                   </div>
                   <div class="gw-status-item">
-                    <span>{'\u{1F464}'}</span>
+                    <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
                     <span>User-Token : {glpiConfig.user_token}</span>
                   </div>
                   {#if glpiStats}
                     <div class="gw-status-item">
-                      <span>{'\u{1F4E6}'}</span>
+                      <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg></span>
                       <span>{glpiStats.total_items} {'\u00e9'}l{'\u00e9'}ments ({glpiStats.computers} PC, {glpiStats.monitors} moniteurs, {glpiStats.printers} imprimantes)</span>
                     </div>
                     {#if glpiStats.last_sync}
                       <div class="gw-status-item">
-                        <span>{'\u{1F552}'}</span>
+                        <span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
                         <span>Derni{'\u00e8'}re sync : {new Date(glpiStats.last_sync).toLocaleString('fr-FR')}</span>
                       </div>
                     {/if}
@@ -854,7 +855,7 @@
                   <input type="text" bind:value={glpiForm.user_token}
                     placeholder={glpiConfig ? glpiConfig.user_token : 'User-Token'}
                     class="glpi-input" />
-                  <button class="btn-small" style="background:var(--accent,#06A6C9);color:#fff;font-weight:600"
+                  <button class="btn-small" style="background:var(--accent,var(--primary));color:#fff;font-weight:600"
                     on:click={saveGlpiConfig}
                     disabled={(!glpiForm.url || !glpiForm.app_token || !glpiForm.user_token) || glpiSaving}>
                     {glpiSaving ? '\u23F3...' : 'Enregistrer'}
@@ -866,7 +867,7 @@
 
           <div class="integration-card">
             <div class="int-header">
-              <span class="int-icon">{'\u{1F4E1}'}</span>
+              <span class="int-icon"><Rss size={20} /></span>
               <div class="int-info">
                 <h3>Flux RSS</h3>
                 <p>Sources d'actualit{'\u00e9'}s — {feeds.length} flux configur{'\u00e9'}s</p>
@@ -876,7 +877,7 @@
           </div>
 
           <div class="int-note">
-            <p>{'\u{1F4A1}'} Les imports Active Directory ont {'\u00e9'}t{'\u00e9'} remplac{'\u00e9'}s par :</p>
+            <p><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/></svg> Les imports Active Directory ont {'\u00e9'}t{'\u00e9'} remplac{'\u00e9'}s par :</p>
             <ul>
               <li><strong>GLPI</strong> pour l'inventaire du parc (synchronisation depuis le module Parc)</li>
               <li><strong>Croisement Parc {'\u00D7'} WithSecure</strong> pour d{'\u00e9'}tecter les postes sans agent de protection</li>
@@ -887,7 +888,7 @@
       <!-- ═══════════════ 3: SECURITE DB ═══════════════ -->
       {:else if activePanel === 3}
         <div class="panel">
-          <h2>{'\u{1F512}'} S{'\u00e9'}curit{'\u00e9'} Base de donn{'\u00e9'}es</h2>
+          <h2><Lock size={20} /> S{'\u00e9'}curit{'\u00e9'} Base de donn{'\u00e9'}es</h2>
 
           {#if dbInfo}
             <div class="setting-section">
@@ -897,7 +898,7 @@
                   <span class="db-label">Chemin</span>
                   <div class="db-value-row">
                     <code class="db-value">{dbInfo.path}</code>
-                    <button class="btn-tiny" on:click={() => copyToClipboard(dbInfo.path)} title="Copier">{'\u{1F4CB}'}</button>
+                    <button class="btn-tiny" on:click={() => copyToClipboard(dbInfo.path)} title="Copier"><ClipboardList size={12} /></button>
                   </div>
                 </div>
                 <div class="db-info-item">
@@ -920,13 +921,13 @@
             <h3>V{'\u00e9'}rifications</h3>
             <div class="db-actions">
               <button class="btn-db" on:click={() => runDbCheck('integrity')} disabled={dbChecking}>
-                {'\u{1F50D}'} V{'\u00e9'}rifier int{'\u00e9'}grit{'\u00e9'}
+                <Search size={13} /> V{'\u00e9'}rifier int{'\u00e9'}grit{'\u00e9'}
               </button>
               <button class="btn-db" on:click={() => runDbCheck('fk-check')} disabled={dbChecking}>
-                {'\u{1F517}'} V{'\u00e9'}rifier cl{'\u00e9'}s {'\u00e9'}trang{'\u00e8'}res
+                <Link size={13} /> V{'\u00e9'}rifier cl{'\u00e9'}s {'\u00e9'}trang{'\u00e8'}res
               </button>
               <button class="btn-db" on:click={() => runDbCheck('vacuum')} disabled={dbChecking}>
-                {'\u{1F9F9}'} VACUUM (optimiser)
+                VACUUM (optimiser)
               </button>
             </div>
 
@@ -944,7 +945,7 @@
       <!-- ═══════════════ 4: FLUX RSS ═══════════════ -->
       {:else if activePanel === 4}
         <div class="panel">
-          <h2>{'\u{1F4E1}'} Flux RSS</h2>
+          <h2><Rss size={20} /> Flux RSS</h2>
 
           <div class="setting-section">
             <h3>Sources configur{'\u00e9'}es ({feeds.length})</h3>
@@ -960,7 +961,7 @@
                   </div>
                   <span class="feed-category">{feed.category}</span>
                   <button class="btn-delete-feed" on:click={() => deleteFeed(idx)} title="Supprimer">
-                    {'\u{1F5D1}\uFE0F'}
+                    <Trash2 size={12} />
                   </button>
                 </div>
               {/each}
@@ -993,11 +994,11 @@
       <!-- ═══════════════ 5: SAUVEGARDE ═══════════════ -->
       {:else if activePanel === 5}
         <div class="panel">
-          <h2>{'\u{1F4BE}'} Sauvegarde</h2>
+          <h2><Save size={20} /> Sauvegarde</h2>
 
           <!-- Auto-backup config -->
           <div class="setting-section">
-            <h3>{'\u{1F504}'} Sauvegarde automatique</h3>
+            <h3><RefreshCw size={14} /> Sauvegarde automatique</h3>
             <p class="setting-desc">
               Une sauvegarde automatique est cr{'\u00e9'}{'\u00e9'}e p{'\u00e9'}riodiquement en arri{'\u00e8'}re-plan.
               Une sauvegarde est aussi cr{'\u00e9'}{'\u00e9'}e automatiquement avant chaque mise {'\u00e0'} jour.
@@ -1032,7 +1033,7 @@
               {#if backupRunning}
                 {'\u23F3'} Sauvegarde en cours...
               {:else}
-                {'\u{1F4BE}'} Sauvegarder maintenant
+                <Save size={14} /> Sauvegarder maintenant
               {/if}
             </button>
 
@@ -1047,7 +1048,7 @@
 
           <div class="setting-section">
             <h3>Sauvegardes existantes ({backups.length})</h3>
-            <button class="btn-small" on:click={() => loadBackups()} style="margin-bottom:8px;">{'\u{1F504}'} Rafra{'\u00ee'}chir</button>
+            <button class="btn-small" on:click={() => loadBackups()} style="margin-bottom:8px;"><RefreshCw size={14} /> Rafra{'\u00ee'}chir</button>
             {#if backups.length === 0}
               <p class="setting-desc">Aucune sauvegarde trouv{'\u00e9'}e.</p>
             {:else}
@@ -1084,7 +1085,7 @@
   }
 
   .page-header h1 {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 1.5rem;
     font-weight: 700;
     margin: 0;
@@ -1130,11 +1131,11 @@
     text-align: left;
     transition: all 0.15s;
   }
-  .panel-btn:hover { background: rgba(255,255,255,0.03); }
+  .panel-btn:hover { background: var(--overlay-white-03); }
   .panel-btn.active {
     background: var(--bg-card, rgba(13,24,42,0.7));
-    border-color: var(--border-subtle, rgba(255,255,255,0.06));
-    color: var(--text, #E6EAF2);
+    border-color: var(--border-subtle, var(--overlay-white-06));
+    color: var(--text-primary);
   }
   .panel-emoji { font-size: 1.1rem; }
 
@@ -1148,13 +1149,13 @@
 
   .panel {
     background: var(--bg-card, rgba(13,24,42,0.7));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 12px;
     padding: 24px;
   }
 
   .panel h2 {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 1.15rem;
     font-weight: 700;
     margin: 0 0 20px 0;
@@ -1194,11 +1195,11 @@
     transition: all 0.15s;
   }
   .color-btn:hover { transform: scale(1.1); }
-  .color-btn.active { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.3); }
+  .color-btn.active { border-color: var(--text-primary); box-shadow: 0 0 8px var(--text-muted); }
 
   .custom-color {
     width: 32px; height: 32px;
-    border: 2px solid var(--border-subtle, rgba(255,255,255,0.1));
+    border: 2px solid var(--border-subtle, var(--overlay-white-10));
     border-radius: 8px;
     cursor: pointer;
     background: transparent;
@@ -1222,8 +1223,8 @@
     justify-content: center;
     transition: all 0.15s;
   }
-  .icon-btn:hover { background: rgba(255,255,255,0.05); }
-  .icon-btn.active { border-color: var(--accent, #06A6C9); background: rgba(6,166,201,0.1); }
+  .icon-btn:hover { background: var(--overlay-white-05); }
+  .icon-btn.active { border-color: var(--accent, var(--primary)); background: rgba(var(--primary-rgb), 0.1); }
 
   .theme-options { display: flex; gap: 12px; }
   .theme-card {
@@ -1237,17 +1238,17 @@
     text-align: center;
     transition: all 0.15s;
   }
-  .theme-card.active { border-color: var(--accent, #06A6C9); }
+  .theme-card.active { border-color: var(--accent, var(--primary)); }
   .theme-preview {
     width: 80px; height: 50px;
     border-radius: 6px;
     margin-bottom: 6px;
   }
-  .glass-preview {
+  .dark-preview {
     background: linear-gradient(135deg, #0D1826 0%, #1a2740 50%, #0D1826 100%);
-    border: 1px solid rgba(255,255,255,0.06);
+    border: 1px solid var(--overlay-white-06);
   }
-  .glass-light-preview {
+  .light-preview {
     background: linear-gradient(135deg, #E8ECF2 0%, #F5F7FA 50%, #E0E5ED 100%);
     border: 1px solid rgba(0,0,0,0.1);
   }
@@ -1265,7 +1266,7 @@
     align-items: center;
     gap: 4px;
     padding: 10px 6px;
-    background: var(--overlay-white-5, rgba(0,0,0,0.15));
+    background: var(--overlay-white-05, rgba(0,0,0,0.15));
     border-radius: 10px;
   }
   .icon-editor-btn {
@@ -1310,7 +1311,7 @@
     width: 280px;
     max-height: 320px;
     overflow-y: auto;
-    background: var(--bg-card-solid, #0E1424);
+    background: var(--bg-card-solid, var(--bg-card));
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
     padding: 10px;
@@ -1324,7 +1325,7 @@
     transform: translateX(-50%) rotate(45deg);
     width: 12px;
     height: 12px;
-    background: var(--bg-card-solid, #0E1424);
+    background: var(--bg-card-solid, var(--bg-card));
     border-left: 1px solid var(--border-subtle);
     border-top: 1px solid var(--border-subtle);
   }
@@ -1365,7 +1366,7 @@
     width: 100%;
     margin-top: 8px;
     padding: 5px;
-    background: var(--overlay-white-5, rgba(255,255,255,0.05));
+    background: var(--overlay-white-05);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     color: var(--text-secondary);
@@ -1388,21 +1389,21 @@
     gap: 16px;
   }
   .setting-row span {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
   }
   .setting-row input, .setting-row select {
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     padding: 6px 10px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     outline: none;
     min-width: 120px;
   }
   .setting-row input:focus, .setting-row select:focus {
-    border-color: var(--accent, #06A6C9);
+    border-color: var(--accent, var(--primary));
   }
   .setting-row select {
     background: rgba(0,0,0,0.3);
@@ -1417,12 +1418,12 @@
     cursor: pointer;
   }
   .setting-toggle span {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
   }
   .setting-toggle input[type="checkbox"] {
     width: 18px; height: 18px;
-    accent-color: var(--accent, #06A6C9);
+    accent-color: var(--accent, var(--primary));
     cursor: pointer;
   }
 
@@ -1443,11 +1444,11 @@
   }
   .module-toggle:hover { background: rgba(0,0,0,0.25); }
   .module-toggle input[type="checkbox"] {
-    accent-color: var(--accent, #06A6C9);
+    accent-color: var(--accent, var(--primary));
     cursor: pointer;
   }
   .module-toggle span {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.8rem;
   }
   .module-emoji { font-size: 1rem; }
@@ -1465,7 +1466,7 @@
     gap: 10px;
     padding: 8px 12px;
     background: rgba(0,0,0,0.15);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     transition: opacity 0.15s;
   }
@@ -1477,7 +1478,7 @@
   }
   .arrow-btn {
     background: transparent;
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 4px;
     padding: 1px 6px;
     color: var(--text-dim, #94A3B8);
@@ -1486,11 +1487,11 @@
     line-height: 1;
   }
   .arrow-btn:disabled { opacity: 0.3; cursor: default; }
-  .arrow-btn:not(:disabled):hover { background: rgba(255,255,255,0.05); }
+  .arrow-btn:not(:disabled):hover { background: var(--overlay-white-05); }
   .card-layout-emoji { font-size: 1rem; }
   .card-layout-label {
     flex: 1;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
   }
   .card-layout-toggle {
@@ -1499,7 +1500,7 @@
     gap: 6px;
     cursor: pointer;
   }
-  .card-layout-toggle input { accent-color: var(--accent, #06A6C9); cursor: pointer; }
+  .card-layout-toggle input { accent-color: var(--accent, var(--primary)); cursor: pointer; }
   .toggle-label {
     color: var(--text-dim, #94A3B8);
     font-size: 0.7rem;
@@ -1514,15 +1515,15 @@
   }
   .btn-export {
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     padding: 8px 16px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     cursor: pointer;
     font-size: 0.8rem;
     transition: all 0.15s;
   }
-  .btn-export:hover { background: rgba(255,255,255,0.05); }
+  .btn-export:hover { background: var(--overlay-white-05); }
 
   /* ── Danger zone ───────────────────────────────────────── */
 
@@ -1573,7 +1574,7 @@
     border: 1px solid rgba(239,68,68,0.3);
     border-radius: 6px;
     padding: 6px 10px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     width: 100px;
     outline: none;
@@ -1591,7 +1592,7 @@
   .btn-danger-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-cancel {
     background: transparent;
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 6px;
     padding: 6px 14px;
     color: var(--text-dim, #94A3B8);
@@ -1603,7 +1604,7 @@
 
   .integration-card {
     background: rgba(0,0,0,0.15);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 10px;
     padding: 16px;
     margin-bottom: 10px;
@@ -1616,7 +1617,7 @@
   .int-icon { font-size: 1.5rem; }
   .int-info { flex: 1; }
   .int-info h3 {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.9rem;
     font-weight: 600;
     margin: 0;
@@ -1627,7 +1628,7 @@
     margin: 2px 0 0;
   }
   .int-link {
-    color: var(--accent, #06A6C9);
+    color: var(--accent, var(--primary));
     font-size: 0.8rem;
     text-decoration: none;
     cursor: pointer;
@@ -1654,21 +1655,21 @@
   }
   .glpi-input {
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 6px;
     padding: 7px 10px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.8rem;
     outline: none;
     width: 100%;
     box-sizing: border-box;
   }
-  .glpi-input:focus { border-color: var(--accent, #06A6C9); }
+  .glpi-input:focus { border-color: var(--accent, var(--primary)); }
 
   .gw-config-form {
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border-top: 1px solid var(--border-subtle, var(--overlay-white-06));
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -1678,7 +1679,7 @@
     font-size: 0.75rem;
     margin: 4px 0 0;
   }
-  .gw-help a, .gw-help strong { color: var(--accent, #06A6C9); }
+  .gw-help a, .gw-help strong { color: var(--accent, var(--primary)); }
 
   .gw-status-grid {
     display: flex;
@@ -1694,7 +1695,7 @@
   }
   .btn-small {
     background: var(--bg-card, rgba(13,24,42,0.7));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 6px;
     padding: 4px 10px;
     color: var(--text-dim, #94A3B8);
@@ -1702,17 +1703,17 @@
     font-size: 0.75rem;
     transition: all 0.15s;
   }
-  .btn-small:hover { background: rgba(255,255,255,0.05); color: var(--text, #E6EAF2); }
+  .btn-small:hover { background: var(--overlay-white-05); color: var(--text-primary); }
 
   .int-note {
     margin-top: 20px;
     padding: 14px 16px;
-    background: rgba(6,166,201,0.06);
-    border: 1px solid rgba(6,166,201,0.15);
+    background: rgba(var(--primary-rgb), 0.06);
+    border: 1px solid rgba(var(--primary-rgb), 0.15);
     border-radius: 10px;
   }
   .int-note p {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     margin: 0 0 8px 0;
   }
@@ -1725,7 +1726,7 @@
     font-size: 0.8rem;
     line-height: 1.8;
   }
-  .int-note li strong { color: var(--text, #E6EAF2); }
+  .int-note li strong { color: var(--text-primary); }
 
   /* ── DB Security ──────────────────────────────────────── */
 
@@ -1750,7 +1751,7 @@
     letter-spacing: 0.3px;
   }
   .db-value {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     font-family: 'Consolas', monospace;
   }
@@ -1761,14 +1762,14 @@
   }
   .btn-tiny {
     background: transparent;
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 4px;
     padding: 2px 6px;
     color: var(--text-dim, #94A3B8);
     cursor: pointer;
     font-size: 0.7rem;
   }
-  .btn-tiny:hover { background: rgba(255,255,255,0.05); }
+  .btn-tiny:hover { background: var(--overlay-white-05); }
 
   .db-actions {
     display: flex;
@@ -1778,16 +1779,16 @@
   }
   .btn-db {
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     padding: 8px 16px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     cursor: pointer;
     font-size: 0.8rem;
     transition: all 0.15s;
   }
   .btn-db:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-db:not(:disabled):hover { background: rgba(255,255,255,0.05); }
+  .btn-db:not(:disabled):hover { background: var(--overlay-white-05); }
 
   .db-result {
     padding: 12px 16px;
@@ -1801,7 +1802,7 @@
   .db-result.err { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); }
   .db-result-icon { font-size: 1rem; flex-shrink: 0; }
   .db-result-text {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.8rem;
     font-family: 'Consolas', monospace;
     margin: 0;
@@ -1822,13 +1823,13 @@
     gap: 10px;
     padding: 8px 12px;
     background: rgba(0,0,0,0.15);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     transition: opacity 0.15s;
   }
   .feed-item.disabled-feed { opacity: 0.4; }
   .feed-toggle input {
-    accent-color: var(--accent, #06A6C9);
+    accent-color: var(--accent, var(--primary));
     cursor: pointer;
     width: 16px; height: 16px;
   }
@@ -1840,7 +1841,7 @@
     min-width: 0;
   }
   .feed-name {
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     font-weight: 600;
   }
@@ -1853,8 +1854,8 @@
     white-space: nowrap;
   }
   .feed-category {
-    background: rgba(6,166,201,0.1);
-    color: var(--accent, #06A6C9);
+    background: rgba(var(--primary-rgb), 0.1);
+    color: var(--accent, var(--primary));
     padding: 2px 8px;
     border-radius: 6px;
     font-size: 0.65rem;
@@ -1885,30 +1886,30 @@
   .feed-input {
     flex: 1;
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     padding: 8px 12px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     outline: none;
   }
-  .feed-input:focus { border-color: var(--accent, #06A6C9); }
+  .feed-input:focus { border-color: var(--accent, var(--primary)); }
   .feed-url-input {
     font-family: 'Consolas', monospace;
     font-size: 0.8rem;
   }
   .feed-select {
     background: rgba(0,0,0,0.3);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--border-subtle, var(--overlay-white-06));
     border-radius: 8px;
     padding: 8px 12px;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-size: 0.85rem;
     outline: none;
     min-width: 120px;
   }
   .btn-add-feed {
-    background: var(--accent, #06A6C9);
+    background: var(--accent, var(--primary));
     border: none;
     border-radius: 8px;
     padding: 8px 16px;
@@ -1925,7 +1926,7 @@
   /* ── Backup ───────────────────────────────────────────── */
 
   .btn-backup {
-    background: var(--accent, #06A6C9);
+    background: var(--accent, var(--primary));
     border: none;
     border-radius: 8px;
     padding: 10px 24px;
@@ -1974,7 +1975,7 @@
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 4px;
-    background: rgba(255,255,255,0.1);
+    background: var(--overlay-white-10);
     color: var(--text-dim, #94a3b8);
     min-width: 60px;
     text-align: center;
@@ -1984,12 +1985,12 @@
   .backup-type.pre-reset { background: rgba(239,68,68,0.2); color: #ef4444; }
   .backup-name {
     flex: 1;
-    color: var(--text, #E6EAF2);
+    color: var(--text-primary);
     font-family: 'Consolas', monospace;
     font-size: 0.8rem;
   }
   .backup-size {
-    color: var(--accent, #06A6C9);
+    color: var(--accent, var(--primary));
     font-weight: 600;
     font-size: 0.75rem;
   }
@@ -2002,11 +2003,11 @@
   /* Toggle row */
   .toggle-row {
     display: flex; align-items: center; gap: 8px;
-    font-size: 0.85rem; color: var(--text-secondary, rgba(255,255,255,0.7));
+    font-size: 0.85rem; color: var(--text-secondary);
     cursor: pointer;
   }
   .toggle-row input[type="checkbox"] {
-    width: 18px; height: 18px; accent-color: var(--accent, #06A6C9);
+    width: 18px; height: 18px; accent-color: var(--accent, var(--primary));
     cursor: pointer;
   }
 </style>

@@ -1,21 +1,15 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../../api/client.js';
   import GlassCard from '../GlassCard.svelte';
-  import { Doughnut } from 'svelte-chartjs';
-  import {
-    Chart as ChartJS,
-    ArcElement,
-    Tooltip,
-    Legend,
-  } from 'chart.js';
-
-  ChartJS.register(ArcElement, Tooltip, Legend);
+  import ApexCharts from 'apexcharts';
 
   let categories = [];
   let loading = true;
+  let chartEl;
+  let chart;
 
-  const colors = ['#4B8BFF', '#22C55E', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316'];
+  const colors = ['#452B90', '#F8B940', '#3A9B94', '#FF5E5E', '#58bad7', '#BB6BD9'];
 
   export function refresh() {
     fetchData();
@@ -23,6 +17,10 @@
 
   onMount(() => {
     fetchData();
+  });
+
+  onDestroy(() => {
+    if (chart) chart.destroy();
   });
 
   async function fetchData() {
@@ -34,65 +32,125 @@
       categories = [];
     }
     loading = false;
+    renderChart();
   }
 
-  $: total = categories.reduce((sum, c) => sum + (c.count || c.value || 0), 0);
+  function renderChart() {
+    if (!chartEl || categories.length === 0) return;
 
-  $: chartData = {
-    labels: categories.map(c => c.name || c.label || ''),
-    datasets: [
-      {
-        data: categories.map(c => c.count || c.value || 0),
-        backgroundColor: colors.slice(0, categories.length),
-        borderColor: 'rgba(14, 20, 36, 0.8)',
-        borderWidth: 2,
-        hoverBorderColor: 'rgba(255, 255, 255, 0.2)',
+    const labels = categories.map(c => c.name || c.label || '');
+    const series = categories.map(c => c.count || c.value || 0);
+    const total = series.reduce((a, b) => a + b, 0);
+
+    if (chart) {
+      chart.updateOptions({
+        labels,
+        series
+      });
+      return;
+    }
+
+    const options = {
+      series,
+      labels,
+      chart: {
+        type: 'donut',
+        height: 280,
+        animations: {
+          enabled: true,
+          easing: 'easeinout',
+          speed: 600
+        }
       },
-    ],
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: '65%',
-    plugins: {
+      colors: colors.slice(0, categories.length),
+      stroke: {
+        width: 0
+      },
+      dataLabels: {
+        enabled: false
+      },
       legend: {
         position: 'bottom',
+        fontSize: '12px',
         labels: {
-          color: 'rgba(148, 163, 184, 0.85)',
-          font: { size: 11 },
-          padding: 12,
-          usePointStyle: true,
-          pointStyleWidth: 8,
+          colors: 'var(--text-secondary)'
         },
+        markers: {
+          width: 10,
+          height: 10,
+          radius: 3
+        },
+        itemMargin: {
+          horizontal: 8,
+          vertical: 4
+        }
+      },
+      plotOptions: {
+        pie: {
+          donut: {
+            size: '65%',
+            labels: {
+              show: true,
+              name: {
+                show: true,
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                offsetY: -4
+              },
+              value: {
+                show: true,
+                fontSize: '22px',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                offsetY: 4,
+                formatter: (val) => val
+              },
+              total: {
+                show: true,
+                showAlways: true,
+                label: 'Total',
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                formatter: () => total
+              }
+            }
+          }
+        }
       },
       tooltip: {
-        backgroundColor: 'rgba(14, 20, 36, 0.95)',
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-        borderWidth: 1,
-        titleColor: 'rgba(226, 232, 240, 0.92)',
-        bodyColor: 'rgba(148, 163, 184, 0.85)',
-        padding: 10,
-        cornerRadius: 8,
+        enabled: true,
+        theme: 'dark',
+        y: {
+          formatter: (val) => val + ' items'
+        }
       },
-    },
-  };
+      responsive: [{
+        breakpoint: 480,
+        options: {
+          chart: { height: 240 },
+          legend: { position: 'bottom' }
+        }
+      }]
+    };
+
+    chart = new ApexCharts(chartEl, options);
+    chart.render();
+  }
+
+  $: if (!loading && chartEl && !chart && categories.length > 0) {
+    renderChart();
+  }
 </script>
 
 <GlassCard padding="0">
   <div class="card-inner">
     <div class="card-header">
-      <h3>{'\u{1F4CA}'} R&eacute;partition par cat&eacute;gorie</h3>
+      <h3>R&eacute;partition par cat&eacute;gorie</h3>
     </div>
 
     <div class="chart-wrap">
       {#if !loading && categories.length > 0}
-        <div class="chart-container">
-          <Doughnut data={chartData} options={chartOptions} />
-          <div class="center-label">
-            <span class="center-value">{total}</span>
-          </div>
-        </div>
+        <div bind:this={chartEl}></div>
       {:else if loading}
         <div class="empty">Chargement...</div>
       {:else}
@@ -121,25 +179,6 @@
 
   .chart-wrap {
     padding: 12px 16px 16px;
-  }
-
-  .chart-container {
-    position: relative;
-    height: 220px;
-  }
-
-  .center-label {
-    position: absolute;
-    top: 42%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-  }
-
-  .center-value {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--text-primary);
   }
 
   .empty {

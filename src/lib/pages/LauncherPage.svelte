@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { Rocket, Star, Pencil, Trash2, X, Zap, Image, Smile } from 'lucide-svelte';
 
   const API = 'http://localhost:8010/api/launcher';
 
@@ -169,7 +170,7 @@
 <div class="launcher-page">
   <header class="launcher-header">
     <div class="header-left">
-      <h1>{'\u{1F680}'} Lanceur</h1>
+      <h1><Rocket size={20} style="display:inline;vertical-align:middle;margin-right:6px" /> Lanceur</h1>
       <p class="header-sub">{links.length} lien{links.length !== 1 ? 's' : ''} rapide{links.length !== 1 ? 's' : ''}</p>
     </div>
     <div class="header-right">
@@ -186,7 +187,7 @@
     <div class="loading">Chargement...</div>
   {:else if links.length === 0}
     <div class="empty-state">
-      <span class="empty-icon">{'\u{1F680}'}</span>
+      <span class="empty-icon"><Rocket size={48} /></span>
       <h2>Aucun lien rapide</h2>
       <p>Ajoutez vos premiers liens vers vos outils d'administration</p>
       <button class="btn-primary" on:click={openNew}>+ Ajouter un lien</button>
@@ -195,7 +196,7 @@
     <!-- Favorites row -->
     {#if favorites.length > 0}
       <div class="fav-section">
-        <h2 class="section-title">{'\u2B50'} Favoris</h2>
+        <h2 class="section-title"><Star size={14} style="display:inline;vertical-align:middle;margin-right:4px" /> Favoris</h2>
         <div class="links-grid fav-grid">
           {#each favorites as link}
             {@const ico = getIconDisplay(link)}
@@ -234,9 +235,9 @@
                   {/if}
                 </div>
                 <div class="card-actions" on:click|stopPropagation>
-                  <button class="card-btn" class:fav-active={link.favorite} on:click={() => toggleFavorite(link)} title="Favori">{'\u2B50'}</button>
-                  <button class="card-btn" on:click={() => openEdit(link)} title="Modifier">{'\u270F\uFE0F'}</button>
-                  <button class="card-btn danger" on:click={() => confirmDeleteId = link.id} title="Supprimer">{'\u{1F5D1}\uFE0F'}</button>
+                  <button class="card-btn" class:fav-active={link.favorite} on:click={() => toggleFavorite(link)} title="Favori"><Star size={12} /></button>
+                  <button class="card-btn" on:click={() => openEdit(link)} title="Modifier"><Pencil size={12} /></button>
+                  <button class="card-btn danger" on:click={() => confirmDeleteId = link.id} title="Supprimer"><Trash2 size={12} /></button>
                 </div>
               </div>
               <h3 class="card-title">{link.name}</h3>
@@ -275,14 +276,14 @@
     <div class="modal-box" on:click|stopPropagation>
       <div class="modal-header">
         <h2>{editingLink ? 'Modifier le lien' : 'Nouveau lien rapide'}</h2>
-        <button class="modal-close" on:click={() => showDialog = false}>{'\u2715'}</button>
+        <button class="modal-close" on:click={() => showDialog = false}><X size={18} /></button>
       </div>
 
       <div class="modal-body">
         <!-- Presets -->
         {#if !editingLink}
           <button class="btn-presets-toggle" on:click={() => showPresets = !showPresets}>
-            {'\u26A1'} {showPresets ? 'Masquer' : 'Choisir un mod\u00e8le'}
+            <Zap size={14} style="display:inline;vertical-align:middle" /> {showPresets ? 'Masquer' : 'Choisir un mod\u00e8le'}
           </button>
           {#if showPresets}
             <div class="presets-grid">
@@ -343,10 +344,10 @@
             Ic{'\u00f4'}ne
             <div class="icon-type-toggle">
               <button class="icon-type-btn" class:active={form.icon_type === 'url'} on:click={() => form.icon_type = 'url'}>
-                {'\u{1F5BC}\uFE0F'} Logo
+                <Image size={12} style="display:inline;vertical-align:middle" /> Logo
               </button>
               <button class="icon-type-btn" class:active={form.icon_type === 'emoji'} on:click={() => form.icon_type = 'emoji'}>
-                {'\u{1F600}'} Emoji
+                <Smile size={12} style="display:inline;vertical-align:middle" /> Emoji
               </button>
             </div>
             {#if form.icon_type === 'emoji'}
@@ -381,7 +382,7 @@
 
         <label class="form-checkbox">
           <input type="checkbox" bind:checked={form.favorite} />
-          <span>{'\u2B50'} Ajouter aux favoris (visible sur le Dashboard)</span>
+          <span>Ajouter aux favoris (visible sur le Dashboard)</span>
         </label>
       </div>
 
@@ -396,7 +397,7 @@
 {/if}
 
 <style>
-  .launcher-page { animation: fadeIn 0.35s ease-out; }
+  .launcher-page { animation: pageSlideIn 0.35s ease-out; }
 
   .launcher-header {
     display: flex; justify-content: space-between; align-items: center;
@@ -501,7 +502,7 @@
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100;
     display: flex; align-items: center; justify-content: center;
-    backdrop-filter: blur(4px); animation: fadeIn 0.15s ease;
+    backdrop-filter: blur(4px); animation: pageSlideIn 0.15s ease;
   }
   .modal-box {
     background: var(--bg-card-solid, #1a1a2e); border: 1px solid var(--border-subtle);

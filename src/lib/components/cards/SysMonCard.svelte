@@ -1,6 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../../api/client.js';
+  import { Monitor } from 'lucide-svelte';
   import GlassCard from '../GlassCard.svelte';
 
   let cpu = 0;
@@ -39,7 +40,7 @@
   function barColor(val) {
     if (val > 85) return 'var(--danger)';
     if (val > 65) return 'var(--warning)';
-    return null; // use default
+    return null;
   }
 
   function statusColor(val) {
@@ -52,7 +53,10 @@
 <GlassCard padding="0">
   <div class="card-inner">
     <div class="card-header">
-      <h3>{'\u{1F4BB}'} Syst&egrave;me</h3>
+      <h3>
+        <Monitor size={15} style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--primary)" />
+        Syst&egrave;me
+      </h3>
       <span class="status-dot" style="background: {statusColor(Math.max(cpu, ram, disk))}"></span>
     </div>
 
@@ -116,6 +120,8 @@
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
+    display: flex;
+    align-items: center;
   }
 
   .status-dot {
@@ -150,7 +156,7 @@
   .bar-track {
     flex: 1;
     height: 8px;
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(var(--primary-rgb), 0.08);
     border-radius: 4px;
     overflow: hidden;
   }
@@ -162,15 +168,15 @@
   }
 
   .bar-cpu {
-    background: var(--info);
+    background: var(--primary);
   }
 
   .bar-ram {
-    background: #14B8A6;
+    background: #3A9B94;
   }
 
   .bar-disk {
-    background: #8B5CF6;
+    background: #BB6BD9;
   }
 
   .bar-value {
@@ -187,5 +193,10 @@
     font-size: 11.5px;
     color: var(--text-muted);
     border-top: 1px solid var(--border-subtle);
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
   }
 </style>

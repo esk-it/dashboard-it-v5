@@ -1,14 +1,15 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { createEventDispatcher } from 'svelte';
-  import { currentPage, navItems } from '../stores/navigation.js';
-  import { theme, toggleTheme } from '../stores/theme.js';
-  import { logout } from '../stores/auth.js';
-  import logoUrl from '../../assets/logo.png';
+  import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
+  import { theme } from '../stores/theme.js';
+  import {
+    Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor,
+    Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings,
+    MessageSquare, Mail, Users2, ChevronLeft, ChevronRight
+  } from 'lucide-svelte';
 
-  const dispatch = createEventDispatcher();
+  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, MessageSquare, Mail, Users2 };
 
-  let hovered = false;
   let appVersion = '';
   let overdueCount = 0;
   let interval;
@@ -18,7 +19,7 @@
       const { getVersion } = await import('@tauri-apps/api/app');
       appVersion = await getVersion();
     } catch {
-      appVersion = '4.0.1';
+      appVersion = '5.0.1';
     }
     loadOverdueCount();
     interval = setInterval(loadOverdueCount, 60000);
@@ -39,165 +40,180 @@
     currentPage.set(path);
   }
 
-  $: mainItems = navItems.filter(item => item.type === 'separator' || !item.bottom);
+  function toggleSidebar() {
+    sidebarOpen.update(v => !v);
+  }
+
+  $: mainItems = navItems.filter(item => !item.bottom);
   $: bottomItems = navItems.filter(item => item.bottom);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<aside
-  class="sidebar"
-  class:expanded={hovered}
-  on:mouseenter={() => hovered = true}
-  on:mouseleave={() => hovered = false}
->
-  <div class="sidebar-inner">
-    <!-- Brand -->
-    <div class="brand">
-      <img src={logoUrl} alt="Logo" class="brand-logo" />
-      {#if hovered}
-        <span class="brand-text">ITManager</span>
+<aside class="sidebar" class:collapsed={!$sidebarOpen}>
+  <!-- Brand / Logo area -->
+  <div class="brand">
+    {#if $sidebarOpen}
+      <span class="brand-text">ITManager</span>
+    {:else}
+      <span class="brand-text-short">IT</span>
+    {/if}
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <button class="toggle-btn" on:click={toggleSidebar} aria-label="Toggle sidebar">
+      {#if $sidebarOpen}
+        <ChevronLeft size={18} />
+      {:else}
+        <ChevronRight size={18} />
       {/if}
-    </div>
+    </button>
+  </div>
 
-    <!-- Main nav -->
-    <nav class="nav-main">
-      {#each mainItems as item}
-        {#if item.type === 'separator'}
-          <div class="separator"></div>
+  <!-- Main navigation -->
+  <nav class="nav-main">
+    {#each mainItems as item}
+      {#if item.type === 'section'}
+        {#if $sidebarOpen}
+          <div class="section-header">{item.label}</div>
         {:else}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="nav-item"
-            class:active={$currentPage === item.path}
-            title={hovered ? '' : item.label}
-            on:click={() => navigate(item.path)}
-          >
-            <span class="nav-emoji">{item.emoji}</span>
-            {#if hovered}
-              <span class="nav-label">{item.label}</span>
-            {/if}
-            {#if item.key === 'tasks' && overdueCount > 0}
-              <span class="overdue-badge">{overdueCount}</span>
-            {/if}
-          </div>
+          <div class="section-divider"></div>
         {/if}
-      {/each}
-    </nav>
-
-    <!-- Bottom nav -->
-    <nav class="nav-bottom">
-      {#each bottomItems as item}
+      {:else}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
           class="nav-item"
           class:active={$currentPage === item.path}
-          title={hovered ? '' : item.label}
+          title={!$sidebarOpen ? item.label : ''}
           on:click={() => navigate(item.path)}
         >
-          <span class="nav-emoji">{item.emoji}</span>
-          {#if hovered}
+          <span class="nav-icon">
+            {#if iconMap[item.icon]}
+              <svelte:component this={iconMap[item.icon]} size={20} />
+            {/if}
+          </span>
+          {#if $sidebarOpen}
             <span class="nav-label">{item.label}</span>
           {/if}
+          {#if item.key === 'tasks' && overdueCount > 0}
+            <span class="overdue-badge">{overdueCount}</span>
+          {/if}
         </div>
-      {/each}
+      {/if}
+    {/each}
+  </nav>
 
-      <!-- Theme toggle -->
+  <!-- Bottom navigation -->
+  <nav class="nav-bottom">
+    {#each bottomItems as item}
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="nav-item theme-toggle" title={hovered ? '' : 'Thème'} on:click={toggleTheme}>
-        <span class="nav-emoji">{$theme === 'glass' ? '\u{1F319}' : '\u2600\uFE0F'}</span>
-        {#if hovered}
-          <span class="nav-label">{$theme === 'glass' ? 'Mode clair' : 'Mode sombre'}</span>
+      <div
+        class="nav-item"
+        class:active={$currentPage === item.path}
+        title={!$sidebarOpen ? item.label : ''}
+        on:click={() => navigate(item.path)}
+      >
+        <span class="nav-icon">
+          {#if iconMap[item.icon]}
+            <svelte:component this={iconMap[item.icon]} size={20} />
+          {/if}
+        </span>
+        {#if $sidebarOpen}
+          <span class="nav-label">{item.label}</span>
         {/if}
       </div>
+    {/each}
 
-      <!-- Lock / Logout -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="nav-item" title={hovered ? '' : 'Verrouiller'} on:click={() => { logout(); dispatch('lock'); }}>
-        <span class="nav-emoji">{'\u{1F512}'}</span>
-        {#if hovered}
-          <span class="nav-label">Verrouiller</span>
-        {/if}
-      </div>
-
-      <!-- Version -->
-      <div class="version">
-        {#if hovered}
-          <span>v{appVersion}</span>
-        {:else}
-          <span class="version-dot"></span>
-        {/if}
-      </div>
-    </nav>
-  </div>
+    <!-- Version -->
+    <div class="version">
+      {#if $sidebarOpen}
+        <span>v{appVersion}</span>
+      {:else}
+        <span class="version-dot"></span>
+      {/if}
+    </div>
+  </nav>
 </aside>
 
 <style>
   .sidebar {
-    width: var(--sidebar-width-collapsed);
-    min-width: var(--sidebar-width-collapsed);
+    width: 250px;
+    min-width: 250px;
     height: 100vh;
     background: var(--bg-sidebar);
     border-right: 1px solid var(--border-subtle);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
     display: flex;
     flex-direction: column;
     z-index: 100;
     user-select: none;
+    overflow: hidden;
+    transition: width 250ms ease, min-width 250ms ease;
+    position: fixed;
+    top: 0;
+    left: 0;
   }
 
-  .sidebar.expanded {
-    width: var(--sidebar-width-expanded);
-    min-width: var(--sidebar-width-expanded);
-  }
-
-  .sidebar-inner {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    padding: 8px;
+  .sidebar.collapsed {
+    width: 75px;
+    min-width: 75px;
   }
 
   /* Brand */
   .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 8px;
-    margin-bottom: 8px;
+    justify-content: space-between;
+    padding: 0 16px;
+    height: 60px;
+    min-height: 60px;
+    border-bottom: 1px solid var(--border-subtle);
     white-space: nowrap;
     overflow: hidden;
   }
 
-  .brand-logo {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-    flex-shrink: 0;
-    border-radius: 6px;
-  }
-
-  .brand-icon {
-    font-size: 22px;
-    flex-shrink: 0;
-    width: 30px;
-    text-align: center;
-  }
-
   .brand-text {
-    font-size: 16px;
-    font-weight: 600;
+    font-family: 'Poppins', sans-serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+    letter-spacing: -0.5px;
+  }
+
+  .brand-text-short {
+    font-family: 'Poppins', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0 auto;
+  }
+
+  .toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  .toggle-btn:hover {
+    background: var(--bg-hover);
     color: var(--text-primary);
-    letter-spacing: -0.3px;
-    opacity: 0;
-    animation: fadeLabel 180ms ease forwards;
+  }
+
+  .collapsed .toggle-btn {
+    position: absolute;
+    right: 50%;
+    transform: translateX(50%);
+    top: 18px;
+  }
+
+  .collapsed .brand {
+    justify-content: center;
   }
 
   /* Navigation */
@@ -205,26 +221,47 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 8px;
   }
 
   .nav-bottom {
     margin-top: auto;
-    padding-top: 8px;
+    padding: 8px;
     border-top: 1px solid var(--border-subtle);
   }
 
+  /* Section headers */
+  .section-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 16px 12px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .section-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 8px 12px;
+  }
+
+  /* Nav item */
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
+    gap: 12px;
+    padding: 10px 12px;
     margin: 2px 0;
-    border-radius: 10px;
+    border-radius: 8px;
     cursor: pointer;
     white-space: nowrap;
     overflow: hidden;
-    transition: background 0.15s ease, box-shadow 0.15s ease;
+    transition: background 0.15s ease;
     position: relative;
+    color: var(--text-secondary);
   }
 
   .nav-item:hover {
@@ -232,50 +269,70 @@
   }
 
   .nav-item.active {
-    background: rgba(var(--accent-rgb), 0.15);
-    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
+    background: rgba(var(--primary-rgb), 0.1);
+    border-left: 3px solid var(--primary);
+    padding-left: 9px;
   }
 
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: -8px;
-    top: 4px;
-    bottom: 4px;
-    width: 3px;
-    background: var(--accent);
-    border-radius: 0 3px 3px 0;
-    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
-  }
-
-  .nav-item.active .nav-emoji {
-    filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.5));
+  .nav-item.active .nav-icon {
+    color: var(--primary);
   }
 
   .nav-item.active .nav-label {
-    color: var(--accent);
+    color: var(--primary);
     font-weight: 500;
   }
 
-  .nav-emoji {
-    font-size: 18px;
+  .nav-icon {
     flex-shrink: 0;
-    width: 26px;
-    text-align: center;
-    line-height: 1;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
   }
 
   .nav-label {
+    font-family: 'Poppins', sans-serif;
     font-size: 13.5px;
     color: var(--text-secondary);
-    opacity: 0;
-    animation: fadeLabel 180ms ease forwards;
+    transition: opacity 0.15s ease;
   }
 
-  .separator {
-    height: 1px;
-    background: var(--border-subtle);
-    margin: 8px 10px;
+  .collapsed .nav-item {
+    justify-content: center;
+    padding: 10px;
+    gap: 0;
+  }
+
+  .collapsed .nav-item.active {
+    padding-left: 7px;
+  }
+
+  /* Overdue badge */
+  .overdue-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: #EF4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+    animation: badgePulse 2s ease-in-out infinite;
+  }
+
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
   }
 
   /* Version */
@@ -296,37 +353,21 @@
     opacity: 0.5;
   }
 
-  /* Overdue badge */
-  .overdue-badge {
-    position: absolute;
-    top: 4px; right: 4px;
-    background: #EF4444;
-    color: #fff;
-    font-size: 10px;
-    font-weight: 700;
-    min-width: 18px;
-    height: 18px;
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 4px;
-    box-shadow: 0 0 6px rgba(239,68,68,0.4);
-    animation: badgePulse 2s ease-in-out infinite;
-  }
-  @keyframes badgePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+  /* Scrollbar */
+  .nav-main::-webkit-scrollbar {
+    width: 4px;
   }
 
-  @keyframes fadeLabel {
-    from {
-      opacity: 0;
-      transform: translateX(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+  .nav-main::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .nav-main::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+  }
+
+  .nav-main::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
   }
 </style>

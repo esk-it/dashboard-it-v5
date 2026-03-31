@@ -377,8 +377,49 @@ async def init_db():
             display_name TEXT NOT NULL DEFAULT '',
             role TEXT NOT NULL DEFAULT 'user',
             avatar_url TEXT NOT NULL DEFAULT '',
+            is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             last_login TEXT
+        )""",
+        # --- Chat ---
+        """CREATE TABLE IF NOT EXISTS chat_conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""",
+        """CREATE TABLE IF NOT EXISTS chat_participants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            joined_at TEXT NOT NULL,
+            FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(conversation_id, user_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            sender_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            is_read INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (conversation_id) REFERENCES chat_conversations(id) ON DELETE CASCADE,
+            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
+        )""",
+        # --- Emails ---
+        """CREATE TABLE IF NOT EXISTS emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_id INTEGER NOT NULL,
+            recipients TEXT NOT NULL DEFAULT '[]',
+            cc TEXT NOT NULL DEFAULT '[]',
+            subject TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            folder TEXT NOT NULL DEFAULT 'inbox',
+            is_read INTEGER NOT NULL DEFAULT 0,
+            is_starred INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE
         )""",
         # --- Quick Links / Launcher ---
         """CREATE TABLE IF NOT EXISTS quick_links (
@@ -419,6 +460,14 @@ async def _run_migrations(db):
     if "content_format" not in columns:
         await db.execute(
             "ALTER TABLE wiki_articles ADD COLUMN content_format TEXT NOT NULL DEFAULT 'html'"
+        )
+
+    # Add is_active column to users table if missing
+    cursor = await db.execute("PRAGMA table_info(users)")
+    user_cols = [row[1] for row in await cursor.fetchall()]
+    if "is_active" not in user_cols:
+        await db.execute(
+            "ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1"
         )
 
     # GLPI integration columns on parc_equipment

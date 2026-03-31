@@ -2,28 +2,36 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import {
+    Plus, Search, ClipboardList, LayoutGrid, BarChart3,
+    Pencil, Trash2, CheckSquare, Square, Calendar,
+    RefreshCw, ChevronDown, X, FileDown, Building2, Globe,
+    ArrowDown, Equal, AlertTriangle, ListChecks, StickyNote,
+    Clock, CheckCircle2, AlertCircle, Timer, CircleDot,
+    PlayCircle, TestTube, Pause, Flag
+  } from 'lucide-svelte';
 
   // ── Constants ──────────────────────────────────────────────
   const SITES = [
-    { value: '', label: '— Tous sites —' },
-    { value: 'NDK', label: '🏫 NDK' },
-    { value: 'NDE', label: '🏫 NDE' },
-    { value: 'SU', label: '🏫 SU' },
-    { value: 'Global', label: '🌐 Global' },
+    { value: '', label: 'Tous sites', icon: null },
+    { value: 'NDK', label: 'NDK', icon: null },
+    { value: 'NDE', label: 'NDE', icon: null },
+    { value: 'SU', label: 'SU', icon: null },
+    { value: 'Global', label: 'Global', icon: null },
   ];
 
   const PRIORITIES = [
-    { value: 1, label: 'Basse', color: '#22C55E', icon: '↓' },
-    { value: 2, label: 'Normale', color: '#3B82F6', icon: '=' },
-    { value: 3, label: 'Urgente', color: '#EF4444', icon: '!' },
+    { value: 1, label: 'Basse', color: '#22C55E', icon: 'down' },
+    { value: 2, label: 'Normale', color: '#3B82F6', icon: 'equal' },
+    { value: 3, label: 'Urgente', color: '#EF4444', icon: 'alert' },
   ];
 
   const RECURRENCES = [
-    { value: '', label: '— Aucune —' },
-    { value: 'daily', label: '↻ Quotidienne' },
-    { value: 'weekly', label: '↻ Hebdomadaire' },
-    { value: 'biweekly', label: '↻ Bimensuelle' },
-    { value: 'monthly', label: '↻ Mensuelle' },
+    { value: '', label: 'Aucune' },
+    { value: 'daily', label: 'Quotidienne' },
+    { value: 'weekly', label: 'Hebdomadaire' },
+    { value: 'biweekly', label: 'Bimensuelle' },
+    { value: 'monthly', label: 'Mensuelle' },
   ];
 
   const QUICK_FILTERS = [
@@ -31,7 +39,17 @@
     { key: 'overdue', label: 'En retard' },
     { key: 'today', label: "Aujourd'hui" },
     { key: 'week', label: 'Semaine' },
-    { key: 'nodate', label: 'Sans échéance' },
+    { key: 'nodate', label: 'Sans date' },
+  ];
+
+  // Status definitions for KPI badges
+  const STATUS_DEFS = [
+    { key: 'not_started', label: 'Non d\u00e9marr\u00e9', colorVar: 'primary', colorVal: 'var(--primary)' },
+    { key: 'in_progress', label: 'En cours', colorVar: 'purple', colorVal: '#BB6BD9' },
+    { key: 'testing', label: 'Test', colorVar: 'warning', colorVal: 'var(--warning)' },
+    { key: 'waiting', label: 'En attente', colorVar: 'danger', colorVal: 'var(--danger)' },
+    { key: 'done', label: 'Termin\u00e9', colorVar: 'success', colorVal: 'var(--success)' },
+    { key: 'overdue', label: 'En retard', colorVar: 'info', colorVal: 'var(--info)' },
   ];
 
   // ── State ──────────────────────────────────────────────────
@@ -100,27 +118,59 @@
     switch (status) {
       case 'overdue': return 'En retard';
       case 'today': return "Aujourd'hui";
-      case 'week': return 'Bientôt';
-      case 'future': return 'À venir';
+      case 'week': return 'Bient\u00f4t';
+      case 'future': return '\u00c0 venir';
       case 'nodate': return 'Sans date';
-      case 'done': return 'Terminée';
+      case 'done': return 'Termin\u00e9e';
       default: return '';
     }
   }
 
   function getDueColor(status) {
     switch (status) {
-      case 'overdue': return '#EF4444';
-      case 'today': return '#F59E0B';
-      case 'week': return '#3B82F6';
-      case 'future': return '#94A3B8';
-      case 'nodate': return '#94A3B8';
-      default: return '#94A3B8';
+      case 'overdue': return 'var(--danger)';
+      case 'today': return 'var(--warning)';
+      case 'week': return 'var(--info)';
+      case 'future': return 'var(--text-muted)';
+      case 'nodate': return 'var(--text-muted)';
+      default: return 'var(--text-muted)';
     }
   }
 
   function getPriority(val) {
     return PRIORITIES.find(p => p.value === val) || PRIORITIES[1];
+  }
+
+  function getPriorityClass(val) {
+    if (val === 3) return 'badge-danger';
+    if (val === 1) return 'badge-primary';
+    return 'badge-warning';
+  }
+
+  function getStatusBadgeClass(status) {
+    switch (status) {
+      case 'overdue': return 'badge-danger';
+      case 'today': return 'badge-warning';
+      case 'week': return 'badge-info';
+      case 'future': return 'badge-muted';
+      case 'nodate': return 'badge-muted';
+      case 'done': return 'badge-success';
+      default: return 'badge-muted';
+    }
+  }
+
+  // ── KPI badge counts ────────────────────────────────────────
+  $: kpiCounts = computeKpiCounts(tasks);
+
+  function computeKpiCounts(allTasks) {
+    const today = todayStr();
+    const notStarted = allTasks.filter(t => !t.done && !t.due_date).length;
+    const inProgress = allTasks.filter(t => !t.done && t.due_date && t.due_date >= today).length;
+    const testing = 0; // No explicit status field, placeholder
+    const waiting = 0; // No explicit status field, placeholder
+    const done = allTasks.filter(t => t.done).length;
+    const overdue = allTasks.filter(t => !t.done && t.due_date && t.due_date < today).length;
+    return [notStarted, inProgress, testing, waiting, done, overdue];
   }
 
   // ── Computed / reactive ────────────────────────────────────
@@ -151,12 +201,12 @@
 
   function buildSections(list) {
     const groups = {
-      overdue: { label: 'EN RETARD', color: '#EF4444', tasks: [] },
-      today: { label: "AUJOURD'HUI", color: '#F59E0B', tasks: [] },
-      week: { label: 'CETTE SEMAINE', color: '#3B82F6', tasks: [] },
-      future: { label: 'À VENIR', color: '#94A3B8', tasks: [] },
-      nodate: { label: 'SANS ÉCHÉANCE', color: '#94A3B8', tasks: [] },
-      done: { label: 'TERMINÉES', color: '#22C55E', tasks: [] },
+      overdue: { label: 'EN RETARD', color: 'var(--danger)', tasks: [] },
+      today: { label: "AUJOURD'HUI", color: 'var(--warning)', tasks: [] },
+      week: { label: 'CETTE SEMAINE', color: 'var(--info)', tasks: [] },
+      future: { label: '\u00c0 VENIR', color: 'var(--text-muted)', tasks: [] },
+      nodate: { label: 'SANS \u00c9CH\u00c9ANCE', color: 'var(--text-muted)', tasks: [] },
+      done: { label: 'TERMIN\u00c9ES', color: 'var(--success)', tasks: [] },
     };
 
     for (const t of list) {
@@ -192,7 +242,7 @@
     // By category
     const byCat = {};
     for (const t of allTasks) {
-      const cat = t.category || 'Sans catégorie';
+      const cat = t.category || 'Sans cat\u00e9gorie';
       if (!byCat[cat]) byCat[cat] = { total: 0, done: 0, open: 0 };
       byCat[cat].total++;
       if (t.done) byCat[cat].done++;
@@ -233,9 +283,9 @@
   function buildKanban(list) {
     const open = list.filter(t => !t.done);
     return [
-      { priority: 3, label: 'Urgente', color: '#EF4444', tasks: open.filter(t => t.priority === 3) },
-      { priority: 2, label: 'Normale', color: '#3B82F6', tasks: open.filter(t => t.priority === 2) },
-      { priority: 1, label: 'Basse', color: '#22C55E', tasks: open.filter(t => t.priority === 1) },
+      { priority: 3, label: 'Urgente', color: 'var(--danger)', tasks: open.filter(t => t.priority === 3) },
+      { priority: 2, label: 'Normale', color: 'var(--info)', tasks: open.filter(t => t.priority === 2) },
+      { priority: 1, label: 'Basse', color: 'var(--success)', tasks: open.filter(t => t.priority === 1) },
     ];
   }
 
@@ -244,7 +294,7 @@
     try {
       tasks = await api.get('/api/tasks');
     } catch (e) {
-      toastError('Erreur chargement tâches');
+      toastError('Erreur chargement t\u00e2ches');
     }
     loading = false;
   }
@@ -259,19 +309,19 @@
     try {
       const updated = await api.patch(`/api/tasks/${task.id}/done`);
       tasks = tasks.map(t => t.id === updated.id ? updated : t);
-      success(updated.done ? 'Tâche terminée' : 'Tâche réouverte');
+      success(updated.done ? 'T\u00e2che termin\u00e9e' : 'T\u00e2che r\u00e9ouverte');
     } catch (e) {
       toastError('Erreur');
     }
   }
 
   async function deleteTask(task) {
-    if (!confirm(`Supprimer « ${task.title} » ?`)) return;
+    if (!confirm(`Supprimer \u00ab ${task.title} \u00bb ?`)) return;
     try {
       await api.delete(`/api/tasks/${task.id}`);
       tasks = tasks.filter(t => t.id !== task.id);
       if (expandedTaskId === task.id) expandedTaskId = null;
-      success('Tâche supprimée');
+      success('T\u00e2che supprim\u00e9e');
     } catch (e) {
       toastError('Erreur suppression');
     }
@@ -292,11 +342,11 @@
       if (editingTask) {
         const updated = await api.put(`/api/tasks/${editingTask.id}`, body);
         tasks = tasks.map(t => t.id === updated.id ? updated : t);
-        success('Tâche modifiée');
+        success('T\u00e2che modifi\u00e9e');
       } else {
         const created = await api.post('/api/tasks', body);
         tasks = [...tasks, created];
-        success('Tâche créée');
+        success('T\u00e2che cr\u00e9\u00e9e');
       }
       closeTaskDialog();
     } catch (e) {
@@ -406,7 +456,7 @@
       });
       tasks = tasks.map(t => t.id === updated.id ? updated : t);
       editingNotesId = null;
-      success('Notes sauvegardées');
+      success('Notes sauvegard\u00e9es');
     } catch (_) {
       toastError('Erreur');
     }
@@ -454,7 +504,7 @@
       const created = await api.post('/api/tasks/templates', templateForm);
       templates = [...templates, created];
       selectedTemplateId = created.id;
-      success('Template créé');
+      success('Template cr\u00e9\u00e9');
     } catch (_) {
       toastError('Erreur');
     }
@@ -468,7 +518,7 @@
         selectedTemplateId = null;
         templateForm = resetTemplateForm();
       }
-      success('Template supprimé');
+      success('Template supprim\u00e9');
     } catch (_) {}
   }
 
@@ -476,7 +526,7 @@
     try {
       const created = await api.post(`/api/tasks/templates/${id}/use`, {});
       tasks = [...tasks, created];
-      success('Tâche créée depuis template');
+      success('T\u00e2che cr\u00e9\u00e9e depuis template');
       closeTemplateModal();
     } catch (_) {
       toastError('Erreur');
@@ -503,24 +553,14 @@
 </script>
 
 <div class="tasks-page">
-  <!-- ── Stats Bar ──────────────────────────────────────── -->
-  <div class="stats-bar">
-    <div class="stat-card stat-open">
-      <div class="stat-value">{openCount}</div>
-      <div class="stat-label">En cours</div>
-    </div>
-    <div class="stat-card stat-overdue">
-      <div class="stat-value">{overdueCount}</div>
-      <div class="stat-label">En retard</div>
-    </div>
-    <div class="stat-card stat-week">
-      <div class="stat-value">{weekCount}</div>
-      <div class="stat-label">Cette semaine</div>
-    </div>
-    <div class="stat-card stat-done">
-      <div class="stat-value">{doneCount}</div>
-      <div class="stat-label">Terminées</div>
-    </div>
+  <!-- ── KPI Badge Row ───────────────────────────────────── -->
+  <div class="kpi-badge-row">
+    {#each STATUS_DEFS as def, i}
+      <div class="kpi-badge" style="--kpi-color: {def.colorVal}">
+        <span class="kpi-count">{kpiCounts[i]}</span>
+        <span class="kpi-label">{def.label}</span>
+      </div>
+    {/each}
   </div>
 
   <!-- Progress bar -->
@@ -528,24 +568,37 @@
     <div class="progress-bar">
       <div class="progress-fill" style="width: {progressPct}%"></div>
     </div>
-    <span class="progress-label">{progressPct}% complété</span>
+    <span class="progress-label">{progressPct}% compl\u00e9t\u00e9</span>
   </div>
 
   <!-- ── Action bar ─────────────────────────────────────── -->
   <div class="action-bar">
     <div class="action-left">
       <div class="view-segmented">
-        <button class="vseg" class:vseg-active={viewMode === 'list'} on:click={() => viewMode = 'list'}>{'\u{1F4CB}'} Liste</button>
-        <button class="vseg" class:vseg-active={viewMode === 'kanban'} on:click={() => viewMode = 'kanban'}>{'\u{1F5C2}\uFE0F'} Kanban</button>
-        <button class="vseg" class:vseg-active={viewMode === 'stats'} on:click={() => viewMode = 'stats'}>{'\u{1F4CA}'} Stats</button>
+        <button class="vseg" class:vseg-active={viewMode === 'list'} on:click={() => viewMode = 'list'}>
+          <ClipboardList size={14} /> Liste
+        </button>
+        <button class="vseg" class:vseg-active={viewMode === 'kanban'} on:click={() => viewMode = 'kanban'}>
+          <LayoutGrid size={14} /> Kanban
+        </button>
+        <button class="vseg" class:vseg-active={viewMode === 'stats'} on:click={() => viewMode = 'stats'}>
+          <BarChart3 size={14} /> Stats
+        </button>
       </div>
-      <button class="btn-ghost" on:click={openTemplateModal}>📋 Templates</button>
-      <button class="btn-primary" on:click={openCreateDialog}>+ Ajouter</button>
+      <button class="btn-ghost" on:click={openTemplateModal}>
+        <ListChecks size={14} /> Templates
+      </button>
+      <button class="btn-primary" on:click={openCreateDialog}>
+        <Plus size={14} /> Ajouter
+      </button>
+      <button class="btn-ghost btn-export">
+        <FileDown size={14} /> Export Report
+      </button>
     </div>
     <div class="action-right">
       <select class="filter-select" bind:value={filterStatus}>
         <option value="all">Tout</option>
-        <option value="open">À faire</option>
+        <option value="open">\u00c0 faire</option>
         <option value="done">Fait</option>
       </select>
       <select class="filter-select" bind:value={filterSite}>
@@ -554,7 +607,7 @@
         {/each}
       </select>
       <div class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon-wrapper"><Search size={14} /></span>
         <input type="text" placeholder="Rechercher..." on:input={onSearchInput} class="search-input" />
       </div>
     </div>
@@ -579,7 +632,7 @@
   {:else if viewMode === 'list'}
     <!-- List view -->
     {#if filteredTasks.length === 0}
-      <div class="empty-msg">Aucune tâche trouvée</div>
+      <div class="empty-msg">Aucune t\u00e2che trouv\u00e9e</div>
     {:else}
       {#each sections as [key, section]}
         <div class="section">
@@ -588,106 +641,149 @@
             <span class="section-count">{section.tasks.length}</span>
           </div>
 
-          {#each section.tasks as task (task.id)}
-            <div class="task-row" class:task-done={task.done}>
-              <!-- Main row -->
-              <div class="task-main" on:click={() => toggleExpand(task.id)}>
-                <button class="task-check" on:click|stopPropagation={() => toggleDone(task)}>
-                  {#if task.done}
-                    <span class="check-done">☑</span>
-                  {:else}
-                    <span class="check-open">☐</span>
-                  {/if}
-                </button>
-
-                <span
-                  class="priority-badge"
-                  style="background: {getPriority(task.priority).color}20; color: {getPriority(task.priority).color}; border: 1px solid {getPriority(task.priority).color}40"
-                >
-                  {getPriority(task.priority).icon} P{task.priority}
-                </span>
-
-                <span class="task-title" class:struck={task.done}>{task.title}</span>
-
-                {#if task.category}
-                  <span class="task-category">{task.category}</span>
-                {/if}
-
-                {#if task.due_date || task.done}
-                  <span class="due-chip" style="background: {getDueColor(getDueStatus(task))}20; color: {getDueColor(getDueStatus(task))}">
-                    📅 {getDueLabel(getDueStatus(task))}
-                  </span>
-                {/if}
-
-                {#if task.recurrence}
-                  <span class="recurrence-badge">↻</span>
-                {/if}
-
-                {#if checklistsCache[task.id] && checklistsCache[task.id].length > 0}
-                  {@const prog = getChecklistProgress(task.id)}
-                  {#if prog}
-                    <span class="checklist-progress">☑ {prog.done}/{prog.total}</span>
-                  {/if}
-                {/if}
-
-                <div class="task-actions">
-                  <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(task)} title="Modifier">✏️</button>
-                  <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => deleteTask(task)} title="Supprimer">🗑️</button>
-                </div>
-              </div>
-
-              <!-- Expanded area -->
-              {#if expandedTaskId === task.id}
-                <div class="task-expanded">
-                  <!-- Notes -->
-                  <div class="expanded-section">
-                    <div class="expanded-label">Notes</div>
-                    {#if editingNotesId === task.id}
-                      <textarea class="notes-textarea" bind:value={editingNotesText} rows="3"></textarea>
-                      <div class="notes-actions">
-                        <button class="btn-small btn-save" on:click={() => saveNotes(task)}>Sauvegarder</button>
-                        <button class="btn-small btn-cancel" on:click={cancelEditNotes}>Annuler</button>
-                      </div>
-                    {:else}
-                      <div class="notes-display" on:click={() => startEditNotes(task)}>
-                        {task.notes || 'Cliquer pour ajouter des notes...'}
-                      </div>
+          <table class="ya-table">
+            <thead>
+              <tr>
+                <th style="width:40px"></th>
+                <th style="width:70px">Priorit\u00e9</th>
+                <th>T\u00e2che</th>
+                <th style="width:120px">Cat\u00e9gorie</th>
+                <th style="width:120px">Statut</th>
+                <th style="width:80px"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {#each section.tasks as task (task.id)}
+                <tr class="task-row" class:task-done={task.done}>
+                  <td>
+                    <button class="task-check" on:click|stopPropagation={() => toggleDone(task)}>
+                      {#if task.done}
+                        <CheckSquare size={18} class="check-done-icon" />
+                      {:else}
+                        <Square size={18} class="check-open-icon" />
+                      {/if}
+                    </button>
+                  </td>
+                  <td>
+                    <span class="priority-pill {getPriorityClass(task.priority)}">
+                      {#if task.priority === 3}
+                        <AlertTriangle size={11} />
+                      {:else if task.priority === 1}
+                        <ArrowDown size={11} />
+                      {:else}
+                        <Equal size={11} />
+                      {/if}
+                      P{task.priority}
+                    </span>
+                  </td>
+                  <!-- svelte-ignore a11y_click_events_have_key_events -->
+                  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                  <td on:click={() => toggleExpand(task.id)} style="cursor:pointer">
+                    <span class="task-title" class:struck={task.done}>{task.title}</span>
+                    {#if task.recurrence}
+                      <RefreshCw size={12} class="recurrence-icon" />
                     {/if}
-                  </div>
-
-                  <!-- Checklist -->
-                  <div class="expanded-section">
-                    <div class="expanded-label">Checklist</div>
-                    {#if checklistsCache[task.id]}
-                      {#each checklistsCache[task.id] as item (item.id)}
-                        <div class="checklist-item">
-                          <button class="cl-check" on:click={() => toggleChecklistItem(task.id, item)}>
-                            {item.done ? '☑' : '☐'}
-                          </button>
-                          <span class="cl-text" class:struck={item.done}>{item.text}</span>
-                          <button class="btn-icon-sm" on:click={() => deleteChecklistItem(task.id, item.id)}>✕</button>
-                        </div>
-                      {/each}
+                    {#if checklistsCache[task.id] && checklistsCache[task.id].length > 0}
+                      {@const prog = getChecklistProgress(task.id)}
+                      {#if prog}
+                        <span class="checklist-progress">
+                          <ListChecks size={11} /> {prog.done}/{prog.total}
+                        </span>
+                      {/if}
                     {/if}
-                    <div class="cl-add-row">
-                      <input
-                        type="text"
-                        class="cl-add-input"
-                        placeholder="Nouvel élément..."
-                        bind:value={newChecklistText[task.id]}
-                        on:keydown={(e) => e.key === 'Enter' && addChecklistItem(task.id)}
-                      />
-                      <button class="btn-small btn-save" on:click={() => addChecklistItem(task.id)}>+</button>
+                  </td>
+                  <td>
+                    {#if task.category}
+                      <span class="task-category">{task.category}</span>
+                    {/if}
+                  </td>
+                  <td>
+                    {#if task.due_date || task.done}
+                      <span class="status-pill {getStatusBadgeClass(getDueStatus(task))}">
+                        <Calendar size={11} />
+                        {getDueLabel(getDueStatus(task))}
+                      </span>
+                    {/if}
+                  </td>
+                  <td>
+                    <div class="task-actions">
+                      <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(task)} title="Modifier">
+                        <Pencil size={14} />
+                      </button>
+                      <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => deleteTask(task)} title="Supprimer">
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/each}
+                  </td>
+                </tr>
+
+                <!-- Expanded area -->
+                {#if expandedTaskId === task.id}
+                  <tr class="task-expanded-row">
+                    <td colspan="6">
+                      <div class="task-expanded">
+                        <!-- Notes -->
+                        <div class="expanded-section">
+                          <div class="expanded-label"><StickyNote size={12} /> Notes</div>
+                          {#if editingNotesId === task.id}
+                            <textarea class="notes-textarea" bind:value={editingNotesText} rows="3"></textarea>
+                            <div class="notes-actions">
+                              <button class="btn-small btn-save" on:click={() => saveNotes(task)}>Sauvegarder</button>
+                              <button class="btn-small btn-cancel" on:click={cancelEditNotes}>Annuler</button>
+                            </div>
+                          {:else}
+                            <!-- svelte-ignore a11y_click_events_have_key_events -->
+                            <!-- svelte-ignore a11y_no_static_element_interactions -->
+                            <div class="notes-display" on:click={() => startEditNotes(task)}>
+                              {task.notes || 'Cliquer pour ajouter des notes...'}
+                            </div>
+                          {/if}
+                        </div>
+
+                        <!-- Checklist -->
+                        <div class="expanded-section">
+                          <div class="expanded-label"><ListChecks size={12} /> Checklist</div>
+                          {#if checklistsCache[task.id]}
+                            {#each checklistsCache[task.id] as item (item.id)}
+                              <div class="checklist-item">
+                                <button class="cl-check" on:click={() => toggleChecklistItem(task.id, item)}>
+                                  {#if item.done}
+                                    <CheckSquare size={16} />
+                                  {:else}
+                                    <Square size={16} />
+                                  {/if}
+                                </button>
+                                <span class="cl-text" class:struck={item.done}>{item.text}</span>
+                                <button class="btn-icon-sm" on:click={() => deleteChecklistItem(task.id, item.id)}>
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            {/each}
+                          {/if}
+                          <div class="cl-add-row">
+                            <input
+                              type="text"
+                              class="cl-add-input"
+                              placeholder="Nouvel \u00e9l\u00e9ment..."
+                              bind:value={newChecklistText[task.id]}
+                              on:keydown={(e) => e.key === 'Enter' && addChecklistItem(task.id)}
+                            />
+                            <button class="btn-small btn-save" on:click={() => addChecklistItem(task.id)}>
+                              <Plus size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                {/if}
+              {/each}
+            </tbody>
+          </table>
         </div>
       {/each}
     {/if}
-  {:else}
+  {:else if viewMode === 'kanban'}
     <!-- Kanban view -->
     <div class="kanban-board">
       {#each kanbanColumns as col}
@@ -698,6 +794,7 @@
           </div>
           <div class="kanban-cards">
             {#each col.tasks as task (task.id)}
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
               <div
                 class="kanban-card"
                 on:dblclick={() => openEditDialog(task)}
@@ -708,16 +805,16 @@
                 {/if}
                 {#if task.due_date}
                   <span class="kc-due" style="color: {getDueColor(getDueStatus(task))}">
-                    📅 {task.due_date}
+                    <Calendar size={11} /> {task.due_date}
                   </span>
                 {/if}
                 {#if task.site}
-                  <span class="kc-site">{task.site}</span>
+                  <span class="kc-site"><Building2 size={11} /> {task.site}</span>
                 {/if}
               </div>
             {/each}
             {#if col.tasks.length === 0}
-              <div class="kanban-empty">Aucune tâche</div>
+              <div class="kanban-empty">Aucune t\u00e2che</div>
             {/if}
           </div>
         </div>
@@ -734,27 +831,27 @@
           <span class="stats-kpi-label">Total</span>
         </div>
         <div class="stats-kpi">
-          <span class="stats-kpi-value" style="color:#22C55E">{taskStats.done}</span>
-          <span class="stats-kpi-label">Termin{'\u00e9'}es</span>
+          <span class="stats-kpi-value" style="color:var(--success)">{taskStats.done}</span>
+          <span class="stats-kpi-label">Termin\u00e9es</span>
         </div>
         <div class="stats-kpi">
-          <span class="stats-kpi-value" style="color:#3B82F6">{taskStats.open}</span>
+          <span class="stats-kpi-value" style="color:var(--info)">{taskStats.open}</span>
           <span class="stats-kpi-label">En cours</span>
         </div>
         <div class="stats-kpi">
-          <span class="stats-kpi-value" style="color:#EF4444">{taskStats.overdue}</span>
+          <span class="stats-kpi-value" style="color:var(--danger)">{taskStats.overdue}</span>
           <span class="stats-kpi-label">En retard</span>
         </div>
         <div class="stats-kpi">
-          <span class="stats-kpi-value" style="color:var(--accent)">{taskStats.completionRate}%</span>
-          <span class="stats-kpi-label">Compl{'\u00e9'}tion</span>
+          <span class="stats-kpi-value" style="color:var(--primary)">{taskStats.completionRate}%</span>
+          <span class="stats-kpi-label">Compl\u00e9tion</span>
         </div>
       </div>
 
       <div class="stats-grid">
         <!-- By Category -->
         <div class="stats-card">
-          <h3>{'\u{1F4CA}'} Par cat{'\u00e9'}gorie</h3>
+          <h3><BarChart3 size={14} /> Par cat\u00e9gorie</h3>
           <div class="stats-bars">
             {#each Object.entries(taskStats.byCat).sort((a, b) => b[1].total - a[1].total) as [cat, data]}
               <div class="stats-bar-row">
@@ -766,21 +863,24 @@
               </div>
             {/each}
             {#if Object.keys(taskStats.byCat).length === 0}
-              <p class="stats-empty">Aucune t{'\u00e2'}che</p>
+              <p class="stats-empty">Aucune t\u00e2che</p>
             {/if}
           </div>
         </div>
 
         <!-- By Priority -->
         <div class="stats-card">
-          <h3>{'\u26A0\uFE0F'} T{'\u00e2'}ches ouvertes par priorit{'\u00e9'}</h3>
+          <h3><AlertTriangle size={14} /> T\u00e2ches ouvertes par priorit\u00e9</h3>
           <div class="stats-priority-grid">
             {#each PRIORITIES as prio, i}
               <div class="stats-prio-item">
                 <div class="stats-prio-circle" style="border-color:{prio.color};color:{prio.color}">
                   {taskStats.byPrio[i]}
                 </div>
-                <span class="stats-prio-label">{prio.icon} {prio.label}</span>
+                <span class="stats-prio-label">
+                  {#if prio.value === 3}<AlertTriangle size={11} />{:else if prio.value === 1}<ArrowDown size={11} />{:else}<Equal size={11} />{/if}
+                  {prio.label}
+                </span>
               </div>
             {/each}
           </div>
@@ -788,7 +888,7 @@
 
         <!-- By Site -->
         <div class="stats-card">
-          <h3>{'\u{1F3EB}'} Par site</h3>
+          <h3><Building2 size={14} /> Par site</h3>
           <div class="stats-bars">
             {#each Object.entries(taskStats.bySite).sort((a, b) => b[1].total - a[1].total) as [site, data]}
               <div class="stats-bar-row">
@@ -804,21 +904,21 @@
 
         <!-- Week activity -->
         <div class="stats-card">
-          <h3>{'\u{1F4C8}'} Activit{'\u00e9'} 7 derniers jours</h3>
+          <h3><BarChart3 size={14} /> Activit\u00e9 7 derniers jours</h3>
           <div class="stats-week-chart">
             {#each taskStats.weekData as day}
               <div class="stats-week-col">
                 <div class="stats-week-bars">
-                  <div class="stats-week-bar created" style="height:{Math.max(day.created * 20, 2)}px" title="{day.created} cr{'\u00e9'}{'\u00e9'}es"></div>
-                  <div class="stats-week-bar completed" style="height:{Math.max(day.completed * 20, 2)}px" title="{day.completed} termin{'\u00e9'}es"></div>
+                  <div class="stats-week-bar created" style="height:{Math.max(day.created * 20, 2)}px" title="{day.created} cr\u00e9\u00e9es"></div>
+                  <div class="stats-week-bar completed" style="height:{Math.max(day.completed * 20, 2)}px" title="{day.completed} termin\u00e9es"></div>
                 </div>
                 <span class="stats-week-label">{day.label}</span>
               </div>
             {/each}
           </div>
           <div class="stats-week-legend">
-            <span class="stats-legend-item"><span class="stats-legend-dot" style="background:#3B82F6"></span> Cr{'\u00e9'}{'\u00e9'}es</span>
-            <span class="stats-legend-item"><span class="stats-legend-dot" style="background:#22C55E"></span> Termin{'\u00e9'}es</span>
+            <span class="stats-legend-item"><span class="stats-legend-dot" style="background:var(--info)"></span> Cr\u00e9\u00e9es</span>
+            <span class="stats-legend-item"><span class="stats-legend-dot" style="background:var(--success)"></span> Termin\u00e9es</span>
           </div>
         </div>
       </div>
@@ -828,16 +928,20 @@
 
 <!-- ── Task Dialog (Modal) ──────────────────────────────── -->
 {#if showTaskDialog}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" on:click={closeTaskDialog}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-box" on:click|stopPropagation>
       <div class="modal-header">
-        <h2>{editingTask ? 'Modifier la tâche' : 'Nouvelle tâche'}</h2>
-        <button class="modal-close" on:click={closeTaskDialog}>✕</button>
+        <h2>{editingTask ? 'Modifier la t\u00e2che' : 'Nouvelle t\u00e2che'}</h2>
+        <button class="modal-close" on:click={closeTaskDialog}><X size={18} /></button>
       </div>
       <div class="modal-body">
         <label class="form-label">
           Titre *
-          <input type="text" class="form-input" bind:value={dialogForm.title} placeholder="Titre de la tâche" />
+          <input type="text" class="form-input" bind:value={dialogForm.title} placeholder="Titre de la t\u00e2che" />
         </label>
 
         <div class="form-row">
@@ -850,8 +954,8 @@
             </select>
           </label>
           <label class="form-label form-half">
-            Catégorie
-            <input type="text" class="form-input" bind:value={dialogForm.category} placeholder="Catégorie"
+            Cat\u00e9gorie
+            <input type="text" class="form-input" bind:value={dialogForm.category} placeholder="Cat\u00e9gorie"
               list="cat-list"
             />
             <datalist id="cat-list">
@@ -864,7 +968,7 @@
 
         <div class="form-row">
           <label class="form-label form-half">
-            Priorité
+            Priorit\u00e9
             <div class="priority-selector">
               {#each PRIORITIES as p}
                 <button
@@ -873,13 +977,14 @@
                   style="--prio-color: {p.color}"
                   on:click={() => dialogForm.priority = p.value}
                 >
-                  {p.icon} {p.label}
+                  {#if p.value === 3}<AlertTriangle size={11} />{:else if p.value === 1}<ArrowDown size={11} />{:else}<Equal size={11} />{/if}
+                  {p.label}
                 </button>
               {/each}
             </div>
           </label>
           <label class="form-label form-half">
-            Récurrence
+            R\u00e9currence
             <select class="form-input" bind:value={dialogForm.recurrence}>
               {#each RECURRENCES as r}
                 <option value={r.value}>{r.label}</option>
@@ -890,10 +995,10 @@
 
         <label class="form-label">
           <div class="due-date-header">
-            Échéance
+            \u00c9ch\u00e9ance
             <label class="nodue-label">
               <input type="checkbox" bind:checked={dialogNoDueDate} />
-              Sans échéance
+              Sans \u00e9ch\u00e9ance
             </label>
           </div>
           {#if !dialogNoDueDate}
@@ -909,7 +1014,7 @@
       <div class="modal-footer">
         <button class="btn-ghost" on:click={closeTaskDialog}>Annuler</button>
         <button class="btn-primary" on:click={saveTask} disabled={!dialogForm.title.trim()}>
-          {editingTask ? 'Modifier' : 'Créer'}
+          {editingTask ? 'Modifier' : 'Cr\u00e9er'}
         </button>
       </div>
     </div>
@@ -918,27 +1023,37 @@
 
 <!-- ── Template Modal ───────────────────────────────────── -->
 {#if showTemplateModal}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="modal-overlay" on:click={closeTemplateModal}>
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="modal-box modal-wide" on:click|stopPropagation>
       <div class="modal-header">
         <h2>Gestionnaire de templates</h2>
-        <button class="modal-close" on:click={closeTemplateModal}>✕</button>
+        <button class="modal-close" on:click={closeTemplateModal}><X size={18} /></button>
       </div>
       <div class="modal-body template-body">
         <!-- Left panel: list -->
         <div class="tpl-list-panel">
           <div class="tpl-list-header">
             <span>Templates</span>
-            <button class="btn-small btn-save" on:click={() => { selectedTemplateId = null; templateForm = resetTemplateForm(); }}>+ Nouveau</button>
+            <button class="btn-small btn-save" on:click={() => { selectedTemplateId = null; templateForm = resetTemplateForm(); }}>
+              <Plus size={12} /> Nouveau
+            </button>
           </div>
           {#each templates as t (t.id)}
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="tpl-item"
               class:tpl-active={selectedTemplateId === t.id}
               on:click={() => selectTemplate(t)}
             >
               <span class="tpl-name">{t.name}</span>
-              <button class="btn-icon-sm" on:click|stopPropagation={() => deleteTemplate(t.id)}>✕</button>
+              <button class="btn-icon-sm" on:click|stopPropagation={() => deleteTemplate(t.id)}>
+                <X size={12} />
+              </button>
             </div>
           {/each}
           {#if templates.length === 0}
@@ -953,7 +1068,7 @@
             <input type="text" class="form-input" bind:value={templateForm.name} placeholder="Nom unique" />
           </label>
           <label class="form-label">
-            Titre de la tâche
+            Titre de la t\u00e2che
             <input type="text" class="form-input" bind:value={templateForm.title} />
           </label>
           <div class="form-row">
@@ -966,21 +1081,21 @@
               </select>
             </label>
             <label class="form-label form-half">
-              Catégorie
+              Cat\u00e9gorie
               <input type="text" class="form-input" bind:value={templateForm.category} />
             </label>
           </div>
           <div class="form-row">
             <label class="form-label form-half">
-              Priorité
+              Priorit\u00e9
               <select class="form-input" bind:value={templateForm.priority}>
                 {#each PRIORITIES as p}
-                  <option value={p.value}>{p.icon} {p.label}</option>
+                  <option value={p.value}>{p.label}</option>
                 {/each}
               </select>
             </label>
             <label class="form-label form-half">
-              Récurrence
+              R\u00e9currence
               <select class="form-input" bind:value={templateForm.recurrence}>
                 {#each RECURRENCES as r}
                   <option value={r.value}>{r.label}</option>
@@ -999,9 +1114,9 @@
 
           <div class="tpl-actions">
             {#if !selectedTemplateId}
-              <button class="btn-primary" on:click={saveTemplate} disabled={!templateForm.name.trim()}>Créer le template</button>
+              <button class="btn-primary" on:click={saveTemplate} disabled={!templateForm.name.trim()}>Cr\u00e9er le template</button>
             {:else}
-              <button class="btn-primary" on:click={() => useTemplate(selectedTemplateId)}>Créer une tâche</button>
+              <button class="btn-primary" on:click={() => useTemplate(selectedTemplateId)}>Cr\u00e9er une t\u00e2che</button>
             {/if}
           </div>
         </div>
@@ -1016,46 +1131,47 @@
     animation: fadeIn 0.35s ease-out;
   }
 
-  /* ── Stats bar ─────────────────────────────────────────── */
-  .stats-bar {
+  /* ── KPI Badge Row ──────────────────────────────────────── */
+  .kpi-badge-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 12px;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
   }
 
-  .stat-card {
+  .kpi-badge {
     background: var(--bg-card);
     backdrop-filter: blur(16px);
     border: 1px solid var(--border-subtle);
     border-radius: 12px;
-    padding: 14px 18px;
+    padding: 16px 12px;
     text-align: center;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, transform 0.2s;
+    border-top: 3px solid var(--kpi-color);
   }
 
-  .stat-card:hover {
+  .kpi-badge:hover {
     border-color: var(--border-hover);
+    transform: translateY(-2px);
   }
 
-  .stat-value {
+  .kpi-count {
+    display: block;
     font-size: 28px;
-    font-weight: 700;
+    font-weight: 800;
+    color: var(--kpi-color);
     font-variant-numeric: tabular-nums;
+    line-height: 1.2;
   }
 
-  .stat-label {
+  .kpi-label {
+    display: block;
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.6px;
     color: var(--text-muted);
-    margin-top: 2px;
+    margin-top: 4px;
   }
-
-  .stat-open .stat-value { color: #3B82F6; }
-  .stat-overdue .stat-value { color: #EF4444; }
-  .stat-week .stat-value { color: #F59E0B; }
-  .stat-done .stat-value { color: #22C55E; }
 
   /* ── Progress ──────────────────────────────────────────── */
   .progress-wrapper {
@@ -1068,14 +1184,14 @@
   .progress-bar {
     flex: 1;
     height: 6px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-5);
     border-radius: 3px;
     overflow: hidden;
   }
 
   .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent), #22C55E);
+    background: linear-gradient(90deg, var(--primary), var(--success));
     border-radius: 3px;
     transition: width 0.4s ease;
   }
@@ -1102,24 +1218,6 @@
     gap: 8px;
   }
 
-  .btn-toggle {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .btn-toggle:hover, .btn-toggle.active {
-    background: rgba(var(--accent-rgb), 0.12);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
   .btn-ghost {
     background: transparent;
     border: 1px solid var(--border-subtle);
@@ -1130,6 +1228,9 @@
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .btn-ghost:hover {
@@ -1138,8 +1239,17 @@
     color: var(--text-primary);
   }
 
+  .btn-export {
+    border-color: rgba(var(--primary-rgb), 0.3);
+    color: var(--primary);
+  }
+  .btn-export:hover {
+    background: rgba(var(--primary-rgb), 0.1);
+    border-color: var(--primary);
+  }
+
   .btn-primary {
-    background: var(--accent);
+    background: var(--primary);
     border: none;
     border-radius: 8px;
     color: #fff;
@@ -1149,12 +1259,15 @@
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
-    box-shadow: 0 2px 12px rgba(var(--accent-rgb), 0.3);
+    box-shadow: 0 2px 12px rgba(var(--primary-rgb), 0.3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .btn-primary:hover {
     filter: brightness(1.15);
-    box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.4);
+    box-shadow: 0 4px 20px rgba(var(--primary-rgb), 0.4);
   }
 
   .btn-primary:disabled {
@@ -1175,7 +1288,7 @@
   }
 
   .filter-select:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
 
   .search-box {
@@ -1184,11 +1297,14 @@
     align-items: center;
   }
 
-  .search-icon {
+  .search-icon-wrapper {
     position: absolute;
     left: 8px;
     font-size: 13px;
     pointer-events: none;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
   }
 
   .search-input {
@@ -1205,7 +1321,7 @@
   }
 
   .search-input:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
 
   /* ── Chips ──────────────────────────────────────────────── */
@@ -1234,9 +1350,9 @@
   }
 
   .chip-active {
-    background: rgba(var(--accent-rgb), 0.15);
-    border-color: var(--accent);
-    color: var(--accent);
+    background: rgba(var(--primary-rgb), 0.15);
+    border-color: var(--primary);
+    color: var(--primary);
   }
 
   /* ── Sections ──────────────────────────────────────────── */
@@ -1250,7 +1366,7 @@
     gap: 8px;
     padding: 6px 0;
     margin-bottom: 6px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--border-subtle);
   }
 
   .section-title {
@@ -1272,57 +1388,118 @@
     text-align: center;
   }
 
-  /* ── Task row ──────────────────────────────────────────── */
-  .task-row {
+  /* ── YA Table ──────────────────────────────────────────── */
+  .ya-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 4px;
+  }
+
+  .ya-table thead th {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .ya-table tbody tr.task-row {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
-    margin-bottom: 6px;
-    overflow: hidden;
-    transition: border-color 0.2s;
+    transition: background 0.15s;
   }
 
-  .task-row:hover {
-    border-color: var(--border-hover);
+  .ya-table tbody tr.task-row:hover {
+    background: var(--bg-hover);
   }
 
-  .task-done {
+  .ya-table tbody tr.task-row td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+  }
+
+  .ya-table tbody tr.task-done {
     opacity: 0.5;
   }
 
-  .task-main {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 14px;
-    cursor: pointer;
-    min-height: 44px;
+  .ya-table tbody tr.task-expanded-row td {
+    padding: 0;
+    border-bottom: 1px solid var(--border-subtle);
   }
 
+  /* ── Status & Priority Pills ────────────────────────────── */
+  .priority-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  .badge-danger {
+    background: rgba(var(--danger-rgb), 0.15);
+    color: var(--danger);
+  }
+
+  .badge-warning {
+    background: rgba(var(--warning-rgb), 0.15);
+    color: var(--warning);
+  }
+
+  .badge-primary {
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--primary);
+  }
+
+  .badge-success {
+    background: rgba(var(--success-rgb), 0.15);
+    color: var(--success);
+  }
+
+  .badge-info {
+    background: rgba(var(--info-rgb), 0.15);
+    color: var(--info);
+  }
+
+  .badge-muted {
+    background: var(--overlay-white-5);
+    color: var(--text-muted);
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+  }
+
+  /* ── Task elements ──────────────────────────────────────── */
   .task-check {
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 18px;
     padding: 0;
     line-height: 1;
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
   }
 
-  .check-done { color: #22C55E; }
-  .check-open { color: var(--text-muted); }
-
-  .priority-badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 2px 8px;
-    border-radius: 6px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
+  .task-check :global(.check-done-icon) { color: var(--success); }
+  .task-check :global(.check-open-icon) { color: var(--text-muted); }
 
   .task-title {
-    flex: 1;
     font-size: 14px;
     color: var(--text-primary);
     min-width: 0;
@@ -1338,33 +1515,28 @@
 
   .task-category {
     font-size: 11px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-5);
     color: var(--text-secondary);
     padding: 2px 8px;
     border-radius: 6px;
     white-space: nowrap;
-    flex-shrink: 0;
   }
 
-  .due-chip {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .recurrence-badge {
-    font-size: 14px;
+  :global(.recurrence-icon) {
     color: var(--text-muted);
-    flex-shrink: 0;
+    display: inline;
+    vertical-align: middle;
+    margin-left: 6px;
   }
 
   .checklist-progress {
     font-size: 11px;
     color: var(--text-muted);
     white-space: nowrap;
-    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-left: 6px;
   }
 
   .task-actions {
@@ -1375,7 +1547,7 @@
     transition: opacity 0.15s;
   }
 
-  .task-main:hover .task-actions {
+  .ya-table tbody tr.task-row:hover .task-actions {
     opacity: 1;
   }
 
@@ -1383,25 +1555,29 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 14px;
     padding: 4px;
     border-radius: 6px;
     transition: background 0.15s;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-8);
+    color: var(--text-primary);
   }
 
   .btn-icon-danger:hover {
-    background: rgba(239, 68, 68, 0.15);
+    background: rgba(var(--danger-rgb), 0.15);
+    color: var(--danger);
   }
 
   /* ── Expanded area ─────────────────────────────────────── */
   .task-expanded {
     border-top: 1px solid var(--border-subtle);
     padding: 14px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-base);
     animation: fadeIn 0.2s ease-out;
   }
 
@@ -1420,6 +1596,9 @@
     letter-spacing: 0.6px;
     color: var(--text-muted);
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .notes-display {
@@ -1439,7 +1618,7 @@
 
   .notes-textarea {
     width: 100%;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     color: var(--text-primary);
@@ -1451,7 +1630,7 @@
   }
 
   .notes-textarea:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
 
   .notes-actions {
@@ -1467,10 +1646,13 @@
     cursor: pointer;
     font-family: inherit;
     border: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .btn-save {
-    background: var(--accent);
+    background: var(--primary);
     color: #fff;
   }
 
@@ -1500,9 +1682,10 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 16px;
     padding: 0;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
   }
 
   .cl-text {
@@ -1515,12 +1698,13 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 12px;
     color: var(--text-muted);
     padding: 2px;
     border-radius: 4px;
     opacity: 0;
     transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
   }
 
   .checklist-item:hover .btn-icon-sm {
@@ -1528,7 +1712,7 @@
   }
 
   .btn-icon-sm:hover {
-    color: #EF4444;
+    color: var(--danger);
   }
 
   .cl-add-row {
@@ -1539,7 +1723,7 @@
 
   .cl-add-input {
     flex: 1;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     color: var(--text-primary);
@@ -1550,7 +1734,7 @@
   }
 
   .cl-add-input:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
 
   /* ── Loading / Empty ───────────────────────────────────── */
@@ -1570,11 +1754,12 @@
     background: transparent; border: none; color: var(--text-secondary);
     font-size: 12px; padding: 6px 12px; cursor: pointer; font-family: inherit;
     transition: all 0.15s; white-space: nowrap;
+    display: flex; align-items: center; gap: 5px;
   }
   .vseg:hover { background: var(--bg-hover); color: var(--text-primary); }
   .vseg-active {
-    background: var(--accent); color: #fff;
-    box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.3);
+    background: var(--primary); color: #fff;
+    box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
   }
 
   /* ── Stats View ────────────────────────────────────────── */
@@ -1599,13 +1784,16 @@
     background: var(--bg-card); border: 1px solid var(--border-subtle);
     border-radius: 12px; padding: 18px 20px; backdrop-filter: blur(12px);
   }
-  .stats-card h3 { margin: 0 0 14px; font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .stats-card h3 {
+    margin: 0 0 14px; font-size: 14px; font-weight: 600; color: var(--text-primary);
+    display: flex; align-items: center; gap: 6px;
+  }
 
   .stats-bars { display: flex; flex-direction: column; gap: 8px; }
   .stats-bar-row { display: flex; align-items: center; gap: 8px; }
   .stats-bar-label { width: 110px; font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .stats-bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; }
-  .stats-bar-fill.done-fill { height: 100%; background: linear-gradient(90deg, #22C55E, #4ADE80); border-radius: 4px; transition: width 0.5s ease; }
+  .stats-bar-track { flex: 1; height: 8px; background: var(--overlay-white-5); border-radius: 4px; overflow: hidden; }
+  .stats-bar-fill.done-fill { height: 100%; background: linear-gradient(90deg, var(--success), var(--teal)); border-radius: 4px; transition: width 0.5s ease; }
   .stats-bar-numbers { font-size: 11px; color: var(--text-muted); min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
 
   .stats-priority-grid { display: flex; justify-content: space-around; padding: 10px 0; }
@@ -1615,14 +1803,17 @@
     border: 3px solid; display: flex; align-items: center; justify-content: center;
     font-size: 22px; font-weight: 800;
   }
-  .stats-prio-label { font-size: 12px; color: var(--text-secondary); }
+  .stats-prio-label {
+    font-size: 12px; color: var(--text-secondary);
+    display: flex; align-items: center; gap: 4px;
+  }
 
   .stats-week-chart { display: flex; justify-content: space-around; align-items: flex-end; height: 100px; padding: 10px 0; }
   .stats-week-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
   .stats-week-bars { display: flex; gap: 3px; align-items: flex-end; }
   .stats-week-bar { width: 14px; border-radius: 3px 3px 0 0; min-height: 2px; }
-  .stats-week-bar.created { background: #3B82F6; }
-  .stats-week-bar.completed { background: #22C55E; }
+  .stats-week-bar.created { background: var(--info); }
+  .stats-week-bar.completed { background: var(--success); }
   .stats-week-label { font-size: 10px; color: var(--text-muted); text-transform: capitalize; }
   .stats-week-legend { display: flex; gap: 16px; justify-content: center; margin-top: 8px; }
   .stats-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-secondary); }
@@ -1660,7 +1851,7 @@
 
   .kanban-count {
     font-size: 12px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-8);
     padding: 1px 8px;
     border-radius: 10px;
     color: var(--text-muted);
@@ -1675,7 +1866,7 @@
   }
 
   .kanban-card {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     padding: 10px 12px;
@@ -1685,7 +1876,6 @@
 
   .kanban-card:hover {
     border-color: var(--border-hover);
-    background: rgba(0, 0, 0, 0.3);
   }
 
   .kc-title {
@@ -1697,13 +1887,15 @@
 
   .kc-cat, .kc-due, .kc-site {
     font-size: 11px;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
     margin-right: 6px;
     margin-top: 2px;
   }
 
   .kc-cat {
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-5);
     color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 4px;
@@ -1767,10 +1959,11 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 18px;
     cursor: pointer;
     padding: 4px;
     border-radius: 6px;
+    display: flex;
+    align-items: center;
   }
 
   .modal-close:hover {
@@ -1810,7 +2003,7 @@
   }
 
   .form-input {
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     color: var(--text-primary);
@@ -1823,7 +2016,7 @@
   }
 
   .form-input:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
   }
 
   .form-textarea {
@@ -1858,7 +2051,7 @@
 
   .prio-btn {
     flex: 1;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     border-radius: 6px;
     color: var(--text-secondary);
@@ -1867,6 +2060,10 @@
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
   }
 
   .prio-btn:hover {
@@ -1921,7 +2118,7 @@
   }
 
   .tpl-active {
-    background: rgba(var(--accent-rgb), 0.12);
+    background: rgba(var(--primary-rgb), 0.12);
   }
 
   .tpl-name {
@@ -1949,8 +2146,8 @@
 
   /* ── Responsive ────────────────────────────────────────── */
   @media (max-width: 900px) {
-    .stats-bar {
-      grid-template-columns: repeat(2, 1fr);
+    .kpi-badge-row {
+      grid-template-columns: repeat(3, 1fr);
     }
     .kanban-board {
       grid-template-columns: 1fr;
@@ -1964,6 +2161,12 @@
       border-bottom: 1px solid var(--border-subtle);
       padding-right: 0;
       padding-bottom: 12px;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .kpi-badge-row {
+      grid-template-columns: repeat(2, 1fr);
     }
   }
 </style>

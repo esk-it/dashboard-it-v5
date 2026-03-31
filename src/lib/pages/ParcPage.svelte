@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { RefreshCw, Loader, FileText, Tag, FolderTree, Building2, Building, DoorOpen, Pencil, Trash2, Settings, ClipboardList, CircleAlert, AlertTriangle, CheckCircle, QrCode } from 'lucide-svelte';
 
   // ── State ──────────────────────────────────────────────────
   let equipment = [];
@@ -458,17 +459,17 @@
     <div class="header-actions">
       {#if glpiConfig}
         <button class="btn-sync" on:click={triggerGlpiSync} disabled={glpiSyncing} title="Synchroniser avec GLPI">
-          {glpiSyncing ? '⏳ Sync…' : '🔄 Sync GLPI'}
+          {#if glpiSyncing}<Loader size={14} style="display:inline;vertical-align:middle" /> Sync…{:else}<RefreshCw size={14} style="display:inline;vertical-align:middle" /> Sync GLPI{/if}
         </button>
         {#if glpiStats?.last_sync}
           <span class="sync-info">Dernière sync : {new Date(glpiStats.last_sync).toLocaleString('fr-FR')}</span>
         {/if}
       {/if}
       <button class="btn-export" on:click={exportInventoryPdf} title="Exporter l'inventaire en PDF">
-        {'\u{1F4C4}'} PDF
+        <FileText size={14} style="display:inline;vertical-align:middle" /> PDF
       </button>
       <button class="btn-export" on:click={openQrLabels} title="{'\u00C9'}tiquettes QR">
-        {'\u{1F3F7}\uFE0F'} QR Labels
+        <QrCode size={14} style="display:inline;vertical-align:middle" /> QR Labels
       </button>
       <button class="btn-primary" on:click={openNew}>+ Ajouter</button>
     </div>
@@ -507,7 +508,7 @@
   <!-- Sidebar Tree -->
   <aside class="tree-sidebar">
     <div class="tree-header">
-      <span class="tree-header-icon">{'\u{1F5C2}\uFE0F'}</span>
+      <span class="tree-header-icon"><FolderTree size={16} /></span>
       <strong>Sites</strong>
       {#if selectedSiteId || selectedBuildingId || selectedRoomId}
         <button class="btn-clear" on:click={clearTreeFilter}>Effacer</button>
@@ -522,7 +523,7 @@
             <span class="tree-toggle" on:click|stopPropagation={() => toggleSite(site.id)}>
               <svg class="chevron" class:open={expandedSites[site.id]} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </span>
-            <span class="tree-ico">{'\u{1F3E2}'}</span>
+            <span class="tree-ico"><Building2 size={14} /></span>
             <span class="tree-label">{site.code || site.name}</span>
             <span class="tree-count">{countBySite(site.id)}</span>
           </button>
@@ -536,7 +537,7 @@
                     <span class="tree-toggle" on:click|stopPropagation={() => toggleBuilding(building.id)}>
                       <svg class="chevron" class:open={expandedBuildings[building.id]} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
                     </span>
-                    <span class="tree-ico">{'\u{1F3D7}\uFE0F'}</span>
+                    <span class="tree-ico"><Building size={13} /></span>
                     <span class="tree-label">{building.name}</span>
                     <span class="tree-count">{countByBuilding(building.id)}</span>
                   </button>
@@ -547,7 +548,7 @@
                           <button class="tree-item room-level"
                                   class:selected={selectedRoomId === room.id}
                                   on:click={() => selectRoom(room.id)}>
-                            <span class="tree-ico">{'\u{1F6AA}'}</span>
+                            <span class="tree-ico"><DoorOpen size={13} /></span>
                             <span class="tree-label">{room.name}</span>
                             <span class="tree-count">{countByRoom(room.id)}</span>
                           </button>
@@ -620,8 +621,8 @@
                 <td><span class="source-tag">{eq.source}</span></td>
                 <td>{eq.last_user || '—'}</td>
                 <td class="actions-col">
-                  <button class="btn-icon" title="Modifier" on:click={() => openEdit(eq)}>✏️</button>
-                  <button class="btn-icon danger" title="Supprimer" on:click={() => confirmDelete = eq}>🗑️</button>
+                  <button class="btn-icon" title="Modifier" on:click={() => openEdit(eq)}><Pencil size={14} /></button>
+                  <button class="btn-icon danger" title="Supprimer" on:click={() => confirmDelete = eq}><Trash2 size={14} /></button>
                 </td>
               </tr>
             {/each}
@@ -665,17 +666,17 @@
         <span class="audit-stat-label">Critiques</span>
       </div>
       <button class="btn-rules" on:click={() => showRulesPanel = !showRulesPanel}>
-        {'\u2699\uFE0F'} R{'\u00e8'}gles
+        <Settings size={14} style="display:inline;vertical-align:middle" /> R{'\u00e8'}gles
       </button>
       <button class="btn-rules" on:click={exportAuditPdf}>
-        {'\u{1F4C4}'} Export PDF
+        <FileText size={14} style="display:inline;vertical-align:middle" /> Export PDF
       </button>
     </div>
 
     <!-- Rules panel (collapsible) -->
     {#if showRulesPanel}
       <div class="rules-panel">
-        <h3>{'\u{1F4CB}'} R{'\u00e8'}gles d'audit par type</h3>
+        <h3><ClipboardList size={16} style="display:inline;vertical-align:middle;margin-right:4px" /> R{'\u00e8'}gles d'audit par type</h3>
         <p class="rules-help">Cochez les champs obligatoires pour chaque type d'{'\u00e9'}quipement. L'audit v{'\u00e9'}rifiera que ces champs sont renseign{'\u00e9'}s.</p>
         <div class="rules-table-wrap">
           <table class="rules-table">
@@ -717,7 +718,7 @@
     <!-- Issues list -->
     {#if auditData.issues.length === 0}
       <div class="audit-all-ok">
-        <span class="audit-ok-icon">{'\u2705'}</span>
+        <span class="audit-ok-icon"><CheckCircle size={48} /></span>
         <h3>Tous les {'\u00e9'}quipements sont conformes !</h3>
         <p>Aucune anomalie d{'\u00e9'}tect{'\u00e9'}e selon vos r{'\u00e8'}gles d'audit.</p>
       </div>
@@ -729,8 +730,8 @@
         </select>
         <select class="filter-select" bind:value={auditFilterSeverity}>
           <option value="">— Toutes s{'\u00e9'}v{'\u00e9'}rit{'\u00e9'}s —</option>
-          <option value="critical">{'\u{1F534}'} Critique</option>
-          <option value="warning">{'\u{1F7E1}'} Avertissement</option>
+          <option value="critical">Critique</option>
+          <option value="warning">Avertissement</option>
         </select>
         <span class="result-count">{filteredAuditIssues.length} probl{'\u00e8'}me{filteredAuditIssues.length !== 1 ? 's' : ''}</span>
       </div>
@@ -753,9 +754,9 @@
               <tr>
                 <td>
                   {#if issue.severity === 'critical'}
-                    <span class="severity-badge critical">{'\u{1F534}'} Critique</span>
+                    <span class="severity-badge critical"><CircleAlert size={12} style="display:inline;vertical-align:middle" /> Critique</span>
                   {:else}
-                    <span class="severity-badge warning">{'\u{1F7E1}'} Avertissement</span>
+                    <span class="severity-badge warning"><AlertTriangle size={12} style="display:inline;vertical-align:middle" /> Avertissement</span>
                   {/if}
                 </td>
                 <td class="hostname">{issue.hostname}</td>
@@ -780,7 +781,7 @@
                 <td class="actions-col">
                   <button class="btn-icon" title="Modifier"
                     on:click={() => { const eq = equipment.find(e => e.id === issue.id); if (eq) openEdit(eq); }}>
-                    {'\u270F\uFE0F'}
+                    <Pencil size={14} />
                   </button>
                 </td>
               </tr>
@@ -901,7 +902,7 @@
 <div class="dialog-overlay" on:click|self={() => showQrDialog = false}>
   <div class="dialog">
     <div class="dialog-header">
-      <h2>{'\u{1F3F7}\uFE0F'} {'\u00C9'}tiquettes QR</h2>
+      <h2><QrCode size={18} style="display:inline;vertical-align:middle;margin-right:4px" /> {'\u00C9'}tiquettes QR</h2>
       <button class="btn-close" on:click={() => showQrDialog = false}>{'\u00D7'}</button>
     </div>
     <div class="dialog-body">
@@ -930,7 +931,7 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 16px;
   }
-  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0; }
 
   .stats-row {
     display: flex; gap: 12px; flex-wrap: wrap;
@@ -943,8 +944,8 @@
     backdrop-filter: blur(12px);
   }
   .stat-card.accent { border-color: var(--accent, #6C63FF); }
-  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: #fff; }
-  .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+  .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
   /* ── Tabs ────────────────────────────────────────────────── */
   .tabs {
@@ -953,13 +954,13 @@
     padding-bottom: 0;
   }
   .tab {
-    background: none; border: none; color: rgba(255,255,255,0.5);
+    background: none; border: none; color: var(--text-muted);
     padding: 10px 20px; cursor: pointer; font-size: 0.9rem;
     border-bottom: 2px solid transparent; transition: all 0.2s;
   }
-  .tab:hover { color: rgba(255,255,255,0.8); }
+  .tab:hover { color: var(--text-secondary); }
   .tab.active {
-    color: #fff; border-bottom-color: var(--accent, #6C63FF);
+    color: var(--text-primary); border-bottom-color: var(--primary);
   }
   .badge {
     background: var(--accent, #6C63FF); color: #fff;
@@ -982,8 +983,8 @@
   .tree-header {
     display: flex; align-items: center; gap: 6px;
     margin-bottom: 12px; padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
-    font-size: 0.9rem; color: rgba(255,255,255,0.7);
+    border-bottom: 1px solid var(--border-subtle);
+    font-size: 0.9rem; color: var(--text-secondary);
   }
   .tree-header-icon { font-size: 1rem; }
   .tree-header strong { flex: 1; letter-spacing: 0.3px; }
@@ -995,23 +996,23 @@
   .tree-list { display: flex; flex-direction: column; gap: 2px; }
   .tree-item {
     display: flex; align-items: center; gap: 6px; width: 100%;
-    background: none; border: none; color: rgba(255,255,255,0.75);
+    background: none; border: none; color: var(--text-secondary);
     padding: 6px 8px; border-radius: 8px; cursor: pointer;
     font-size: 0.82rem; text-align: left; transition: all 0.15s;
     border: 1px solid transparent; font-family: inherit;
   }
   .tree-item:hover {
-    background: rgba(255,255,255,0.05);
-    border-color: rgba(255,255,255,0.06);
+    background: var(--bg-hover);
+    border-color: var(--border-subtle);
   }
   .tree-item.selected {
-    background: rgba(108,99,255,0.15); color: #fff;
-    border-color: rgba(108,99,255,0.3);
-    box-shadow: 0 0 8px rgba(108,99,255,0.1);
+    background: rgba(var(--primary-rgb), 0.15); color: var(--text-primary);
+    border-color: rgba(var(--primary-rgb), 0.3);
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.1);
   }
   .tree-toggle {
     width: 16px; display: flex; align-items: center; justify-content: center;
-    flex-shrink: 0; color: rgba(255,255,255,0.35);
+    flex-shrink: 0; color: var(--text-muted);
   }
   .chevron { transition: transform 0.2s ease; }
   .chevron.open { transform: rotate(90deg); }
@@ -1026,11 +1027,11 @@
   .site-level { font-weight: 600; }
   .tree-children {
     margin-left: 12px; padding-left: 10px;
-    border-left: 1px solid rgba(255,255,255,0.06);
+    border-left: 1px solid var(--border-subtle);
   }
   .building-level .tree-label { font-weight: 500; }
   .room-level { padding-left: 24px; }
-  .room-level .tree-label { font-weight: 400; color: rgba(255,255,255,0.65); }
+  .room-level .tree-label { font-weight: 400; color: var(--text-muted); }
 
   /* ── Main content ───────────────────────────────────────── */
   .main-content { flex: 1; min-width: 0; }
@@ -1040,17 +1041,17 @@
   }
   .search-input {
     flex: 1; min-width: 200px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: 8px; color: var(--text-primary); font-size: 0.85rem;
   }
-  .search-input::placeholder { color: rgba(255,255,255,0.3); }
+  .search-input::placeholder { color: var(--text-muted); }
   .filter-select {
     padding: 8px 12px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: 8px; color: var(--text-primary); font-size: 0.85rem;
   }
   .filter-select option { background: #1e1e2e; color: #fff; }
-  .result-count { font-size: 0.8rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+  .result-count { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
 
   /* ── Table ──────────────────────────────────────────────── */
   .table-wrapper {
@@ -1062,16 +1063,16 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   thead { position: sticky; top: 0; z-index: 2; }
   th {
-    background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6);
+    background: var(--bg-hover); color: var(--text-secondary);
     padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border-subtle);
   }
   td {
-    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
-    color: rgba(255,255,255,0.85); white-space: nowrap;
+    padding: 8px 12px; border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary); white-space: nowrap;
   }
-  tr:hover td { background: rgba(255,255,255,0.03); }
-  .hostname { font-weight: 600; color: #fff; }
+  tr:hover td { background: var(--bg-hover); }
+  .hostname { font-weight: 600; color: var(--text-primary); }
   .os-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
   .type-badge {
     background: rgba(108,99,255,0.2); color: var(--accent, #6C63FF);
@@ -1084,10 +1085,10 @@
   .loc-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
   .loc-sep { color: rgba(255,255,255,0.3); margin: 0 2px; }
   .loc-part { }
-  .muted { color: rgba(255,255,255,0.3); }
+  .muted { color: var(--text-muted); }
   .actions-col { width: 80px; text-align: center; }
-  .empty-row { text-align: center; color: rgba(255,255,255,0.3); padding: 32px !important; }
-  .loading { text-align: center; color: rgba(255,255,255,0.4); padding: 40px; }
+  .empty-row { text-align: center; color: var(--text-muted); padding: 32px !important; }
+  .loading { text-align: center; color: var(--text-muted); padding: 40px; }
 
   .btn-icon {
     background: none; border: none; cursor: pointer; font-size: 0.9rem;
@@ -1110,8 +1111,8 @@
   .audit-stat-card.ok-card { border-color: rgba(34,197,94,0.3); }
   .audit-stat-card.warn-card.has-issues { border-color: #F59E0B; background: rgba(245,158,11,0.06); }
   .audit-stat-card.crit-card.has-issues { border-color: #EF4444; background: rgba(239,68,68,0.06); }
-  .audit-stat-value { font-size: 1.4rem; font-weight: 700; color: #fff; }
-  .audit-stat-label { font-size: 0.7rem; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em; }
+  .audit-stat-value { font-size: 1.4rem; font-weight: 700; color: var(--text-primary); }
+  .audit-stat-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .audit-pct { font-size: 1.6rem; font-weight: 800; color: #22C55E; }
   .audit-pct-bar {
     height: 5px; background: rgba(255,255,255,0.08); border-radius: 4px;
@@ -1122,12 +1123,12 @@
     border-radius: 4px; transition: width 0.5s ease;
   }
   .btn-rules {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
     border-radius: 10px; padding: 10px 16px; cursor: pointer;
-    color: rgba(255,255,255,0.7); font-size: 0.85rem; font-family: inherit;
+    color: var(--text-secondary); font-size: 0.85rem; font-family: inherit;
     transition: all 0.15s; display: flex; align-items: center; gap: 6px;
   }
-  .btn-rules:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  .btn-rules:hover { background: var(--bg-hover); color: var(--text-primary); }
 
   /* Rules panel */
   .rules-panel {
@@ -1136,8 +1137,8 @@
     border-radius: 12px; padding: 20px; margin-bottom: 16px;
     backdrop-filter: blur(12px);
   }
-  .rules-panel h3 { margin: 0 0 6px; font-size: 1rem; color: #fff; }
-  .rules-help { font-size: 0.8rem; color: rgba(255,255,255,0.45); margin: 0 0 14px; }
+  .rules-panel h3 { margin: 0 0 6px; font-size: 1rem; color: var(--text-primary); }
+  .rules-help { font-size: 0.8rem; color: var(--text-muted); margin: 0 0 14px; }
   .rules-table-wrap { overflow-x: auto; }
   .rules-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   .rules-table th {
@@ -1148,7 +1149,7 @@
   .rules-table th:first-child { text-align: left; }
   .rules-table td { padding: 6px 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); }
   .rules-table td:first-child { text-align: left; }
-  .rule-type { font-weight: 600; color: #fff; }
+  .rule-type { font-weight: 600; color: var(--text-primary); }
   .rules-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent, #6C63FF); cursor: pointer; }
   .rules-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 14px; }
 
@@ -1194,9 +1195,9 @@
     display: flex; justify-content: space-between; align-items: center;
     padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
   }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
+  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
   .btn-close {
-    background: none; border: none; color: rgba(255,255,255,0.5);
+    background: none; border: none; color: var(--text-muted);
     font-size: 1.4rem; cursor: pointer; padding: 0 4px;
   }
   .dialog-body { padding: 20px 24px; }
@@ -1208,11 +1209,11 @@
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
   .full-width { display: block; margin-bottom: 12px; }
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--text-secondary); }
   input, select, textarea {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    color: #fff; font-size: 0.85rem; font-family: inherit;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-subtle); border-radius: 8px;
+    color: var(--text-primary); font-size: 0.85rem; font-family: inherit;
   }
   input:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--accent, #6C63FF);
@@ -1221,15 +1222,15 @@
   textarea { resize: vertical; }
 
   .btn-primary {
-    background: var(--accent, #6C63FF); color: #fff; border: none;
+    background: var(--primary); color: #fff; border: none;
     border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
     font-weight: 600; transition: opacity 0.2s;
   }
   .btn-primary:hover { opacity: 0.9; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    background: var(--bg-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle); border-radius: 8px;
     padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
   }
   .btn-danger {
@@ -1259,7 +1260,7 @@
   }
   .btn-export:hover { background: rgba(108,99,255,0.2); }
   .sync-info {
-    font-size: 0.72rem; color: rgba(255,255,255,0.4);
+    font-size: 0.72rem; color: var(--text-muted);
     white-space: nowrap;
   }
 </style>

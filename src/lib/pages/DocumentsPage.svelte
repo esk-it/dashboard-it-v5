@@ -2,17 +2,18 @@
   import { onMount, onDestroy } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { FileText, FileSpreadsheet, Image, Archive, BarChart2, BookOpen, FileCheck, FileMinus, FileQuestion, BookMarked, BookCopy } from 'lucide-svelte';
 
   // ── Constants ──────────────────────────────────────────────
   const API_BASE = 'http://localhost:8010';
 
   const DOC_TYPE_COLORS = {
-    DEVIS:     { bg: '#3B82F620', color: '#3B82F6', label: 'Devis',              border: '#3B82F6', icon: '\u{1F4D5}' },
-    FACTURE:   { bg: '#22C55E20', color: '#22C55E', label: 'Facture',            border: '#22C55E', icon: '\u{1F4D7}' },
-    CONTRAT:   { bg: '#8B5CF620', color: '#8B5CF6', label: 'Contrat',            border: '#8B5CF6', icon: '\u{1F4D8}' },
-    BON:       { bg: '#F59E0B20', color: '#F59E0B', label: 'Bon pour accord',    border: '#F59E0B', icon: '\u{1F4D9}' },
-    RAPPORT:   { bg: '#EC489920', color: '#EC4899', label: 'Rapport',            border: '#EC4899', icon: '\u{1F4DA}' },
-    AUTRE:     { bg: '#64748B20', color: '#64748B', label: 'Autre',              border: '#64748B', icon: '\u{1F4C4}' },
+    DEVIS:     { bg: '#3B82F620', color: '#3B82F6', label: 'Devis',              border: '#3B82F6', iconName: 'FileText' },
+    FACTURE:   { bg: '#22C55E20', color: '#22C55E', label: 'Facture',            border: '#22C55E', iconName: 'FileCheck' },
+    CONTRAT:   { bg: '#8B5CF620', color: '#8B5CF6', label: 'Contrat',            border: '#8B5CF6', iconName: 'BookMarked' },
+    BON:       { bg: '#F59E0B20', color: '#F59E0B', label: 'Bon pour accord',    border: '#F59E0B', iconName: 'BookOpen' },
+    RAPPORT:   { bg: '#EC489920', color: '#EC4899', label: 'Rapport',            border: '#EC4899', iconName: 'BookCopy' },
+    AUTRE:     { bg: '#64748B20', color: '#64748B', label: 'Autre',              border: '#64748B', iconName: 'FileQuestion' },
   };
 
   const LINK_TYPES = [
@@ -24,23 +25,25 @@
   ];
 
   const FILE_TYPE_ICONS = {
-    pdf:   '\u{1F4D5}',
-    doc:   '\u{1F4D8}',
-    docx:  '\u{1F4D8}',
-    xls:   '\u{1F4D7}',
-    xlsx:  '\u{1F4D7}',
-    png:   '\u{1F5BC}',
-    jpg:   '\u{1F5BC}',
-    jpeg:  '\u{1F5BC}',
-    gif:   '\u{1F5BC}',
-    bmp:   '\u{1F5BC}',
-    svg:   '\u{1F5BC}',
-    txt:   '\u{1F4C4}',
-    csv:   '\u{1F4CA}',
-    zip:   '\u{1F4E6}',
-    rar:   '\u{1F4E6}',
-    '7z':  '\u{1F4E6}',
+    pdf:   'FileText',
+    doc:   'FileText',
+    docx:  'FileText',
+    xls:   'FileSpreadsheet',
+    xlsx:  'FileSpreadsheet',
+    png:   'Image',
+    jpg:   'Image',
+    jpeg:  'Image',
+    gif:   'Image',
+    bmp:   'Image',
+    svg:   'Image',
+    txt:   'FileText',
+    csv:   'BarChart2',
+    zip:   'Archive',
+    rar:   'Archive',
+    '7z':  'Archive',
   };
+
+  const ICON_COMPONENTS = { FileText, FileSpreadsheet, Image, Archive, BarChart2, BookOpen, FileCheck, FileMinus, FileQuestion, BookMarked, BookCopy };
 
   // ── State ──────────────────────────────────────────────────
   let documents = [];
@@ -144,9 +147,13 @@
     return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
   }
 
-  function getFileIcon(filePath) {
+  function getFileIconName(filePath) {
     const ext = getFileExtension(filePath);
-    return FILE_TYPE_ICONS[ext] || '\u{1F4C4}';
+    return FILE_TYPE_ICONS[ext] || 'FileText';
+  }
+
+  function getIconComponent(name) {
+    return ICON_COMPONENTS[name] || FileText;
   }
 
   function isImageFile(filePath) {
@@ -689,7 +696,7 @@
           >
             <div class="doc-main" on:click={() => toggleExpand(doc.id)}>
               <span class="doc-file-icon" title={getFileExtension(doc.file_path).toUpperCase() || 'Fichier'}>
-                {getFileIcon(doc.file_path)}
+                <svelte:component this={getIconComponent(getFileIconName(doc.file_path))} size={16} />
               </span>
 
               <span
@@ -757,7 +764,7 @@
                       class="chain-pill chain-pill-current"
                       style="background: {getTypeStyle(doc.doc_type).color}; color: #fff"
                     >
-                      <span class="chain-pill-icon">{getTypeStyle(doc.doc_type).icon || '\u{1F4C4}'}</span>
+                      <span class="chain-pill-icon"><svelte:component this={getIconComponent(getTypeStyle(doc.doc_type).iconName || 'FileText')} size={13} /></span>
                       <span class="chain-pill-type">{getTypeStyle(doc.doc_type).label}</span>
                       <span class="chain-pill-title">{truncateText(doc.reference || doc.title, 20)}</span>
                     </div>
@@ -780,7 +787,7 @@
                             on:click|stopPropagation={() => navigateToLinkedDoc(linkedId)}
                             title="{getLinkTypeLabel(link.link_type)}: {getDocTitle(linkedId)}"
                           >
-                            <span class="chain-pill-icon">{linkedStyle.icon || '\u{1F4C4}'}</span>
+                            <span class="chain-pill-icon"><svelte:component this={getIconComponent(linkedStyle.iconName || 'FileText')} size={13} /></span>
                             <span class="chain-pill-type">{linkedStyle.label}</span>
                             <span class="chain-pill-title">{truncateText(linkedDoc ? (linkedDoc.reference || linkedDoc.title) : `#${linkedId}`, 18)}</span>
                           </button>
@@ -824,7 +831,7 @@
                 {#if doc.file_path}
                   <div class="expanded-section">
                     <div class="expanded-label">Fichier</div>
-                    <div class="file-path">{getFileIcon(doc.file_path)} {doc.file_path}</div>
+                    <div class="file-path"><svelte:component this={getIconComponent(getFileIconName(doc.file_path))} size={13} /> {doc.file_path}</div>
                   </div>
                 {/if}
               </div>
@@ -877,7 +884,7 @@
             </div>
           {:else}
             <div class="preview-info-card">
-              <div class="preview-info-icon">{getFileIcon(previewDoc.file_path)}</div>
+              <div class="preview-info-icon"><svelte:component this={getIconComponent(getFileIconName(previewDoc.file_path))} size={48} /></div>
               <div class="preview-info-details">
                 <div class="preview-info-row">
                   <span class="preview-info-label">Type</span>
@@ -1035,7 +1042,7 @@
         <div class="import-file-list">
           {#each pendingFiles.slice(0, 5) as f}
             <div class="import-file-item">
-              <span class="import-file-icon">{getFileIcon(f.name)}</span>
+              <span class="import-file-icon"><svelte:component this={getIconComponent(getFileIconName(f.name))} size={14} /></span>
               <span class="import-file-name">{f.name}</span>
               <span class="import-file-size">{(f.size / 1024).toFixed(0)} Ko</span>
             </div>
@@ -1154,13 +1161,8 @@
 <style>
   /* ── Page ──────────────────────────────────────────────── */
   .documents-page {
-    animation: fadeIn 0.35s ease-out;
+    animation: pageSlideIn 0.35s ease-out;
     position: relative;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to   { opacity: 1; transform: translateY(0); }
   }
 
   @keyframes slideInFromRight {
@@ -1192,7 +1194,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    animation: fadeIn 0.2s ease-out;
+    animation: pageSlideIn 0.2s ease-out;
   }
 
   .drop-zone {
@@ -1514,7 +1516,7 @@
   .doc-ref {
     font-size: 11px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-06);
     padding: 2px 8px;
     border-radius: 6px;
     white-space: nowrap;
@@ -1526,7 +1528,7 @@
     font-weight: 700;
     letter-spacing: 0.5px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-06);
     padding: 2px 6px;
     border-radius: 4px;
     white-space: nowrap;
@@ -1559,7 +1561,7 @@
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
   }
 
   .btn-icon-preview:hover {
@@ -1761,7 +1763,7 @@
   .chain-loading {
     color: var(--text-muted);
     font-size: 14px;
-    animation: fadeIn 0.3s;
+    animation: pageSlideIn 0.3s;
   }
 
   /* ── Preview Panel ──────────────────────────────────────── */
@@ -1838,7 +1840,7 @@
     min-height: 500px;
     border: none;
     border-radius: 8px;
-    background: #1a1a2e;
+    background: var(--bg-base);
   }
 
   .preview-image-wrap {
@@ -1961,7 +1963,7 @@
     justify-content: center;
     z-index: 1000;
     backdrop-filter: blur(4px);
-    animation: fadeIn 0.15s ease-out;
+    animation: pageSlideIn 0.15s ease-out;
   }
 
   .modal-box {
@@ -2007,7 +2009,7 @@
   }
 
   .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-white-08);
     color: var(--text-primary);
   }
 
@@ -2071,7 +2073,7 @@
   }
 
   .form-input {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--overlay-white-04);
     border: 1px solid var(--border-subtle);
     border-radius: 8px;
     color: var(--text-primary);
@@ -2084,7 +2086,7 @@
 
   .form-input:focus {
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--overlay-white-06);
   }
 
   .form-textarea {
@@ -2163,7 +2165,7 @@
   }
 
   .import-file-item:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--overlay-white-03);
   }
 
   .import-file-icon {

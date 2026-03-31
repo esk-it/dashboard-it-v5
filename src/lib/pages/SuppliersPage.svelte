@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { ClipboardList, User, Phone, Mail, FileText, StickyNote, Calendar } from 'lucide-svelte';
 
   const API_BASE = 'http://localhost:8010';
 
@@ -358,29 +359,29 @@
       <div class="detail-body">
         <!-- Contact info -->
         <div class="detail-section">
-          <h3>{'\u{1F4CB}'} Coordonn{'\u00e9'}es</h3>
+          <h3><ClipboardList size={15} /> Coordonn{'\u00e9'}es</h3>
           <div class="detail-fields">
             {#if s.contact}
               <div class="detail-field">
-                <span class="df-icon">{'\u{1F464}'}</span>
+                <span class="df-icon"><User size={13} /></span>
                 <span class="df-label">Contact</span>
                 <span class="df-value">{s.contact}</span>
               </div>
             {/if}
             {#if s.phone}
               <div class="detail-field clickable" on:click={() => copyToClipboard(s.phone, 'T\u00e9l\u00e9phone')}>
-                <span class="df-icon">{'\u{1F4DE}'}</span>
+                <span class="df-icon"><Phone size={13} /></span>
                 <span class="df-label">T{'\u00e9'}l{'\u00e9'}phone</span>
                 <span class="df-value">{s.phone}</span>
-                <span class="df-copy">{'\u{1F4CB}'}</span>
+                <span class="df-copy"><ClipboardList size={12} /></span>
               </div>
             {/if}
             {#if s.email}
               <div class="detail-field clickable" on:click={() => copyToClipboard(s.email, 'Email')}>
-                <span class="df-icon">{'\u2709\uFE0F'}</span>
+                <span class="df-icon"><Mail size={13} /></span>
                 <span class="df-label">Email</span>
                 <span class="df-value">{s.email}</span>
-                <span class="df-copy">{'\u{1F4CB}'}</span>
+                <span class="df-copy"><ClipboardList size={12} /></span>
               </div>
             {/if}
             {#if !s.contact && !s.phone && !s.email}
@@ -392,14 +393,14 @@
         <!-- Notes -->
         {#if s.notes}
           <div class="detail-section">
-            <h3>{'\u{1F4DD}'} Notes</h3>
+            <h3><StickyNote size={15} /> Notes</h3>
             <p class="detail-notes">{s.notes}</p>
           </div>
         {/if}
 
         <!-- Documents liés -->
         <div class="detail-section">
-          <h3>{'\u{1F4C4}'} Documents li{'\u00e9'}s</h3>
+          <h3><FileText size={15} /> Documents li{'\u00e9'}s</h3>
           {#if loadingDocs}
             <p class="detail-empty">Chargement...</p>
           {:else if supplierDocuments.length > 0}
@@ -421,7 +422,7 @@
 
         <!-- Metadata -->
         <div class="detail-section detail-meta-section">
-          <span class="detail-meta">{'\u{1F4C5}'} Ajout{'\u00e9'} le {s.created_at ? new Date(s.created_at).toLocaleDateString('fr-FR') : '—'}</span>
+          <span class="detail-meta"><Calendar size={12} /> Ajout{'\u00e9'} le {s.created_at ? new Date(s.created_at).toLocaleDateString('fr-FR') : '—'}</span>
         </div>
       </div>
     </div>
@@ -534,7 +535,7 @@
 <style>
   .page-header { margin-bottom: 16px; }
   .title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0; }
   .header-actions { display: flex; gap: 8px; }
 
   .stats-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -542,11 +543,11 @@
     display: flex; align-items: center; gap: 6px;
     padding: 5px 12px; border-radius: 20px; font-size: 0.8rem;
     border: 1px solid transparent; cursor: pointer;
-    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
+    background: var(--overlay-white-06); color: var(--text-secondary);
     transition: all 0.2s;
   }
   .stat-chip:hover { filter: brightness(1.2); }
-  .stat-chip.active { filter: brightness(1.3); box-shadow: 0 0 8px rgba(255,255,255,0.1); }
+  .stat-chip.active { filter: brightness(1.3); box-shadow: 0 0 8px var(--overlay-white-10); }
   .stat-chip.total { cursor: default; }
   .chip-count { font-weight: 700; }
   .chip-label { font-weight: 500; }
@@ -554,17 +555,17 @@
   .filters-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
   .search-input {
     flex: 1; min-width: 220px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--overlay-white-06); border: 1px solid var(--overlay-white-10);
+    border-radius: 8px; color: var(--text-primary); font-size: 0.85rem;
   }
-  .search-input::placeholder { color: rgba(255,255,255,0.3); }
+  .search-input::placeholder { color: var(--text-muted); }
   .filter-select {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    color: #fff; font-size: 0.85rem;
+    padding: 8px 12px; background: var(--overlay-white-06);
+    border: 1px solid var(--overlay-white-10); border-radius: 8px;
+    color: var(--text-primary); font-size: 0.85rem;
   }
-  .filter-select option { background: #1e1e2e; color: #fff; }
-  .result-count { font-size: 0.8rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+  .filter-select option { background: var(--bg-card); color: var(--text-primary); }
+  .result-count { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
 
   .supplier-list { display: flex; flex-direction: column; gap: 2px; }
   .domain-section-header {
@@ -573,19 +574,19 @@
     border-left: 3px solid transparent;
   }
   .domain-header-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-  .domain-header-name { font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.05em; }
+  .domain-header-name { font-size: 0.85rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
   .domain-header-count { font-size: 0.7rem; font-weight: 700; border-radius: 10px; padding: 1px 8px; }
   .domain-header-line { flex: 1; height: 1px; }
 
   .supplier-row {
     display: flex; align-items: center; gap: 14px;
     padding: 10px 16px; border-radius: 10px;
-    background: var(--bg-card, rgba(255,255,255,0.04));
+    background: var(--bg-card, var(--overlay-white-04));
     border: 1px solid transparent;
     cursor: pointer; transition: all 0.15s; width: 100%;
     text-align: left; color: inherit; font: inherit;
   }
-  .supplier-row:hover { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.08); }
+  .supplier-row:hover { background: var(--overlay-white-07); border-color: var(--overlay-white-08); }
 
   .avatar {
     width: 48px; height: 48px; border-radius: 50%; flex-shrink: 0;
@@ -596,9 +597,9 @@
   .initials { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; }
 
   .supplier-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-  .supplier-name { font-weight: 600; color: #fff; font-size: 0.92rem; }
+  .supplier-name { font-weight: 600; color: var(--text-primary); font-size: 0.92rem; }
   .supplier-meta { display: flex; gap: 12px; flex-wrap: wrap; }
-  .meta-item { font-size: 0.78rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
+  .meta-item { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
 
   .domain-badge {
     font-size: 0.75rem; font-weight: 600; padding: 3px 10px;
@@ -607,26 +608,26 @@
 
   .row-actions { display: flex; gap: 4px; flex-shrink: 0; }
   .btn-action {
-    background: rgba(255,255,255,0.06); border: none; border-radius: 6px;
+    background: var(--overlay-white-06); border: none; border-radius: 6px;
     padding: 4px 8px; cursor: pointer; font-size: 0.82rem; transition: background 0.15s;
   }
-  .btn-action:hover { background: rgba(255,255,255,0.12); }
+  .btn-action:hover { background: var(--overlay-white-12); }
   .btn-action.danger:hover { background: rgba(239,68,68,0.2); }
 
-  .empty-state { text-align: center; padding: 60px; color: rgba(255,255,255,0.4); }
+  .empty-state { text-align: center; padding: 60px; color: var(--text-muted); }
   .empty-icon { font-size: 2.5rem; display: block; margin-bottom: 12px; }
-  .loading { text-align: center; color: rgba(255,255,255,0.4); padding: 40px; }
+  .loading { text-align: center; color: var(--text-muted); padding: 40px; }
 
   /* ── Detail Panel ───────────────────────────────────────── */
   .selected-row { background: rgba(var(--accent-rgb, 108,99,255), 0.08) !important; border-color: rgba(var(--accent-rgb, 108,99,255), 0.2) !important; }
   .detail-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 90;
     display: flex; justify-content: flex-end;
-    backdrop-filter: blur(2px); animation: fadeIn 0.15s ease;
+    backdrop-filter: blur(2px); animation: pageSlideIn 0.15s ease;
   }
   .detail-panel {
     width: 480px; max-width: 90vw; height: 100vh;
-    background: var(--bg-card-solid, #1a1a2e); border-left: 1px solid var(--border-subtle);
+    background: var(--bg-card-solid, var(--bg-base)); border-left: 1px solid var(--border-subtle);
     display: flex; flex-direction: column; overflow: hidden;
     animation: slideInRight 0.25s ease;
     box-shadow: -8px 0 40px rgba(0,0,0,0.3);
@@ -639,7 +640,7 @@
   .detail-avatar {
     width: 56px; height: 56px; border-radius: 14px; border: 2px solid;
     overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-    background: rgba(255,255,255,0.04);
+    background: var(--overlay-white-04);
   }
   .detail-avatar img { width: 100%; height: 100%; object-fit: contain; }
   .detail-initials { font-size: 20px; font-weight: 700; }
@@ -658,11 +659,11 @@
   .detail-fields { display: flex; flex-direction: column; gap: 6px; }
   .detail-field {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.04);
+    padding: 8px 12px; border-radius: 8px; background: var(--overlay-white-03);
+    border: 1px solid var(--overlay-white-04);
   }
   .detail-field.clickable { cursor: pointer; transition: all 0.15s; }
-  .detail-field.clickable:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
+  .detail-field.clickable:hover { background: var(--overlay-white-06); border-color: var(--overlay-white-08); }
   .df-icon { font-size: 16px; flex-shrink: 0; }
   .df-label { font-size: 11px; color: var(--text-muted); min-width: 65px; }
   .df-value { flex: 1; font-size: 13px; color: var(--text-primary); }
@@ -675,8 +676,8 @@
   .detail-docs { display: flex; flex-direction: column; gap: 4px; }
   .detail-doc-row {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.04);
+    padding: 6px 10px; border-radius: 6px; background: var(--overlay-white-02);
+    border: 1px solid var(--overlay-white-04);
   }
   .doc-type-badge {
     font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
@@ -695,8 +696,8 @@
     backdrop-filter: blur(4px);
   }
   .dialog {
-    background: var(--bg-dialog, #1e1e2e);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
+    background: var(--bg-dialog, var(--bg-card));
+    border: 1px solid var(--border-subtle, var(--overlay-white-12));
     border-radius: 16px; width: 540px; max-width: 95vw;
     max-height: 90vh; overflow-y: auto;
     box-shadow: 0 20px 60px rgba(0,0,0,0.5);
@@ -705,20 +706,20 @@
   .dialog.wide { width: 640px; }
   .dialog-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 18px 24px; border-bottom: 1px solid var(--overlay-white-08);
   }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
-  .btn-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 1.4rem; cursor: pointer; }
+  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
+  .btn-close { background: none; border: none; color: var(--text-muted); font-size: 1.4rem; cursor: pointer; }
   .dialog-body { padding: 20px 24px; }
   .dialog-footer {
     display: flex; justify-content: flex-end; gap: 10px;
-    padding: 14px 24px; border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 24px; border-top: 1px solid var(--overlay-white-08);
   }
 
   .logo-name-row { display: flex; gap: 16px; margin-bottom: 16px; }
   .logo-picker {
     width: 80px; height: 80px; border-radius: 12px; flex-shrink: 0;
-    background: rgba(255,255,255,0.06); border: 2px dashed rgba(255,255,255,0.15);
+    background: var(--overlay-white-06); border: 2px dashed var(--overlay-white-15);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     overflow: hidden; transition: border-color 0.2s;
   }
@@ -729,17 +730,17 @@
 
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .full-width { display: block; margin-bottom: 12px; }
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--text-secondary); }
   input, select, textarea {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    color: #fff; font-size: 0.85rem; font-family: inherit;
+    padding: 8px 12px; background: var(--overlay-white-06);
+    border: 1px solid var(--overlay-white-10); border-radius: 8px;
+    color: var(--text-primary); font-size: 0.85rem; font-family: inherit;
   }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent, #6C63FF); }
-  select option { background: #1e1e2e; color: #fff; }
+  select option { background: var(--bg-card); color: var(--text-primary); }
   textarea { resize: vertical; }
 
-  .domain-add-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .domain-add-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--overlay-white-08); }
   .domain-input { flex: 1; min-width: 120px; }
   .color-picker { width: 36px; height: 36px; border: none; cursor: pointer; border-radius: 6px; padding: 0; background: none; }
   .sort-input { width: 60px; text-align: center; }
@@ -756,8 +757,8 @@
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary.small { padding: 6px 14px; font-size: 0.8rem; }
   .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    background: var(--overlay-white-08); color: var(--text-primary);
+    border: 1px solid var(--overlay-white-10); border-radius: 8px;
     padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
   }
   .btn-danger {
@@ -766,11 +767,11 @@
   }
   .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-ghost {
-    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+    background: var(--overlay-white-06); color: var(--text-secondary);
+    border: 1px solid var(--overlay-white-08); border-radius: 8px;
     padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
   }
-  .btn-ghost:hover { background: rgba(255,255,255,0.1); }
+  .btn-ghost:hover { background: var(--overlay-white-10); }
   .btn-ghost.small { padding: 4px 10px; font-size: 0.82rem; }
   .btn-ghost.danger:hover { background: rgba(239,68,68,0.2); }
 </style>

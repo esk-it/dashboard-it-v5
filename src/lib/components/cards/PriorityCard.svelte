@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../../api/client.js';
   import { currentPage } from '../../stores/navigation.js';
+  import { Target, ChevronRight } from 'lucide-svelte';
   import GlassCard from '../GlassCard.svelte';
 
   let tasks = [];
@@ -52,7 +53,10 @@
 <GlassCard padding="0">
   <div class="card-inner">
     <div class="card-header">
-      <h3>{'\u{1F3AF}'} T&acirc;ches prioritaires</h3>
+      <h3>
+        <Target size={15} style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--primary)" />
+        T&acirc;ches prioritaires
+      </h3>
     </div>
 
     <div class="task-list">
@@ -83,7 +87,8 @@
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="card-footer" on:click={goToTasks}>
-      Voir toutes les t&acirc;ches &rarr;
+      Voir toutes les t&acirc;ches
+      <ChevronRight size={14} style="display:inline;vertical-align:-2px;margin-left:4px;" />
     </div>
   </div>
 </GlassCard>
@@ -105,6 +110,8 @@
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
+    display: flex;
+    align-items: center;
   }
 
   .task-list {
@@ -145,18 +152,18 @@
   }
 
   .priority-badge.p1 {
-    background: rgba(239, 68, 68, 0.15);
-    color: #EF4444;
+    background: rgba(255, 94, 94, 0.15);
+    color: #FF5E5E;
   }
 
   .priority-badge.p2 {
-    background: rgba(245, 158, 11, 0.15);
-    color: #F59E0B;
+    background: rgba(248, 185, 64, 0.15);
+    color: #F8B940;
   }
 
   .priority-badge.p3 {
-    background: rgba(59, 130, 246, 0.15);
-    color: #3B82F6;
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--primary);
   }
 
   .task-info {
@@ -184,7 +191,7 @@
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(var(--primary-rgb), 0.08);
     color: var(--text-secondary);
     white-space: nowrap;
   }
@@ -194,9 +201,12 @@
     border-top: 1px solid var(--border-subtle);
     text-align: center;
     font-size: 12.5px;
-    color: var(--accent);
+    color: var(--primary);
     cursor: pointer;
     transition: background 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .card-footer:hover {

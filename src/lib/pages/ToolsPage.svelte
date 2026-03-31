@@ -1,21 +1,28 @@
 <script>
   import { onMount } from 'svelte';
+  import { Wrench, Radio, Globe, Plug, Route, KeyRound, Calculator, Wifi, Search, Shield, Smartphone, Play, Loader, Clipboard, Trash2, CheckCircle, XCircle, Zap, Lock, BarChart3, FileText, Mail, Download, QrCode } from 'lucide-svelte';
 
   const API = 'http://localhost:8010/api/tools';
 
   // ── Tab system ────────────────────────────────────────────────────────────
   let activeTab = 'ping';
+  const tabIcons = {
+    ping: Radio, dns: Globe, tcp: Plug, traceroute: Route,
+    password: KeyRound, ipcalc: Calculator, wol: Wifi,
+    whois: Search, portscan: Shield, qrcode: QrCode,
+  };
+
   const tabs = [
-    { id: 'ping',      label: 'Ping',         icon: '\u{1F4E1}', group: 'network' },
-    { id: 'dns',       label: 'DNS Lookup',    icon: '\u{1F310}', group: 'network' },
-    { id: 'tcp',       label: 'Test TCP',      icon: '\u{1F50C}', group: 'network' },
-    { id: 'traceroute',label: 'Traceroute',    icon: '\u{1F6E4}\uFE0F', group: 'network' },
-    { id: 'password',  label: 'Mots de passe', icon: '\u{1F510}', group: 'utils' },
-    { id: 'ipcalc',    label: 'IP / CIDR',     icon: '\u{1F4CA}', group: 'utils' },
-    { id: 'wol',       label: 'Wake-on-LAN',   icon: '\u{1F4E1}', group: 'utils' },
-    { id: 'whois',     label: 'WHOIS',         icon: '\u{1F50D}', group: 'utils' },
-    { id: 'portscan',  label: 'Scan ports',    icon: '\u{1F6E1}\uFE0F', group: 'network' },
-    { id: 'qrcode',    label: 'QR Code',       icon: '\u{1F4F1}', group: 'utils' },
+    { id: 'ping',      label: 'Ping',         group: 'network' },
+    { id: 'dns',       label: 'DNS Lookup',    group: 'network' },
+    { id: 'tcp',       label: 'Test TCP',      group: 'network' },
+    { id: 'traceroute',label: 'Traceroute',    group: 'network' },
+    { id: 'password',  label: 'Mots de passe', group: 'utils' },
+    { id: 'ipcalc',    label: 'IP / CIDR',     group: 'utils' },
+    { id: 'wol',       label: 'Wake-on-LAN',   group: 'utils' },
+    { id: 'whois',     label: 'WHOIS',         group: 'utils' },
+    { id: 'portscan',  label: 'Scan ports',    group: 'network' },
+    { id: 'qrcode',    label: 'QR Code',       group: 'utils' },
   ];
 
   // ── Network tools state ───────────────────────────────────────────────────
@@ -166,7 +173,7 @@
     if (s === 'Faible') return '#EF4444';
     if (s === 'Moyen') return '#F59E0B';
     if (s === 'Fort') return '#10B981';
-    return '#06A6C9';
+    return 'var(--primary)';
   }
 
   // ── IP/CIDR calculator ────────────────────────────────────────────────────
@@ -337,7 +344,7 @@
 
 <div class="tools-page">
   <div class="page-header">
-    <h1>{'\u{1F527}'} Outils</h1>
+    <h1><Wrench size={20} style="display:inline;vertical-align:middle;margin-right:6px" /> Outils</h1>
   </div>
 
   <div class="tools-layout">
@@ -349,7 +356,7 @@
           <span class="tab-group-label">R{'\u00e9'}seau</span>
           {#each tabs.filter(t => t.group === 'network') as tab}
             <button class="tool-tab" class:active={activeTab === tab.id} on:click={() => activeTab = tab.id}>
-              {tab.icon} {tab.label}
+              <svelte:component this={tabIcons[tab.id]} size={13} style="display:inline;vertical-align:middle" /> {tab.label}
             </button>
           {/each}
         </div>
@@ -358,7 +365,7 @@
           <span class="tab-group-label">Utilitaires</span>
           {#each tabs.filter(t => t.group === 'utils') as tab}
             <button class="tool-tab" class:active={activeTab === tab.id} on:click={() => activeTab = tab.id}>
-              {tab.icon} {tab.label}
+              <svelte:component this={tabIcons[tab.id]} size={13} style="display:inline;vertical-align:middle" /> {tab.label}
             </button>
           {/each}
         </div>
@@ -375,7 +382,7 @@
               <div class="port-group">
                 <input type="number" bind:value={port} min="1" max="65535" class="port-input" placeholder="Port" />
                 <button class="btn-port-picker" on:click={() => showPortPicker = !showPortPicker} title="Ports courants">
-                  {'\u{1F4CB}'}
+                  <Clipboard size={14} />
                 </button>
               </div>
             {/if}
@@ -391,9 +398,9 @@
 
             <button class="btn-run" on:click={runTool} disabled={running || !host.trim()}>
               {#if running}
-                {'\u23F3'} En cours...
+                <Loader size={14} style="display:inline;vertical-align:middle" /> En cours...
               {:else}
-                {'\u25B6'} Ex{'\u00e9'}cuter
+                <Play size={14} style="display:inline;vertical-align:middle" /> Ex{'\u00e9'}cuter
               {/if}
             </button>
           </div>
@@ -421,21 +428,21 @@
           <div class="output-header">
             <div class="output-title">
               {#if success === true}
-                <span class="status-ok">{'\u2705'} Succ{'\u00e8'}s</span>
+                <span class="status-ok"><CheckCircle size={14} style="display:inline;vertical-align:middle" /> Succ{'\u00e8'}s</span>
               {:else if success === false}
-                <span class="status-err">{'\u274C'} {'\u00C9'}chec</span>
+                <span class="status-err"><XCircle size={14} style="display:inline;vertical-align:middle" /> {'\u00C9'}chec</span>
               {:else}
                 <span class="status-idle">R{'\u00e9'}sultat</span>
               {/if}
             </div>
             <div class="output-actions">
-              <button class="btn-small" on:click={copyOutput} disabled={!output} title="Copier">{'\u{1F4CB}'} Copier</button>
-              <button class="btn-small" on:click={clearOutput} disabled={!output} title="Effacer">{'\u{1F5D1}\uFE0F'} Effacer</button>
+              <button class="btn-small" on:click={copyOutput} disabled={!output} title="Copier"><Clipboard size={12} style="display:inline;vertical-align:middle" /> Copier</button>
+              <button class="btn-small" on:click={clearOutput} disabled={!output} title="Effacer"><Trash2 size={12} style="display:inline;vertical-align:middle" /> Effacer</button>
             </div>
           </div>
           <div class="output-content">
             {#if running}
-              <div class="output-loading">{'\u23F3'} Ex{'\u00e9'}cution en cours...</div>
+              <div class="output-loading"><Loader size={14} style="display:inline;vertical-align:middle" /> Ex{'\u00e9'}cution en cours...</div>
             {:else if output}
               {#each output.split('\n') as line}
                 <div class="output-line {highlightLine(line)}">{line}</div>
@@ -488,13 +495,13 @@
               <input type="number" bind:value={pwCount} min="1" max="20" class="small-input" />
               <button class="btn-run" on:click={generatePasswords} disabled={pwRunning}>
                 {#if pwRunning}
-                  {'\u23F3'} ...
+                  <Loader size={14} style="display:inline;vertical-align:middle" /> ...
                 {:else}
-                  {'\u{1F510}'} G{'\u00e9'}n{'\u00e9'}rer
+                  <Lock size={14} style="display:inline;vertical-align:middle" /> G{'\u00e9'}n{'\u00e9'}rer
                 {/if}
               </button>
               {#if pwResults.length > 0}
-                <button class="btn-small" on:click={copyAllPasswords}>{'\u{1F4CB}'} Copier tout</button>
+                <button class="btn-small" on:click={copyAllPasswords}><Clipboard size={12} style="display:inline;vertical-align:middle" /> Copier tout</button>
               {/if}
             </div>
           </div>
@@ -509,7 +516,7 @@
                     {entry.strength} ({entry.entropy} bits)
                   </span>
                   <button class="btn-copy-sm" on:click={() => copyPassword(entry.password)} title="Copier">
-                    {'\u{1F4CB}'}
+                    <Clipboard size={12} />
                   </button>
                 </div>
               {/each}
@@ -530,9 +537,9 @@
                 class="host-input" on:keydown={(e) => e.key === 'Enter' && calcCidr()} />
               <button class="btn-run" on:click={calcCidr} disabled={cidrRunning || !cidrInput.trim()}>
                 {#if cidrRunning}
-                  {'\u23F3'} ...
+                  <Loader size={14} style="display:inline;vertical-align:middle" /> ...
                 {:else}
-                  {'\u{1F4CA}'} Calculer
+                  <Calculator size={14} style="display:inline;vertical-align:middle" /> Calculer
                 {/if}
               </button>
             </div>
@@ -605,7 +612,7 @@
                 </div>
               {/if}
             {:else}
-              <div class="error-message">{'\u274C'} {cidrResult.error}</div>
+              <div class="error-message"><XCircle size={14} style="display:inline;vertical-align:middle" /> {cidrResult.error}</div>
             {/if}
           {:else}
             <div class="output-empty">
@@ -635,9 +642,9 @@
                 </div>
                 <button class="btn-run btn-wol" on:click={sendWol} disabled={wolRunning || !wolMac.trim()}>
                   {#if wolRunning}
-                    {'\u23F3'} ...
+                    <Loader size={14} style="display:inline;vertical-align:middle" /> ...
                   {:else}
-                    {'\u26A1'} Envoyer
+                    <Zap size={14} style="display:inline;vertical-align:middle" /> Envoyer
                   {/if}
                 </button>
               </div>
@@ -646,7 +653,7 @@
 
           {#if wolResult}
             <div class="wol-result" class:wol-ok={wolResult.success} class:wol-err={!wolResult.success}>
-              {wolResult.success ? '\u2705' : '\u274C'} {wolResult.message}
+              {wolResult.message}
             </div>
           {/if}
 
@@ -680,9 +687,9 @@
                 class="host-input" on:keydown={(e) => e.key === 'Enter' && runWhois()} />
               <button class="btn-run" on:click={runWhois} disabled={whoisRunning || !whoisQuery.trim()}>
                 {#if whoisRunning}
-                  {'\u23F3'} Recherche...
+                  <Loader size={14} style="display:inline;vertical-align:middle" /> Recherche...
                 {:else}
-                  {'\u{1F50D}'} WHOIS
+                  <Search size={14} style="display:inline;vertical-align:middle" /> WHOIS
                 {/if}
               </button>
             </div>
@@ -690,17 +697,17 @@
 
           <div class="output-area-inner">
             {#if whoisRunning}
-              <div class="output-loading">{'\u23F3'} Recherche WHOIS en cours...</div>
+              <div class="output-loading"><Loader size={14} style="display:inline;vertical-align:middle" /> Recherche WHOIS en cours...</div>
             {:else if whoisResult}
               <div class="output-header">
                 <div class="output-title">
                   {#if whoisSuccess}
-                    <span class="status-ok">{'\u2705'} R{'\u00e9'}sultat pour {whoisQuery}</span>
+                    <span class="status-ok"><CheckCircle size={14} style="display:inline;vertical-align:middle" /> R{'\u00e9'}sultat pour {whoisQuery}</span>
                   {:else}
-                    <span class="status-err">{'\u274C'} {'\u00C9'}chec</span>
+                    <span class="status-err"><XCircle size={14} style="display:inline;vertical-align:middle" /> {'\u00C9'}chec</span>
                   {/if}
                 </div>
-                <button class="btn-small" on:click={() => navigator.clipboard.writeText(whoisResult)}>{'\u{1F4CB}'} Copier</button>
+                <button class="btn-small" on:click={() => navigator.clipboard.writeText(whoisResult)}><Clipboard size={12} style="display:inline;vertical-align:middle" /> Copier</button>
               </div>
               <pre class="whois-output">{whoisResult}</pre>
             {:else}
@@ -722,9 +729,9 @@
                 class="host-input" style="flex:1.5" />
               <button class="btn-run" on:click={runPortScan} disabled={scanRunning || !scanHost.trim()}>
                 {#if scanRunning}
-                  {'\u23F3'} Scan...
+                  <Loader size={14} style="display:inline;vertical-align:middle" /> Scan...
                 {:else}
-                  {'\u{1F6E1}\uFE0F'} Scanner
+                  <Shield size={14} style="display:inline;vertical-align:middle" /> Scanner
                 {/if}
               </button>
             </div>
@@ -743,16 +750,16 @@
                 {#each scanResults as r}
                   <div class="scan-port-card" class:port-open={r.open} class:port-closed={!r.open}>
                     <span class="port-number">{r.port}</span>
-                    <span class="port-status">{r.open ? '\u2705 Ouvert' : '\u274C Ferm\u00e9'}</span>
+                    <span class="port-status">{r.open ? 'Ouvert' : 'Ferm\u00e9'}</span>
                     {#if r.service}<span class="port-service">{r.service}</span>{/if}
                   </div>
                 {/each}
               </div>
               {#if scanRunning}
-                <div class="scan-progress">{'\u23F3'} Scan en cours... {scanResults.length}/{scanPorts.split(',').length} ports</div>
+                <div class="scan-progress">Scan en cours... {scanResults.length}/{scanPorts.split(',').length} ports</div>
               {/if}
             {:else if scanRunning}
-              <div class="output-loading">{'\u23F3'} D{'\u00e9'}marrage du scan...</div>
+              <div class="output-loading"><Loader size={14} style="display:inline;vertical-align:middle" /> D{'\u00e9'}marrage du scan...</div>
             {:else}
               <div class="output-empty">
                 Entrez une adresse et des ports pour lancer un scan TCP.
@@ -766,10 +773,10 @@
         <div class="tool-panel">
           <div class="input-area">
             <div class="qr-type-row">
-              <button class="qr-type-btn" class:active={qrType === 'text'} on:click={() => qrType = 'text'}>{'\u{1F4DD}'} Texte</button>
-              <button class="qr-type-btn" class:active={qrType === 'url'} on:click={() => qrType = 'url'}>{'\u{1F310}'} URL</button>
-              <button class="qr-type-btn" class:active={qrType === 'wifi'} on:click={() => qrType = 'wifi'}>{'\u{1F4F6}'} Wi-Fi</button>
-              <button class="qr-type-btn" class:active={qrType === 'email'} on:click={() => qrType = 'email'}>{'\u2709\uFE0F'} Email</button>
+              <button class="qr-type-btn" class:active={qrType === 'text'} on:click={() => qrType = 'text'}><FileText size={12} style="display:inline;vertical-align:middle" /> Texte</button>
+              <button class="qr-type-btn" class:active={qrType === 'url'} on:click={() => qrType = 'url'}><Globe size={12} style="display:inline;vertical-align:middle" /> URL</button>
+              <button class="qr-type-btn" class:active={qrType === 'wifi'} on:click={() => qrType = 'wifi'}><Wifi size={12} style="display:inline;vertical-align:middle" /> Wi-Fi</button>
+              <button class="qr-type-btn" class:active={qrType === 'email'} on:click={() => qrType = 'email'}><Mail size={12} style="display:inline;vertical-align:middle" /> Email</button>
             </div>
             <div class="input-row">
               <input type="text" bind:value={qrText}
@@ -781,7 +788,7 @@
                 <option value={512}>512px</option>
               </select>
               <button class="btn-run" on:click={generateQr} disabled={!qrText.trim()}>
-                {'\u{1F4F1}'} G{'\u00e9'}n{'\u00e9'}rer
+                <QrCode size={14} style="display:inline;vertical-align:middle" /> G{'\u00e9'}n{'\u00e9'}rer
               </button>
             </div>
           </div>
@@ -793,13 +800,13 @@
                   <img src={qrDataUrl} alt="QR Code" width={qrSize} height={qrSize} />
                 </div>
                 <div class="qr-actions">
-                  <button class="btn-small" on:click={downloadQr}>{'\u{2B07}\uFE0F'} T{'\u00e9'}l{'\u00e9'}charger PNG</button>
-                  <button class="btn-small" on:click={copyQrToClipboard}>{'\u{1F4CB}'} Copier l'URL</button>
+                  <button class="btn-small" on:click={downloadQr}><Download size={12} style="display:inline;vertical-align:middle" /> T{'\u00e9'}l{'\u00e9'}charger PNG</button>
+                  <button class="btn-small" on:click={copyQrToClipboard}><Clipboard size={12} style="display:inline;vertical-align:middle" /> Copier l'URL</button>
                 </div>
               </div>
             {:else}
               <div class="output-empty">
-                <div style="font-size:3rem;margin-bottom:12px">{'\u{1F4F1}'}</div>
+                <div style="margin-bottom:12px"><QrCode size={48} /></div>
                 G{'\u00e9'}n{'\u00e9'}rez un QR Code pour du texte, une URL, un r{'\u00e9'}seau Wi-Fi ou un email.
               </div>
             {/if}
@@ -905,7 +912,7 @@
   .tool-tab:hover { background: rgba(255,255,255,0.03); }
   .tool-tab.active {
     color: var(--text, #E6EAF2);
-    border-bottom-color: var(--accent, #06A6C9);
+    border-bottom-color: var(--primary);
   }
 
   /* ── Input area ─────────────────────────────────────── */
@@ -933,7 +940,7 @@
     font-family: 'Consolas', monospace;
     outline: none;
   }
-  .host-input:focus { border-color: var(--accent, #06A6C9); }
+  .host-input:focus { border-color: var(--primary); }
 
   .port-group {
     display: flex;
@@ -951,7 +958,7 @@
     font-family: 'Consolas', monospace;
     outline: none;
   }
-  .port-input:focus { border-color: var(--accent, #06A6C9); }
+  .port-input:focus { border-color: var(--primary); }
 
   .btn-port-picker {
     background: rgba(0,0,0,0.3);
@@ -991,7 +998,7 @@
   }
 
   .btn-run {
-    background: var(--accent, #06A6C9);
+    background: var(--primary);
     border: none;
     border-radius: 8px;
     padding: 8px 20px;
@@ -1042,8 +1049,8 @@
     transition: all 0.15s;
   }
   .port-item:hover { background: rgba(255,255,255,0.05); }
-  .port-item.active { border-color: var(--accent, #06A6C9); color: var(--text, #E6EAF2); }
-  .port-num { font-weight: 600; color: var(--accent, #06A6C9); }
+  .port-item.active { border-color: var(--primary); color: var(--text, #E6EAF2); }
+  .port-num { font-weight: 600; color: var(--primary); }
 
   /* ── Output area ─────────────────────────────────────── */
 
@@ -1142,7 +1149,7 @@
   }
   .pw-slider {
     flex: 1;
-    accent-color: var(--accent, #06A6C9);
+    accent-color: var(--primary);
     max-width: 300px;
   }
   .pw-options {
@@ -1159,7 +1166,7 @@
     cursor: pointer;
   }
   .pw-check input[type="checkbox"] {
-    accent-color: var(--accent, #06A6C9);
+    accent-color: var(--primary);
   }
 
   .pw-results {
@@ -1220,14 +1227,14 @@
     border: 1px solid var(--border-subtle, rgba(255,255,255,0.06));
     border-radius: 6px;
     padding: 4px 10px;
-    color: var(--accent, #06A6C9);
+    color: var(--primary);
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: 600;
     font-family: 'Consolas', monospace;
     transition: all 0.15s;
   }
-  .prefix-btn:hover { background: rgba(6,166,201,0.15); }
+  .prefix-btn:hover { background: rgba(var(--primary-rgb), 0.15); }
 
   .cidr-grid {
     display: grid;
@@ -1282,7 +1289,7 @@
     font-size: 0.75rem;
     font-family: 'Consolas', monospace;
   }
-  .subnet-network { color: var(--accent, #06A6C9); font-weight: 600; min-width: 160px; }
+  .subnet-network { color: var(--primary); font-weight: 600; min-width: 160px; }
   .subnet-range { color: var(--text-dim, #94A3B8); flex: 1; }
   .subnet-hosts { color: #10B981; white-space: nowrap; }
 
@@ -1432,8 +1439,8 @@
   .history-type {
     font-size: 0.55rem;
     font-weight: 700;
-    background: rgba(6,166,201,0.15);
-    color: var(--accent, #06A6C9);
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--primary);
     padding: 1px 5px;
     border-radius: 3px;
   }

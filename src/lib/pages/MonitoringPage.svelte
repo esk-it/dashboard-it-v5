@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { Radio, Settings, RefreshCw, Loader, CheckCircle, Clock } from 'lucide-svelte';
 
   // ── State ──────────────────────────────────────────────────
   let stats = { total_hosts: 0, available: 0, unavailable: 0, unknown: 0, active_problems: 0, synced_at: null };
@@ -139,13 +140,13 @@
 <!-- ── Header + Stats ─────────────────────────────────────── -->
 <div class="page-header">
   <div class="title-row">
-    <h1>📡 Monitoring — Zabbix</h1>
+    <h1><Radio size={20} style="display:inline;vertical-align:middle;margin-right:6px" /> Monitoring — Zabbix</h1>
     <div class="header-actions">
       <button class="btn-icon-text" on:click={openConfig} title="Configuration">
-        ⚙️ Config
+        <Settings size={14} style="display:inline;vertical-align:middle" /> Config
       </button>
       <button class="btn-primary" on:click={triggerSync} disabled={syncing || !config.configured}>
-        {syncing ? '⏳ Sync en cours…' : '🔄 Synchroniser'}
+        {#if syncing}<Loader size={14} style="display:inline;vertical-align:middle" /> Sync en cours…{:else}<RefreshCw size={14} style="display:inline;vertical-align:middle" /> Synchroniser{/if}
       </button>
     </div>
   </div>
@@ -180,7 +181,7 @@
 {#if !config.configured}
   <div class="empty-state">
     <div class="empty-card">
-      <span class="empty-icon">📡</span>
+      <span class="empty-icon"><Radio size={48} /></span>
       <h2>Zabbix non configuré</h2>
       <p>Configurez votre serveur Zabbix pour superviser l'état de votre infrastructure réseau.</p>
       <div class="setup-steps">
@@ -276,11 +277,11 @@
               <td class="hostname">{problem.host || '—'}</td>
               <td>{problem.name || '—'}</td>
               <td>{formatDate(problem.timestamp)}</td>
-              <td>{problem.acknowledged ? '✅' : '—'}</td>
+              <td>{#if problem.acknowledged}<CheckCircle size={14} style="display:inline;vertical-align:middle;color:#22C55E" />{:else}—{/if}</td>
             </tr>
           {/each}
           {#if filteredProblems.length === 0}
-            <tr><td colspan="5" class="empty-row">Aucun problème actif 🎉</td></tr>
+            <tr><td colspan="5" class="empty-row">Aucun problème actif</td></tr>
           {/if}
         </tbody>
       </table>
@@ -332,9 +333,9 @@
     display: flex; justify-content: space-between; align-items: center;
     margin-bottom: 8px;
   }
-  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
+  .title-row h1 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin: 0; display: flex; align-items: center; }
   .header-actions { display: flex; gap: 10px; align-items: center; }
-  .sync-info { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin: 0 0 12px; }
+  .sync-info { font-size: 0.8rem; color: var(--text-muted); margin: 0 0 12px; }
 
   .stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
   .stat-card {
@@ -349,8 +350,8 @@
   .stat-card.offline { border-color: #EF4444; }
   .stat-card.problems { border-color: #F59E0B; }
   .stat-card.has-alerts { background: rgba(245,158,11,0.08); }
-  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: #fff; }
-  .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.05em; }
+  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: var(--text-primary); }
+  .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
 
   /* ── Empty state ────────────────────────────────────────── */
   .empty-state {
@@ -364,8 +365,8 @@
     max-width: 500px; backdrop-filter: blur(12px);
   }
   .empty-icon { font-size: 3rem; display: block; margin-bottom: 16px; }
-  .empty-card h2 { margin: 0 0 8px; color: #fff; font-size: 1.2rem; }
-  .empty-card p { color: rgba(255,255,255,0.5); font-size: 0.9rem; margin-bottom: 20px; }
+  .empty-card h2 { margin: 0 0 8px; color: var(--text-primary); font-size: 1.2rem; }
+  .empty-card p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px; }
 
   .setup-steps {
     text-align: left;
@@ -374,9 +375,9 @@
     padding: 16px 20px;
     margin-bottom: 20px;
   }
-  .setup-steps h3 { margin: 0 0 8px; color: rgba(255,255,255,0.7); font-size: 0.85rem; }
-  .setup-steps ol { margin: 0; padding-left: 20px; color: rgba(255,255,255,0.5); font-size: 0.82rem; line-height: 1.8; }
-  .setup-steps li strong { color: rgba(255,255,255,0.8); }
+  .setup-steps h3 { margin: 0 0 8px; color: var(--text-secondary); font-size: 0.85rem; }
+  .setup-steps ol { margin: 0; padding-left: 20px; color: var(--text-muted); font-size: 0.82rem; line-height: 1.8; }
+  .setup-steps li strong { color: var(--text-secondary); }
 
   /* ── Tabs ────────────────────────────────────────────────── */
   .tabs {
@@ -384,26 +385,26 @@
     border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   }
   .tab {
-    background: none; border: none; color: rgba(255,255,255,0.5);
+    background: none; border: none; color: var(--text-muted);
     padding: 10px 20px; cursor: pointer; font-size: 0.9rem;
     border-bottom: 2px solid transparent; transition: all 0.2s;
   }
-  .tab:hover { color: rgba(255,255,255,0.8); }
-  .tab.active { color: #fff; border-bottom-color: var(--accent, #6C63FF); }
+  .tab:hover { color: var(--text-secondary); }
+  .tab.active { color: var(--text-primary); border-bottom-color: var(--primary); }
 
   .badge { border-radius: 10px; padding: 1px 7px; font-size: 0.7rem; margin-left: 4px; font-weight: 600; }
   .badge.danger { background: rgba(239,68,68,0.2); color: #EF4444; }
-  .badge.neutral { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.5); }
+  .badge.neutral { background: var(--bg-hover); color: var(--text-muted); }
 
   /* ── Filters ────────────────────────────────────────────── */
   .filters-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
   .search-input {
     flex: 1; min-width: 200px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: 8px; color: var(--text-primary); font-size: 0.85rem;
   }
-  .search-input::placeholder { color: rgba(255,255,255,0.3); }
-  .result-count { font-size: 0.8rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+  .search-input::placeholder { color: var(--text-muted); }
+  .result-count { font-size: 0.8rem; color: var(--text-muted); white-space: nowrap; }
 
   /* ── Table ──────────────────────────────────────────────── */
   .table-wrapper {
@@ -415,20 +416,20 @@
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   thead { position: sticky; top: 0; z-index: 2; }
   th {
-    background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6);
+    background: var(--bg-hover); color: var(--text-secondary);
     padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border-subtle);
   }
   td {
-    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
-    color: rgba(255,255,255,0.85); white-space: nowrap;
+    padding: 8px 12px; border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-secondary); white-space: nowrap;
   }
-  tr:hover td { background: rgba(255,255,255,0.03); }
-  .hostname { font-weight: 600; color: #fff; }
+  tr:hover td { background: var(--bg-hover); }
+  .hostname { font-weight: 600; color: var(--text-primary); }
   .mono { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; }
   .desc { max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .empty-row { text-align: center; color: rgba(255,255,255,0.3); padding: 32px !important; }
-  .loading { text-align: center; color: rgba(255,255,255,0.4); padding: 40px; }
+  .empty-row { text-align: center; color: var(--text-muted); padding: 32px !important; }
+  .loading { text-align: center; color: var(--text-muted); padding: 40px; }
 
   /* Groups */
   .group-tag {
@@ -443,7 +444,7 @@
     border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
   }
   .status-badge.enabled { background: rgba(34,197,94,0.15); color: #22C55E; }
-  .status-badge.disabled { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+  .status-badge.disabled { background: var(--bg-hover); color: var(--text-muted); }
 
   /* Severity badges */
   .severity-badge {
@@ -455,7 +456,7 @@
   .severity-badge.average { background: rgba(245,158,11,0.2); color: #F59E0B; }
   .severity-badge.warning { background: rgba(234,179,8,0.2); color: #EAB308; }
   .severity-badge.info { background: rgba(59,130,246,0.2); color: #3B82F6; }
-  .severity-badge.default { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.4); }
+  .severity-badge.default { background: var(--bg-hover); color: var(--text-muted); }
 
   /* ── Dialog ─────────────────────────────────────────────── */
   .dialog-overlay {
@@ -471,41 +472,41 @@
   }
   .dialog-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 18px 24px; border-bottom: 1px solid var(--border-subtle);
   }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
+  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: var(--text-primary); }
   .btn-close {
-    background: none; border: none; color: rgba(255,255,255,0.5);
+    background: none; border: none; color: var(--text-muted);
     font-size: 1.4rem; cursor: pointer; padding: 0 4px;
   }
   .dialog-body { padding: 20px 24px; }
-  .config-help { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin: 0 0 16px; }
-  .config-help small { color: rgba(255,255,255,0.35); }
+  .config-help { font-size: 0.85rem; color: var(--text-muted); margin: 0 0 16px; }
+  .config-help small { color: var(--text-muted); }
   .dialog-footer {
     display: flex; align-items: center; gap: 10px;
-    padding: 14px 24px; border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 14px 24px; border-top: 1px solid var(--border-subtle);
   }
   .spacer { flex: 1; }
 
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px; }
   input {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    color: #fff; font-size: 0.85rem;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-subtle); border-radius: 8px;
+    color: var(--text-primary); font-size: 0.85rem;
   }
   input:focus { outline: none; border-color: var(--accent, #6C63FF); }
 
   /* ── Buttons ────────────────────────────────────────────── */
   .btn-primary {
-    background: var(--accent, #6C63FF); color: #fff; border: none;
+    background: var(--primary); color: #fff; border: none;
     border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
     font-weight: 600; transition: opacity 0.2s;
   }
   .btn-primary:hover { opacity: 0.9; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    background: var(--bg-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle); border-radius: 8px;
     padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
   }
   .btn-danger {
@@ -514,9 +515,10 @@
     font-weight: 600;
   }
   .btn-icon-text {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    background: var(--bg-hover); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle); border-radius: 8px;
     padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
+    display: flex; align-items: center; gap: 4px;
   }
-  .btn-icon-text:hover { background: rgba(255,255,255,0.12); }
+  .btn-icon-text:hover { background: var(--bg-card); }
 </style>

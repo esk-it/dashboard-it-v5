@@ -1,21 +1,25 @@
 <script>
   import { currentPage } from '../../stores/navigation.js';
+  import { Zap, ClipboardList, FileText, CalendarDays, Shield, Monitor, BookOpen } from 'lucide-svelte';
   import GlassCard from '../GlassCard.svelte';
 
   const links = [
-    { emoji: '\u{1F4DD}', label: 'Nouvelle tâche', action: () => currentPage.set('/tasks') },
-    { emoji: '\u{1F4C4}', label: 'Documents', action: () => currentPage.set('/documents') },
-    { emoji: '\u{1F4C5}', label: 'Planning', action: () => currentPage.set('/planning') },
-    { emoji: '\u{1F6E1}\uFE0F', label: 'Sécurité', action: () => currentPage.set('/security') },
-    { emoji: '\u{1F5A5}\uFE0F', label: 'Parc info', action: () => currentPage.set('/parc') },
-    { emoji: '\u{1F4D6}', label: 'Procédures', action: () => currentPage.set('/wiki') },
+    { icon: ClipboardList, label: 'Nouvelle t\u00e2che', action: () => currentPage.set('/tasks'), color: 'var(--primary)' },
+    { icon: FileText, label: 'Documents', action: () => currentPage.set('/documents'), color: '#F8B940' },
+    { icon: CalendarDays, label: 'Planning', action: () => currentPage.set('/planning'), color: '#3A9B94' },
+    { icon: Shield, label: 'S\u00e9curit\u00e9', action: () => currentPage.set('/security'), color: '#FF5E5E' },
+    { icon: Monitor, label: 'Parc info', action: () => currentPage.set('/parc'), color: '#58bad7' },
+    { icon: BookOpen, label: 'Proc\u00e9dures', action: () => currentPage.set('/wiki'), color: '#BB6BD9' },
   ];
 </script>
 
 <GlassCard padding="0">
   <div class="card-inner">
     <div class="card-header">
-      <h3>{'\u26A1'} Acc&egrave;s rapides</h3>
+      <h3>
+        <Zap size={15} style="display:inline;vertical-align:-2px;margin-right:6px;color:var(--primary)" />
+        Acc&egrave;s rapides
+      </h3>
     </div>
 
     <div class="links-grid">
@@ -23,7 +27,9 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="link-item" on:click={link.action}>
-          <span class="link-emoji">{link.emoji}</span>
+          <div class="link-icon-wrap" style="background: {link.color}15; color: {link.color};">
+            <svelte:component this={link.icon} size={20} />
+          </div>
           <span class="link-label">{link.label}</span>
         </div>
       {/each}
@@ -47,6 +53,8 @@
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
+    display: flex;
+    align-items: center;
   }
 
   .links-grid {
@@ -60,7 +68,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     padding: 14px 8px;
     border-radius: 10px;
     cursor: pointer;
@@ -71,8 +79,13 @@
     background: var(--bg-hover);
   }
 
-  .link-emoji {
-    font-size: 22px;
+  .link-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .link-label {
