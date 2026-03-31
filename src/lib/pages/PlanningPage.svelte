@@ -244,6 +244,7 @@
       contentHeight: 'auto',
       expandRows: true,
       dayMaxEvents: 3,
+      weekNumbers: true,
       navLinks: true,
       editable: false,
       selectable: true,
@@ -289,31 +290,41 @@
 </script>
 
 <div class="planning-page">
-  <!-- Legend bar -->
-  <div class="planning-legend">
-    <div class="legend-items">
-      {#each Object.entries(EVENT_TYPES) as [key, t]}
-        <span class="legend-item">
-          <span class="legend-dot" style="background:{t.color}"></span>
-          <span class="legend-emoji">{t.emoji}</span>
-          {t.label}
-        </span>
-      {/each}
-      <span class="legend-item">
-        <span class="legend-dot" style="background:#4B8BFF"></span>
-        <span class="legend-emoji">{'\u2705'}</span>
-        Tache
-      </span>
-    </div>
-    <button class="ya-btn ya-btn--primary" on:click={() => openNewEvent(toDateStr(new Date()))}>
-      + Evenement
-    </button>
-  </div>
+  <div class="planning-layout">
+    <!-- ═══ Left sidebar — event types (YashAdmin style) ═══ -->
+    <div class="planning-sidebar">
+      <div class="ya-page-card">
+        <div class="ya-page-card__body">
+          <h4 class="sidebar-title">Calendrier</h4>
+          <p class="sidebar-desc">Cliquez sur le calendrier pour creer un evenement</p>
 
-  <!-- FullCalendar container -->
-  <div class="ya-page-card">
-    <div class="ya-page-card__body app-fullcalendar">
-      <div bind:this={calendarEl}></div>
+          <div class="external-events">
+            {#each Object.entries(EVENT_TYPES) as [key, t]}
+              <div class="external-event" style="--evt-color:{t.color}">
+                <span class="external-event__dot" style="background:{t.color}"></span>
+                <span>{t.label}</span>
+              </div>
+            {/each}
+            <div class="external-event" style="--evt-color:#4B8BFF">
+              <span class="external-event__dot" style="background:#4B8BFF"></span>
+              <span>Tache</span>
+            </div>
+          </div>
+
+          <button class="ya-btn ya-btn--primary" style="width:100%;margin-top:1.5rem" on:click={() => openNewEvent(toDateStr(new Date()))}>
+            + Creer un evenement
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Right — FullCalendar ═══ -->
+    <div class="planning-main">
+      <div class="ya-page-card">
+        <div class="ya-page-card__body app-fullcalendar">
+          <div bind:this={calendarEl}></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -419,44 +430,65 @@
 <style>
   .planning-page {
     animation: fadeIn 0.35s ease-out;
+  }
+
+  /* ── 2-column layout (YashAdmin calendar style) ── */
+  .planning-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+
+  @media (max-width: 1024px) {
+    .planning-layout {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  /* ── Left sidebar ── */
+  .sidebar-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin: 0 0 0.5rem;
+  }
+
+  .sidebar-desc {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0 0 1rem;
+  }
+
+  .external-events {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 0.5rem;
   }
 
-  /* ── Legend bar ── */
-  .planning-legend {
+  .external-event {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
     gap: 0.75rem;
+    padding: 0.5rem 0.625rem;
+    border-radius: 0.3125rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text-heading);
+    background: rgba(var(--primary-rgb), 0.04);
+    transition: background 0.15s;
+    cursor: default;
   }
 
-  .legend-items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.75rem;
-    align-items: center;
+  .external-event:hover {
+    background: rgba(var(--primary-rgb), 0.08);
   }
 
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .legend-dot {
-    width: 0.5rem;
-    height: 0.5rem;
-    border-radius: 50%;
+  .external-event__dot {
+    width: 0.875rem;
+    height: 0.875rem;
+    border-radius: 2px;
     flex-shrink: 0;
-  }
-
-  .legend-emoji {
-    font-size: 0.8125rem;
   }
 
   /* ── FullCalendar overrides (scoped) ── */

@@ -503,34 +503,49 @@
 </script>
 
 <div class="tasks-page">
-  <!-- ── KPI Row (YashAdmin task.html style) ──────────────── -->
-  <div class="ya-kpi-row">
-    <div class="ya-kpi ya-kpi--primary">
-      <span class="ya-kpi__value">{totalCount}</span>
-      <span class="ya-kpi__label">Total</span>
-    </div>
-    <div class="ya-kpi ya-kpi--info">
-      <span class="ya-kpi__value">{openCount}</span>
-      <span class="ya-kpi__label">En cours</span>
-    </div>
-    <div class="ya-kpi ya-kpi--danger">
-      <span class="ya-kpi__value">{overdueCount}</span>
-      <span class="ya-kpi__label">En retard</span>
-    </div>
-    <div class="ya-kpi ya-kpi--warning">
-      <span class="ya-kpi__value">{weekCount}</span>
-      <span class="ya-kpi__label">Cette semaine</span>
-    </div>
-    <div class="ya-kpi ya-kpi--success">
-      <span class="ya-kpi__value">{doneCount}</span>
-      <span class="ya-kpi__label">Terminees</span>
-    </div>
-    <div class="ya-kpi">
-      <span class="ya-kpi__value" style="color: var(--text-heading)">{progressPct}%</span>
-      <span class="ya-kpi__label">Completion</span>
-      <div class="ya-progress-bar" style="margin-top:0.375rem">
-        <div class="ya-progress-bar__fill" style="width:{progressPct}%;background:linear-gradient(90deg, var(--primary), var(--success))"></div>
+  <!-- ── KPI Row — YashAdmin task.html exact style ──────────── -->
+  <div class="task-kpi-row">
+    <div class="task-kpi">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:var(--primary)">{totalCount}</h2>
+        <span class="task-kpi__status">Total</span>
       </div>
+      <p class="task-kpi__sub">Taches assignees</p>
+    </div>
+    <div class="task-kpi">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:#BB6BD9">{openCount}</h2>
+        <span class="task-kpi__status">En cours</span>
+      </div>
+      <p class="task-kpi__sub">Taches assignees</p>
+    </div>
+    <div class="task-kpi">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:var(--warning)">{weekCount}</h2>
+        <span class="task-kpi__status">Cette semaine</span>
+      </div>
+      <p class="task-kpi__sub">Taches assignees</p>
+    </div>
+    <div class="task-kpi">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:var(--danger)">{overdueCount}</h2>
+        <span class="task-kpi__status">En retard</span>
+      </div>
+      <p class="task-kpi__sub">Taches assignees</p>
+    </div>
+    <div class="task-kpi">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:var(--success)">{doneCount}</h2>
+        <span class="task-kpi__status">Terminees</span>
+      </div>
+      <p class="task-kpi__sub">Taches assignees</p>
+    </div>
+    <div class="task-kpi task-kpi--last">
+      <div class="task-kpi__inline">
+        <h2 class="task-kpi__count" style="color:var(--danger)">{totalCount - doneCount - openCount}</h2>
+        <span class="task-kpi__status">En attente</span>
+      </div>
+      <p class="task-kpi__sub">Taches assignees</p>
     </div>
   </div>
 
@@ -1022,7 +1037,66 @@
     animation: fadeIn 0.35s ease-out;
   }
 
-  /* Stats bar now uses global ya-kpi-row classes */
+  /* ── Task KPI Row — YashAdmin task.html exact ── */
+  .task-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    margin-bottom: 1.5rem;
+  }
+
+  .task-kpi {
+    border-right: 1px solid var(--border-subtle);
+    padding: 0.5rem 1rem;
+  }
+
+  .task-kpi--last {
+    border-right: none;
+  }
+
+  .task-kpi__inline {
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .task-kpi__count {
+    font-size: 1.75rem;
+    font-weight: 600;
+    margin: 0;
+    line-height: 1.2;
+  }
+
+  .task-kpi__status {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-heading);
+  }
+
+  .task-kpi__sub {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 0.7;
+    margin-top: 0.25rem;
+  }
+
+  @media (max-width: 1200px) {
+    .task-kpi-row {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .task-kpi:nth-child(3) {
+      border-right: none;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .task-kpi-row {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .task-kpi:nth-child(even) {
+      border-right: none;
+    }
+  }
 
   /* ── Action bar ────────────────────────────────────────── */
   .action-bar {
