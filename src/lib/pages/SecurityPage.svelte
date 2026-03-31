@@ -179,22 +179,22 @@
     <p class="sync-info">Dernière sync : {formatDate(stats.synced_at)}</p>
   {/if}
 
-  <div class="stats-row">
-    <div class="stat-card accent">
-      <span class="stat-value">{stats.total}</span>
-      <span class="stat-label">Total</span>
+  <div class="ya-kpi-row">
+    <div class="ya-kpi ya-kpi--primary">
+      <span class="ya-kpi__value">{stats.total}</span>
+      <span class="ya-kpi__label">Total</span>
     </div>
-    <div class="stat-card online">
-      <span class="stat-value">{stats.online}</span>
-      <span class="stat-label">En ligne</span>
+    <div class="ya-kpi ya-kpi--success">
+      <span class="ya-kpi__value">{stats.online}</span>
+      <span class="ya-kpi__label">En ligne</span>
     </div>
-    <div class="stat-card offline">
-      <span class="stat-value">{stats.offline}</span>
-      <span class="stat-label">Hors ligne</span>
+    <div class="ya-kpi ya-kpi--danger">
+      <span class="ya-kpi__value">{stats.offline}</span>
+      <span class="ya-kpi__label">Hors ligne</span>
     </div>
-    <div class="stat-card alerts" class:has-alerts={stats.protection_alerts > 0}>
-      <span class="stat-value">{stats.protection_alerts}</span>
-      <span class="stat-label">Alertes</span>
+    <div class="ya-kpi ya-kpi--warning" class:has-alerts={stats.protection_alerts > 0}>
+      <span class="ya-kpi__value">{stats.protection_alerts}</span>
+      <span class="ya-kpi__label">Alertes</span>
     </div>
   </div>
 </div>
@@ -288,26 +288,26 @@
     <div class="loading">Chargement couverture…</div>
   {:else if crossRef}
     <!-- Coverage Stats -->
-    <div class="stats-row coverage-stats">
-      <div class="stat-card accent">
-        <span class="stat-value">{crossRef.stats.total_parc}</span>
-        <span class="stat-label">Postes Parc</span>
+    <div class="ya-kpi-row" style="margin-bottom:1rem">
+      <div class="ya-kpi ya-kpi--primary">
+        <span class="ya-kpi__value">{crossRef.stats.total_parc}</span>
+        <span class="ya-kpi__label">Postes Parc</span>
       </div>
-      <div class="stat-card protected">
-        <span class="stat-value">{crossRef.stats.protected}</span>
-        <span class="stat-label">Protégés</span>
+      <div class="ya-kpi ya-kpi--success">
+        <span class="ya-kpi__value">{crossRef.stats.protected}</span>
+        <span class="ya-kpi__label">Protégés</span>
       </div>
-      <div class="stat-card unprotected" class:has-alerts={crossRef.stats.unprotected > 0}>
-        <span class="stat-value">{crossRef.stats.unprotected}</span>
-        <span class="stat-label">Non protégés</span>
+      <div class="ya-kpi ya-kpi--danger" class:has-alerts={crossRef.stats.unprotected > 0}>
+        <span class="ya-kpi__value">{crossRef.stats.unprotected}</span>
+        <span class="ya-kpi__label">Non protégés</span>
       </div>
-      <div class="stat-card unknown-card">
-        <span class="stat-value">{crossRef.stats.unknown}</span>
-        <span class="stat-label">Hors inventaire</span>
+      <div class="ya-kpi ya-kpi--warning">
+        <span class="ya-kpi__value">{crossRef.stats.unknown}</span>
+        <span class="ya-kpi__label">Hors inventaire</span>
       </div>
-      <div class="stat-card coverage-pct">
-        <span class="stat-value">{crossRef.stats.coverage_percent}%</span>
-        <span class="stat-label">Couverture</span>
+      <div class="ya-kpi ya-kpi--primary">
+        <span class="ya-kpi__value">{crossRef.stats.coverage_percent}%</span>
+        <span class="ya-kpi__label">Couverture</span>
       </div>
     </div>
 
@@ -553,13 +553,13 @@
 
 <!-- ── Config Dialog ──────────────────────────────────────── -->
 {#if showConfigDialog}
-<div class="dialog-overlay" on:click|self={() => showConfigDialog = false}>
-  <div class="dialog">
-    <div class="dialog-header">
-      <h2>Configuration WithSecure</h2>
-      <button class="btn-close" on:click={() => showConfigDialog = false}>×</button>
+<div class="ya-dialog-overlay" on:click|self={() => showConfigDialog = false}>
+  <div class="ya-dialog" style="width:480px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Configuration WithSecure</h2>
+      <button class="ya-dialog__close" on:click={() => showConfigDialog = false}>×</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <p class="config-help">
         Entrez vos identifiants API WithSecure Elements (OAuth2 Client Credentials).
       </p>
@@ -573,13 +573,13 @@
                placeholder={config.configured ? 'Laisser vide pour ne pas changer' : 'votre-client-secret'} />
       </label>
     </div>
-    <div class="dialog-footer">
+    <div class="ya-dialog__footer">
       {#if config.configured}
         <button class="btn-danger" on:click={deleteSecurityConfig}>Supprimer config</button>
       {/if}
-      <div class="spacer"></div>
-      <button class="btn-secondary" on:click={() => showConfigDialog = false}>Annuler</button>
-      <button class="btn-primary" on:click={saveSecurityConfig} disabled={savingConfig}>
+      <div style="flex:1"></div>
+      <button class="ya-btn ya-btn--ghost" on:click={() => showConfigDialog = false}>Annuler</button>
+      <button class="ya-btn ya-btn--primary" on:click={saveSecurityConfig} disabled={savingConfig}>
         {savingConfig ? 'Enregistrement…' : 'Enregistrer'}
       </button>
     </div>
@@ -598,20 +598,8 @@
   .header-actions { display: flex; gap: 10px; align-items: center; }
   .sync-info { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin: 0 0 12px; }
 
-  .stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
-  .stat-card {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; padding: 14px 20px;
-    text-align: center; min-width: 110px;
-    backdrop-filter: blur(12px);
-  }
-  .stat-card.accent { border-color: var(--accent, #6C63FF); }
-  .stat-card.online { border-color: #22C55E; }
-  .stat-card.offline { border-color: #EF4444; }
-  .stat-card.has-alerts { border-color: #F59E0B; background: rgba(245,158,11,0.08); }
-  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: #fff; }
-  .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.05em; }
+  /* Stats now use global ya-kpi classes */
+  .has-alerts { border-color: #F59E0B; background: rgba(245,158,11,0.08); }
 
   /* ── Empty state ────────────────────────────────────────── */
   .empty-state {
@@ -619,9 +607,9 @@
     min-height: 400px;
   }
   .empty-card {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 16px; padding: 48px; text-align: center;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; padding: 48px; text-align: center;
     max-width: 420px; backdrop-filter: blur(12px);
   }
   .empty-icon { font-size: 3rem; display: block; margin-bottom: 16px; }
@@ -634,28 +622,28 @@
   }
   .search-input {
     flex: 1; min-width: 200px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-card);
+    border-radius: 0.625rem; color: #fff; font-size: 0.85rem;
   }
   .search-input::placeholder { color: rgba(255,255,255,0.3); }
   .result-count { font-size: 0.8rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
 
   /* ── Table ──────────────────────────────────────────────── */
   .table-wrapper {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; overflow: auto; max-height: 65vh;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; overflow: auto; max-height: 65vh;
     backdrop-filter: blur(12px);
   }
   table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
   thead { position: sticky; top: 0; z-index: 2; }
   th {
-    background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6);
+    background: var(--bg-card); color: rgba(255,255,255,0.6);
     padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border-subtle);
   }
   td {
-    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding: 8px 12px; border-bottom: 1px solid var(--border-subtle);
     color: rgba(255,255,255,0.85); white-space: nowrap;
   }
   tr:hover td { background: rgba(255,255,255,0.03); }
@@ -673,44 +661,18 @@
 
   /* Protection badge */
   .protection-badge {
-    border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 0.375rem; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
   }
   .protection-badge.ok { background: rgba(34,197,94,0.15); color: #22C55E; }
   .protection-badge.alert { background: rgba(245,158,11,0.15); color: #F59E0B; }
 
-  /* ── Dialog ─────────────────────────────────────────────── */
-  .dialog-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-    display: flex; align-items: center; justify-content: center; z-index: 100;
-    backdrop-filter: blur(4px);
-  }
-  .dialog {
-    background: var(--bg-dialog, #1e1e2e);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
-    border-radius: 16px; width: 480px; max-width: 95vw;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .dialog-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
-  .btn-close {
-    background: none; border: none; color: rgba(255,255,255,0.5);
-    font-size: 1.4rem; cursor: pointer; padding: 0 4px;
-  }
-  .dialog-body { padding: 20px 24px; }
-  .config-help { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin: 0 0 16px; }
-  .dialog-footer {
-    display: flex; align-items: center; gap: 10px;
-    padding: 14px 24px; border-top: 1px solid rgba(255,255,255,0.08);
-  }
-  .spacer { flex: 1; }
+  /* Dialog styles now use global ya-dialog classes */
+  .config-help { font-size: 0.85rem; color: rgba(255,255,255,0.5); margin: 0 0 1rem; }
 
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); margin-bottom: 12px; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); margin-bottom: 0.75rem; }
   input {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-card); border-radius: 0.625rem;
     color: #fff; font-size: 0.85rem;
   }
   input:focus { outline: none; border-color: var(--accent, #6C63FF); }
@@ -718,24 +680,19 @@
   /* ── Buttons ────────────────────────────────────────────── */
   .btn-primary {
     background: var(--accent, #6C63FF); color: #fff; border: none;
-    border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
+    border-radius: 0.625rem; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
     font-weight: 600; transition: opacity 0.2s;
   }
   .btn-primary:hover { opacity: 0.9; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
-  }
   .btn-danger {
     background: #EF4444; color: #fff; border: none;
-    border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.82rem;
+    border-radius: 0.625rem; padding: 8px 16px; cursor: pointer; font-size: 0.82rem;
     font-weight: 600;
   }
   .btn-icon-text {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    background: var(--bg-card); color: rgba(255,255,255,0.8);
+    border: 1px solid var(--border-subtle); border-radius: 0.625rem;
     padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
   }
   .btn-icon-text:hover { background: rgba(255,255,255,0.12); }
@@ -761,8 +718,8 @@
     display: flex; gap: 6px; margin-bottom: 12px;
   }
   .sub-tab {
-    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.6); border-radius: 8px;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    color: rgba(255,255,255,0.6); border-radius: 0.625rem;
     padding: 7px 14px; cursor: pointer; font-size: 0.82rem;
     transition: all 0.2s;
   }
@@ -771,26 +728,20 @@
     background: rgba(108,99,255,0.15); border-color: var(--accent, #6C63FF);
     color: #fff;
   }
-  .badge { border-radius: 10px; padding: 1px 7px; font-size: 0.7rem; margin-left: 4px; font-weight: 600; }
+  .badge { border-radius: 0.625rem; padding: 1px 7px; font-size: 0.7rem; margin-left: 4px; font-weight: 600; }
   .badge.danger { background: rgba(239,68,68,0.2); color: #EF4444; }
   .badge.ok { background: rgba(34,197,94,0.2); color: #22C55E; }
   .badge.warn { background: rgba(245,158,11,0.2); color: #F59E0B; }
 
-  /* ── Coverage stats ───────────────────────────────────────── */
-  .coverage-stats { margin-bottom: 16px; }
-  .stat-card.protected { border-color: #22C55E; }
-  .stat-card.unprotected { border-color: #EF4444; }
-  .stat-card.unprotected.has-alerts { background: rgba(239,68,68,0.08); }
-  .stat-card.unknown-card { border-color: #F59E0B; }
-  .stat-card.coverage-pct { border-color: var(--accent, #6C63FF); }
+  /* Coverage stats now use global ya-kpi classes */
 
   .type-badge {
     background: rgba(108,99,255,0.2); color: var(--accent, #6C63FF);
-    border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 0.375rem; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
   }
   .btn-refresh {
     background: none; border: none; cursor: pointer; font-size: 1rem;
-    padding: 4px 8px; border-radius: 6px; transition: background 0.15s;
+    padding: 4px 8px; border-radius: 0.375rem; transition: background 0.15s;
   }
   .btn-refresh:hover { background: rgba(255,255,255,0.08); }
 
@@ -800,9 +751,9 @@
     gap: 12px; margin-bottom: 20px;
   }
   .profile-card {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; padding: 16px 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; padding: 16px 20px;
     cursor: pointer; text-align: left; font-family: inherit;
     transition: all 0.2s; backdrop-filter: blur(12px);
     display: flex; flex-direction: column; gap: 12px;
@@ -834,7 +785,7 @@
   }
 
   .profile-state-badge {
-    border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 0.375rem; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
     background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6);
   }
   .profile-state-badge.uptodate { background: rgba(34,197,94,0.15); color: #22C55E; }

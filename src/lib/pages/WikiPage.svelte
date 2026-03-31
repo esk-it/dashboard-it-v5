@@ -761,19 +761,19 @@
 
 <!-- ── Delete Confirmation ──────────────────────────────── -->
 {#if confirmDeleteId}
-  <div class="modal-overlay" on:click={() => confirmDeleteId = null}>
-    <div class="modal-box modal-small" on:click|stopPropagation>
-      <div class="modal-header">
-        <h2>Confirmer la suppression</h2>
-        <button class="modal-close" on:click={() => confirmDeleteId = null}>✕</button>
+  <div class="ya-dialog-overlay" on:click={() => confirmDeleteId = null}>
+    <div class="ya-dialog" style="width:400px" on:click|stopPropagation>
+      <div class="ya-dialog__header">
+        <h2 class="ya-dialog__title">Confirmer la suppression</h2>
+        <button class="ya-dialog__close" on:click={() => confirmDeleteId = null}>✕</button>
       </div>
-      <div class="modal-body">
-        <p style="color: var(--text-secondary); font-size: 14px;">
+      <div class="ya-dialog__body">
+        <p style="color: var(--text-secondary); font-size: 0.875rem;">
           Êtes-vous sûr de vouloir supprimer cet article ? Cette action est irréversible.
         </p>
       </div>
-      <div class="modal-footer">
-        <button class="btn-ghost" on:click={() => confirmDeleteId = null}>Annuler</button>
+      <div class="ya-dialog__footer">
+        <button class="ya-btn ya-btn--ghost" on:click={() => confirmDeleteId = null}>Annuler</button>
         <button class="btn-danger" on:click={() => deleteArticle(confirmDeleteId)}>Supprimer</button>
       </div>
     </div>
@@ -782,13 +782,13 @@
 
 <!-- ── Article Dialog (Modal) ────────────────────────────── -->
 {#if showDialog}
-  <div class="modal-overlay" on:click={closeDialog}>
-    <div class="modal-box modal-wide" on:click|stopPropagation>
-      <div class="modal-header">
-        <h2>{editingArticle ? 'Modifier l\'article' : 'Nouvel article'}</h2>
-        <button class="modal-close" on:click={closeDialog}>✕</button>
+  <div class="ya-dialog-overlay" on:click={closeDialog}>
+    <div class="ya-dialog" style="width:700px" on:click|stopPropagation>
+      <div class="ya-dialog__header">
+        <h2 class="ya-dialog__title">{editingArticle ? 'Modifier l\'article' : 'Nouvel article'}</h2>
+        <button class="ya-dialog__close" on:click={closeDialog}>✕</button>
       </div>
-      <div class="modal-body">
+      <div class="ya-dialog__body">
         <!-- Reference generator -->
           <div class="ref-generator">
             <span class="ref-gen-label">{'\u{1F3F7}\uFE0F'} R{'\u00e9'}f{'\u00e9'}rence :</span>
@@ -909,9 +909,9 @@
           <span>Épingler cet article</span>
         </label>
       </div>
-      <div class="modal-footer">
-        <button class="btn-ghost" on:click={closeDialog}>Annuler</button>
-        <button class="btn-primary" on:click={saveArticle} disabled={!form.title.trim()}>
+      <div class="ya-dialog__footer">
+        <button class="ya-btn ya-btn--ghost" on:click={closeDialog}>Annuler</button>
+        <button class="ya-btn ya-btn--primary" on:click={saveArticle} disabled={!form.title.trim()}>
           {editingArticle ? 'Modifier' : 'Créer'}
         </button>
       </div>
@@ -937,8 +937,8 @@
     width: 240px;
     flex-shrink: 0;
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     backdrop-filter: blur(16px);
     display: flex;
     flex-direction: column;
@@ -952,7 +952,7 @@
 
   .categories-header h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
   }
@@ -971,9 +971,9 @@
     padding: 8px 12px;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-family: inherit;
     cursor: pointer;
     transition: all 0.15s;
@@ -1006,11 +1006,11 @@
   }
 
   .cat-count {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-card);
     padding: 1px 6px;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     flex-shrink: 0;
   }
 
@@ -1041,9 +1041,9 @@
   .btn-primary {
     background: var(--accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -1065,9 +1065,9 @@
   .btn-import {
     background: rgba(var(--accent-rgb), 0.12);
     border: 1px solid rgba(var(--accent-rgb), 0.3);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: var(--accent);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 500;
     padding: 7px 14px;
     cursor: pointer;
@@ -1084,7 +1084,7 @@
     font-size: 10px;
     font-weight: 600;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
   }
 
   .format-md {
@@ -1108,10 +1108,10 @@
 
   .search-input {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 10px 6px 28px;
     width: 240px;
     font-family: inherit;
@@ -1139,8 +1139,8 @@
     justify-content: space-between;
     gap: 12px;
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     padding: 10px 16px;
     cursor: pointer;
     transition: border-color 0.15s, background 0.15s;
@@ -1167,7 +1167,7 @@
 
   .article-row-title {
     margin: 0;
-    font-size: 13.5px;
+    font-size: 0.84375rem;
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
@@ -1195,7 +1195,7 @@
     transform: translateY(-50%);
     background: var(--bg-card);
     padding: 2px 6px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     border: 1px solid var(--border-subtle);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
@@ -1205,10 +1205,10 @@
   }
 
   .wiki-category-badge {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     white-space: nowrap;
   }
 
@@ -1217,12 +1217,12 @@
     background: rgba(var(--accent-rgb), 0.12);
     color: var(--accent);
     padding: 2px 8px;
-    border-radius: 10px;
+    border-radius: 0.625rem;
     border: 1px solid rgba(var(--accent-rgb), 0.25);
   }
 
   .article-updated {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
   }
 
@@ -1230,9 +1230,9 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 4px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     transition: background 0.15s;
   }
 
@@ -1260,10 +1260,10 @@
 
   .btn-back {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 14px;
     cursor: pointer;
     transition: all 0.15s;
@@ -1283,8 +1283,8 @@
 
   .article-view-card {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     padding: 28px 32px;
     backdrop-filter: blur(16px);
   }
@@ -1297,7 +1297,7 @@
 
   .article-view-title {
     margin: 0 0 12px;
-    font-size: 24px;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
   }
@@ -1310,7 +1310,7 @@
   }
 
   .article-content {
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--text-secondary);
     line-height: 1.7;
   }
@@ -1323,9 +1323,9 @@
     margin-bottom: 8px;
   }
 
-  .article-content :global(h1) { font-size: 22px; }
-  .article-content :global(h2) { font-size: 18px; }
-  .article-content :global(h3) { font-size: 16px; }
+  .article-content :global(h1) { font-size: 1.375rem; }
+  .article-content :global(h2) { font-size: 1.125rem; }
+  .article-content :global(h3) { font-size: 1rem; }
 
   .article-content :global(p) {
     margin: 0 0 12px;
@@ -1344,7 +1344,7 @@
     background: rgba(0, 0, 0, 0.3);
     padding: 2px 6px;
     border-radius: 4px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-family: 'Consolas', monospace;
     color: var(--accent);
   }
@@ -1352,7 +1352,7 @@
   .article-content :global(pre) {
     background: rgba(0, 0, 0, 0.3);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     padding: 14px;
     overflow-x: auto;
     margin: 0 0 12px;
@@ -1375,7 +1375,7 @@
     border: 1px solid var(--border-subtle);
     padding: 8px 12px;
     text-align: left;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .article-content :global(th) {
@@ -1398,7 +1398,7 @@
     padding: 8px 16px;
     margin: 0 0 12px;
     background: rgba(var(--accent-rgb), 0.05);
-    border-radius: 0 8px 8px 0;
+    border-radius: 0 0.625rem 0.625rem 0;
   }
 
   /* ── Loading / Empty ────────────────────────────────────── */
@@ -1406,116 +1406,17 @@
     text-align: center;
     padding: 40px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
-  /* ── Modal ──────────────────────────────────────────────── */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(4px);
-  }
-
-  .modal-box {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
-    width: 520px;
-    max-width: 95vw;
-    max-height: 90vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  }
-
-  .modal-small {
-    width: 400px;
-  }
-
-  .modal-wide {
-    width: 700px;
-  }
-
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 24px 0;
-  }
-
-  .modal-header h2 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .modal-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-    transition: background 0.15s;
-  }
-
-  .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-primary);
-  }
-
-  .modal-body {
-    padding: 18px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .modal-footer {
-    padding: 0 24px 18px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .btn-ghost:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
-
-  .btn-ghost-danger:hover {
-    border-color: #EF4444;
-    color: #EF4444;
-    background: rgba(239, 68, 68, 0.1);
-  }
+  /* Dialog/modal styles now use global ya-dialog classes */
 
   .btn-danger {
     background: #EF4444;
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -1532,17 +1433,17 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--text-secondary);
   }
 
   .form-input {
     background: var(--bg-input, rgba(255,255,255,0.05));
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 8px 10px;
     font-family: inherit;
     outline: none;
@@ -1559,7 +1460,7 @@
 
   .form-content {
     font-family: 'Consolas', monospace;
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1.5;
   }
 
@@ -1579,8 +1480,8 @@
   }
 
   .checkbox-field input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
+    width: 1rem;
+    height: 1rem;
     accent-color: var(--accent);
   }
 
@@ -1631,7 +1532,7 @@
     margin-bottom: 8px;
     border-left: 6px solid var(--kr-secondary);
     border-bottom: 2px solid rgba(255, 255, 255, 0.04);
-    border-radius: 6px;
+    border-radius: 0.375rem;
     font-size: 1.45rem;
   }
 
@@ -1639,7 +1540,7 @@
     background-color: var(--kr-h3-bg);
     padding: 8px 14px;
     border-left: 5px solid var(--kr-primary);
-    border-radius: 6px;
+    border-radius: 0.375rem;
     font-size: 1.2rem;
     margin-top: 12px;
     margin-bottom: 12px;
@@ -1676,7 +1577,7 @@
     border-left: 6px solid var(--kr-blockquote-border);
     color: var(--kr-blockquote-text);
     padding: 14px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     margin: 24px 20px;
   }
 
@@ -1689,7 +1590,7 @@
     background-color: rgba(0, 0, 0, 0.3);
     color: #E2E8F0;
     padding: 16px;
-    border-radius: 8px;
+    border-radius: 0.5rem;
     border-left: 4px solid #7C6F64;
     font-size: 0.92em;
     overflow-x: auto;
@@ -1779,14 +1680,14 @@
     display: block;
     margin: 24px auto;
     max-height: 120px;
-    border-radius: 8px;
+    border-radius: 0.5rem;
   }
 
   /* ── TOC (Table of Contents) ── */
   .kreisker-content :global(.procedure-toc) {
     background-color: rgba(255, 255, 255, 0.03);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.5rem;
     padding: 14px 18px;
     margin: 24px 20px 32px;
   }
@@ -1870,7 +1771,7 @@
     padding: 6px 8px; margin-bottom: 4px;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 8px 8px 0 0;
+    border-radius: 0.5rem 8px 0 0;
     border-bottom: none;
   }
   .md-btn {
@@ -1889,7 +1790,7 @@
   .sidebar-tabs { display: flex; gap: 2px; padding: 0 0 8px; border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 8px; }
   .stab {
     flex: 1; background: none; border: none; color: var(--text-muted);
-    font-size: 0.72rem; padding: 6px 4px; cursor: pointer; border-radius: 6px;
+    font-size: 0.72rem; padding: 6px 4px; cursor: pointer; border-radius: 0.375rem;
     font-family: inherit; transition: all 0.15s; text-align: center;
   }
   .stab:hover { background: rgba(255,255,255,0.04); color: var(--text-secondary); }
@@ -1908,7 +1809,7 @@
     display: flex; align-items: center; gap: 6px;
     margin-left: 14px; padding: 5px 8px 5px 16px;
     border-left: 1px solid rgba(255,255,255,0.04);
-    cursor: pointer; border-radius: 6px; transition: background 0.15s;
+    cursor: pointer; border-radius: 0.375rem; transition: background 0.15s;
     font-size: 0.78rem; color: var(--text-secondary);
   }
   .ref-article-item:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
@@ -1938,7 +1839,7 @@
   .related-list { display: flex; flex-direction: column; gap: 6px; }
   .related-item {
     display: flex; align-items: center; gap: 8px;
-    padding: 8px 12px; border-radius: 8px;
+    padding: 8px 12px; border-radius: 0.5rem;
     background: rgba(255,255,255,0.03);
     border: 1px solid rgba(255,255,255,0.05);
     cursor: pointer; transition: all 0.15s;
@@ -1954,23 +1855,23 @@
     padding: 10px 14px; margin-bottom: 8px;
     background: rgba(108,99,255,0.05);
     border: 1px solid rgba(108,99,255,0.1);
-    border-radius: 10px;
+    border-radius: 0.625rem;
   }
   .ref-gen-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
   .ref-gen-select {
     padding: 4px 8px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 0.375rem;
     color: var(--text-primary); font-size: 0.78rem; font-family: inherit;
   }
   .ref-gen-select option { background: #1e1e2e; }
   .ref-gen-input {
     padding: 4px 8px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 0.375rem;
     color: var(--text-primary); font-size: 0.78rem; font-family: inherit;
   }
   .ref-gen-apply {
     padding: 4px 12px; background: var(--accent); color: #fff;
-    border: none; border-radius: 6px; font-size: 0.75rem; font-weight: 600;
+    border: none; border-radius: 0.375rem; font-size: 0.75rem; font-weight: 600;
     cursor: pointer; font-family: inherit;
   }
   .ref-gen-apply:hover { filter: brightness(1.15); }

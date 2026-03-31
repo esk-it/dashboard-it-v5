@@ -593,29 +593,29 @@
   {/if}
 
   <!-- ── Stats Bar ──────────────────────────────────────── -->
-  <div class="stats-bar">
-    <div class="stat-card">
-      <div class="stat-value" style="color: var(--accent)">{totalDocs}</div>
-      <div class="stat-label">Total</div>
+  <div class="ya-kpi-row">
+    <div class="ya-kpi ya-kpi--primary">
+      <span class="ya-kpi__value">{totalDocs}</span>
+      <span class="ya-kpi__label">Total</span>
     </div>
     {#each Object.entries(typeCounts) as [type, count]}
-      <div class="stat-card">
-        <div class="stat-value" style="color: {getTypeStyle(type).color}">{count}</div>
-        <div class="stat-label">{getTypeStyle(type).label || type}</div>
+      <div class="ya-kpi">
+        <span class="ya-kpi__value" style="color: {getTypeStyle(type).color}">{count}</span>
+        <span class="ya-kpi__label">{getTypeStyle(type).label || type}</span>
       </div>
     {/each}
   </div>
 
   <!-- ── Action bar ─────────────────────────────────────── -->
-  <div class="action-bar">
-    <div class="action-left">
-      <button class="btn-primary" on:click={openCreateDialog}>
+  <div class="ya-toolbar">
+    <div class="toolbar-left">
+      <button class="ya-btn ya-btn--primary" on:click={openCreateDialog}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px">
           <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
         </svg>
         Nouveau
       </button>
-      <button class="btn-secondary" on:click={triggerFileInput}>
+      <button class="ya-btn ya-btn--ghost" on:click={triggerFileInput}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/>
@@ -623,14 +623,14 @@
         </svg>
         Importer un fichier
       </button>
-      <button class="btn-secondary" on:click={triggerFolderInput}>
+      <button class="ya-btn ya-btn--ghost" on:click={triggerFolderInput}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
         Importer un dossier
       </button>
     </div>
-    <div class="action-right">
+    <div class="toolbar-right">
       <select class="filter-select" bind:value={filterType}>
         <option value="">— Tous types —</option>
         {#each docTypes as t}
@@ -649,11 +649,11 @@
           <option value={s}>{s}</option>
         {/each}
       </select>
-      <div class="search-box">
+      <div class="ya-toolbar__search">
         <svg class="search-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} class="search-input" />
+        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
       </div>
     </div>
   </div>
@@ -1197,7 +1197,7 @@
 
   .drop-zone {
     border: 3px dashed var(--accent);
-    border-radius: 24px;
+    border-radius: 0.625rem;
     padding: 60px 80px;
     text-align: center;
     background: rgba(var(--accent-rgb), 0.06);
@@ -1218,14 +1218,14 @@
   }
 
   .drop-title {
-    font-size: 22px;
+    font-size: 1.375rem;
     font-weight: 600;
     color: var(--text-primary);
     margin-bottom: 6px;
   }
 
   .drop-subtitle {
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--text-muted);
   }
 
@@ -1235,7 +1235,7 @@
     height: 32px;
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     margin-bottom: 14px;
     overflow: hidden;
   }
@@ -1245,7 +1245,7 @@
     inset: 0;
     background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.3), rgba(var(--accent-rgb), 0.5));
     transition: width 0.4s ease;
-    border-radius: 8px;
+    border-radius: 0.625rem;
   }
 
   .upload-progress-text {
@@ -1255,48 +1255,12 @@
     align-items: center;
     justify-content: center;
     height: 100%;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     color: var(--text-primary);
   }
 
-  /* ── Stats bar ─────────────────────────────────────────── */
-  .stats-bar {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
-  }
-
-  .stat-card {
-    background: var(--bg-card);
-    backdrop-filter: blur(16px);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    padding: 14px 18px;
-    text-align: center;
-    transition: border-color 0.2s;
-    min-width: 100px;
-    flex: 1;
-  }
-
-  .stat-card:hover {
-    border-color: var(--border-hover);
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .stat-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
+  /* ── Stats bar (uses global ya-kpi-row) ───────────────── */
 
   /* ── Action bar ────────────────────────────────────────── */
   .action-bar {
@@ -1318,9 +1282,9 @@
   .btn-primary {
     background: var(--accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -1344,10 +1308,10 @@
 
   .btn-secondary {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 500;
     padding: 7px 14px;
     cursor: pointer;
@@ -1365,16 +1329,16 @@
   }
 
   .btn-small {
-    font-size: 12px;
+    font-size: 0.75rem;
     padding: 4px 12px;
   }
 
   .filter-select {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 10px;
     font-family: inherit;
     cursor: pointer;
@@ -1399,10 +1363,10 @@
 
   .search-input {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 10px 6px 32px;
     width: 200px;
     font-family: inherit;
@@ -1433,8 +1397,8 @@
   /* ── Document rows ──────────────────────────────────────── */
   .doc-row {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     margin-bottom: 6px;
     overflow: hidden;
     transition: border-color 0.2s, box-shadow 0.25s;
@@ -1464,17 +1428,17 @@
   }
 
   .doc-file-icon {
-    font-size: 16px;
+    font-size: 1rem;
     flex-shrink: 0;
     width: 24px;
     text-align: center;
   }
 
   .doc-type-badge {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 700;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: 0.625rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1488,7 +1452,7 @@
   }
 
   .doc-title {
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1496,7 +1460,7 @@
   }
 
   .doc-supplier-prominent {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--accent);
     font-weight: 500;
     overflow: hidden;
@@ -1505,30 +1469,30 @@
   }
 
   .doc-date {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .doc-ref {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-card);
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: 0.625rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
   .doc-ext-badge {
-    font-size: 9px;
+    font-size: 0.5625rem;
     font-weight: 700;
     letter-spacing: 0.5px;
     color: var(--text-muted);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-card);
     padding: 2px 6px;
-    border-radius: 4px;
+    border-radius: 0.625rem;
     white-space: nowrap;
     flex-shrink: 0;
   }
@@ -1550,7 +1514,7 @@
     border: none;
     cursor: pointer;
     padding: 5px;
-    border-radius: 6px;
+    border-radius: 0.625rem;
     transition: background 0.15s, color 0.15s;
     color: var(--text-secondary);
     display: flex;
@@ -1559,7 +1523,7 @@
   }
 
   .btn-icon:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
   }
 
   .btn-icon-preview:hover {
@@ -1576,7 +1540,7 @@
   .doc-expanded {
     border-top: 1px solid var(--border-subtle);
     padding: 14px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--bg-card);
     animation: expandIn 0.25s ease-out;
     overflow: hidden;
   }
@@ -1590,7 +1554,7 @@
   }
 
   .expanded-label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.6px;
@@ -1599,21 +1563,21 @@
   }
 
   .notes-display {
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--text-secondary);
     padding: 6px 10px;
     border: 1px dashed var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     min-height: 36px;
     white-space: pre-wrap;
   }
 
   .file-path {
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--text-secondary);
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
+    background: var(--bg-card);
+    border-radius: 0.625rem;
     font-family: 'Consolas', monospace;
     word-break: break-all;
   }
@@ -1625,11 +1589,11 @@
   }
 
   .tag-chip {
-    font-size: 11px;
+    font-size: 0.6875rem;
     background: rgba(var(--accent-rgb), 0.15);
     color: var(--accent);
     padding: 2px 10px;
-    border-radius: 12px;
+    border-radius: 0.625rem;
     border: 1px solid rgba(var(--accent-rgb), 0.3);
   }
 
@@ -1653,8 +1617,8 @@
     align-items: center;
     gap: 5px;
     padding: 5px 12px;
-    border-radius: 20px;
-    font-size: 12px;
+    border-radius: 0.625rem;
+    font-size: 0.75rem;
     font-weight: 600;
     font-family: inherit;
     white-space: nowrap;
@@ -1679,18 +1643,18 @@
   }
 
   .chain-pill-icon {
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
 
   .chain-pill-type {
-    font-size: 10px;
+    font-size: 0.625rem;
     text-transform: uppercase;
     letter-spacing: 0.3px;
     opacity: 0.85;
   }
 
   .chain-pill-title {
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     max-width: 140px;
     overflow: hidden;
@@ -1699,7 +1663,7 @@
 
   .chain-arrow {
     color: var(--text-muted);
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 300;
     user-select: none;
   }
@@ -1720,7 +1684,7 @@
     background: #EF4444;
     color: #fff;
     border: 2px solid var(--bg-card);
-    font-size: 12px;
+    font-size: 0.75rem;
     line-height: 1;
     display: flex;
     align-items: center;
@@ -1743,7 +1707,7 @@
     border: 2px dashed var(--border-subtle);
     background: transparent;
     color: var(--text-muted);
-    font-size: 16px;
+    font-size: 1rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1760,7 +1724,7 @@
 
   .chain-loading {
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 0.875rem;
     animation: fadeIn 0.3s;
   }
 
@@ -1773,8 +1737,8 @@
     flex: 0 0 440px;
     background: var(--bg-card);
     backdrop-filter: blur(16px);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1805,7 +1769,7 @@
   }
 
   .preview-title {
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0 0 2px;
@@ -1815,7 +1779,7 @@
   }
 
   .preview-supplier {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--accent);
     font-weight: 500;
   }
@@ -1837,8 +1801,8 @@
     height: 100%;
     min-height: 500px;
     border: none;
-    border-radius: 8px;
-    background: #1a1a2e;
+    border-radius: 0.625rem;
+    background: var(--bg-card);
   }
 
   .preview-image-wrap {
@@ -1851,7 +1815,7 @@
   .preview-image {
     max-width: 100%;
     max-height: 500px;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     object-fit: contain;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   }
@@ -1865,7 +1829,7 @@
   }
 
   .preview-info-icon {
-    font-size: 56px;
+    font-size: 3.5rem;
   }
 
   .preview-info-details {
@@ -1879,13 +1843,13 @@
     display: flex;
     justify-content: space-between;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 6px;
+    background: var(--bg-card);
+    border-radius: 0.625rem;
     border: 1px solid var(--border-subtle);
   }
 
   .preview-info-label {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -1894,7 +1858,7 @@
   }
 
   .preview-info-value {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-secondary);
     text-align: right;
     min-width: 0;
@@ -1905,7 +1869,7 @@
 
   .preview-info-path {
     font-family: 'Consolas', monospace;
-    font-size: 11px;
+    font-size: 0.6875rem;
   }
 
   /* ── Loading / Empty ────────────────────────────────────── */
@@ -1913,7 +1877,7 @@
     text-align: center;
     padding: 60px 40px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 0.875rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1933,7 +1897,7 @@
     text-align: center;
     padding: 60px 40px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 0.875rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1946,7 +1910,7 @@
   }
 
   .empty-hint {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-muted);
     opacity: 0.7;
   }
@@ -1966,8 +1930,8 @@
 
   .modal-box {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     width: 560px;
     max-width: 95vw;
     max-height: 90vh;
@@ -1989,7 +1953,7 @@
   }
 
   .modal-header h2 {
-    font-size: 18px;
+    font-size: 1.125rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -1999,15 +1963,15 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 18px;
+    font-size: 1.125rem;
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 6px;
+    border-radius: 0.625rem;
     transition: background 0.15s;
   }
 
   .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--bg-card);
     color: var(--text-primary);
   }
 
@@ -2027,10 +1991,10 @@
 
   .btn-ghost {
     background: transparent;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-secondary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 14px;
     cursor: pointer;
     transition: all 0.15s;
@@ -2046,9 +2010,9 @@
   .btn-danger {
     background: #EF4444;
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -2065,17 +2029,17 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--text-secondary);
   }
 
   .form-input {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 8px 10px;
     font-family: inherit;
     outline: none;
@@ -2084,7 +2048,7 @@
 
   .form-input:focus {
     border-color: var(--accent);
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--bg-card);
   }
 
   .form-textarea {
@@ -2113,11 +2077,11 @@
     align-items: center;
     gap: 6px;
     padding: 5px 14px;
-    border-radius: 20px;
-    border: 1.5px solid var(--border-subtle);
+    border-radius: 0.625rem;
+    border: 1.5px solid var(--border-card);
     background: transparent;
     color: var(--text-secondary);
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.15s;
@@ -2145,9 +2109,9 @@
 
   /* ── Import File List ───────────────────────────────────── */
   .import-file-list {
-    background: rgba(0, 0, 0, 0.2);
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     padding: 10px;
     max-height: 160px;
     overflow-y: auto;
@@ -2158,22 +2122,22 @@
     align-items: center;
     gap: 8px;
     padding: 5px 6px;
-    border-radius: 6px;
+    border-radius: 0.625rem;
     transition: background 0.1s;
   }
 
   .import-file-item:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--bg-card);
   }
 
   .import-file-icon {
-    font-size: 14px;
+    font-size: 0.875rem;
     flex-shrink: 0;
   }
 
   .import-file-name {
     flex: 1;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -2181,14 +2145,14 @@
   }
 
   .import-file-size {
-    font-size: 11px;
+    font-size: 0.6875rem;
     color: var(--text-muted);
     flex-shrink: 0;
   }
 
   .import-file-more {
     text-align: center;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-muted);
     padding: 6px;
     font-style: italic;

@@ -232,15 +232,15 @@
 
 <div class="changelog-page">
   <!-- ── Stats Bar ──────────────────────────────────────── -->
-  <div class="stats-bar">
-    <div class="stat-card">
-      <div class="stat-value" style="color: var(--accent)">{totalEntries}</div>
-      <div class="stat-label">Total</div>
+  <div class="ya-kpi-row" style="margin-bottom:1rem">
+    <div class="ya-kpi ya-kpi--primary">
+      <span class="ya-kpi__value">{totalEntries}</span>
+      <span class="ya-kpi__label">Total</span>
     </div>
     {#each Object.entries(categoryCounts) as [cat, count]}
-      <div class="stat-card">
-        <div class="stat-value" style="color: {getCategoryColor(cat)}">{count}</div>
-        <div class="stat-label">{cat}</div>
+      <div class="ya-kpi" style="border-color: {getCategoryColor(cat)}">
+        <span class="ya-kpi__value" style="color: {getCategoryColor(cat)}">{count}</span>
+        <span class="ya-kpi__label">{cat}</span>
       </div>
     {/each}
   </div>
@@ -342,19 +342,19 @@
 
 <!-- ── Delete Confirmation ──────────────────────────────── -->
 {#if confirmDeleteId}
-  <div class="modal-overlay" on:click={() => confirmDeleteId = null}>
-    <div class="modal-box modal-small" on:click|stopPropagation>
-      <div class="modal-header">
-        <h2>Confirmer la suppression</h2>
-        <button class="modal-close" on:click={() => confirmDeleteId = null}>✕</button>
+  <div class="ya-dialog-overlay" on:click={() => confirmDeleteId = null}>
+    <div class="ya-dialog" style="width:400px" on:click|stopPropagation>
+      <div class="ya-dialog__header">
+        <h2 class="ya-dialog__title">Confirmer la suppression</h2>
+        <button class="ya-dialog__close" on:click={() => confirmDeleteId = null}>✕</button>
       </div>
-      <div class="modal-body">
-        <p style="color: var(--text-secondary); font-size: 14px;">
+      <div class="ya-dialog__body">
+        <p style="color: var(--text-secondary); font-size: 0.875rem;">
           Êtes-vous sûr de vouloir supprimer cette entrée ? Cette action est irréversible.
         </p>
       </div>
-      <div class="modal-footer">
-        <button class="btn-ghost" on:click={() => confirmDeleteId = null}>Annuler</button>
+      <div class="ya-dialog__footer">
+        <button class="ya-btn ya-btn--ghost" on:click={() => confirmDeleteId = null}>Annuler</button>
         <button class="btn-danger" on:click={() => deleteEntry(confirmDeleteId)}>Supprimer</button>
       </div>
     </div>
@@ -363,13 +363,13 @@
 
 <!-- ── Entry Dialog (Modal) ──────────────────────────────── -->
 {#if showDialog}
-  <div class="modal-overlay" on:click={closeDialog}>
-    <div class="modal-box" on:click|stopPropagation>
-      <div class="modal-header">
-        <h2>{editingEntry ? 'Modifier l\'entrée' : 'Nouvelle entrée'}</h2>
-        <button class="modal-close" on:click={closeDialog}>✕</button>
+  <div class="ya-dialog-overlay" on:click={closeDialog}>
+    <div class="ya-dialog" style="width:520px" on:click|stopPropagation>
+      <div class="ya-dialog__header">
+        <h2 class="ya-dialog__title">{editingEntry ? 'Modifier l\'entrée' : 'Nouvelle entrée'}</h2>
+        <button class="ya-dialog__close" on:click={closeDialog}>✕</button>
       </div>
-      <div class="modal-body">
+      <div class="ya-dialog__body">
         <label class="form-label">
           Titre *
           <input type="text" class="form-input" bind:value={form.title} placeholder="Titre de l'entrée" />
@@ -423,9 +423,9 @@
           </label>
         </div>
       </div>
-      <div class="modal-footer">
-        <button class="btn-ghost" on:click={closeDialog}>Annuler</button>
-        <button class="btn-primary" on:click={saveEntry} disabled={!form.title.trim()}>
+      <div class="ya-dialog__footer">
+        <button class="ya-btn ya-btn--ghost" on:click={closeDialog}>Annuler</button>
+        <button class="ya-btn ya-btn--primary" on:click={saveEntry} disabled={!form.title.trim()}>
           {editingEntry ? 'Modifier' : 'Créer'}
         </button>
       </div>
@@ -439,66 +439,30 @@
     animation: fadeIn 0.35s ease-out;
   }
 
-  /* ── Stats bar ─────────────────────────────────────────── */
-  .stats-bar {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
-  }
-
-  .stat-card {
-    background: var(--bg-card);
-    backdrop-filter: blur(16px);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    padding: 14px 18px;
-    text-align: center;
-    transition: border-color 0.2s;
-    min-width: 90px;
-    flex: 1;
-  }
-
-  .stat-card:hover {
-    border-color: var(--border-hover);
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .stat-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
+  /* Stats now use global ya-kpi classes */
 
   /* ── Action bar ────────────────────────────────────────── */
   .action-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 18px;
+    gap: 0.75rem;
+    margin-bottom: 1.125rem;
     flex-wrap: wrap;
   }
 
   .action-left, .action-right {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0.5rem;
   }
 
   .btn-primary {
     background: var(--accent);
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -519,10 +483,10 @@
 
   .filter-select {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 10px;
     font-family: inherit;
     cursor: pointer;
@@ -542,16 +506,16 @@
   .search-icon {
     position: absolute;
     left: 8px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     pointer-events: none;
   }
 
   .search-input {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 6px 10px 6px 28px;
     width: 180px;
     font-family: inherit;
@@ -582,13 +546,13 @@
     background: linear-gradient(90deg, transparent, var(--border-subtle), transparent);
   }
   .timeline-month-label {
-    font-size: 13px; font-weight: 700; color: var(--accent);
+    font-size: 0.8125rem; font-weight: 700; color: var(--accent);
     text-transform: capitalize; letter-spacing: 0.5px;
     white-space: nowrap;
     padding: 4px 14px;
     background: rgba(var(--accent-rgb), 0.08);
     border: 1px solid rgba(var(--accent-rgb), 0.15);
-    border-radius: 20px;
+    border-radius: 1rem;
   }
 
   .timeline-entry {
@@ -609,7 +573,7 @@
     padding-top: 10px;
   }
   .timeline-day {
-    font-size: 22px; font-weight: 800; color: var(--text-primary);
+    font-size: 1.375rem; font-weight: 800; color: var(--text-primary);
     line-height: 1; font-variant-numeric: tabular-nums;
   }
   .timeline-weekday {
@@ -654,8 +618,8 @@
   .timeline-card {
     flex: 1;
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     padding: 14px 18px;
     backdrop-filter: blur(16px);
     transition: all 0.2s;
@@ -688,10 +652,10 @@
   }
 
   .category-badge, .impact-badge {
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-weight: 600;
     padding: 2px 8px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     white-space: nowrap;
   }
 
@@ -708,14 +672,14 @@
 
   .timeline-title {
     margin: 0 0 6px;
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
   }
 
   .timeline-desc {
     margin: 0 0 10px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--text-secondary);
     line-height: 1.5;
     white-space: pre-wrap;
@@ -728,7 +692,7 @@
   }
 
   .meta-item {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--text-muted);
   }
 
@@ -736,9 +700,9 @@
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 0.875rem;
     padding: 4px;
-    border-radius: 6px;
+    border-radius: 0.375rem;
     transition: background 0.15s;
   }
 
@@ -755,106 +719,17 @@
     text-align: center;
     padding: 40px;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 0.875rem;
   }
 
-  /* ── Modal ──────────────────────────────────────────────── */
-  .modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-    backdrop-filter: blur(4px);
-  }
-
-  .modal-box {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 14px;
-    width: 520px;
-    max-width: 95vw;
-    max-height: 90vh;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-  }
-
-  .modal-small {
-    width: 400px;
-  }
-
-  .modal-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 24px 0;
-  }
-
-  .modal-header h2 {
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .modal-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 6px;
-    transition: background 0.15s;
-  }
-
-  .modal-close:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-primary);
-  }
-
-  .modal-body {
-    padding: 18px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
-  .modal-footer {
-    padding: 0 24px 18px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-
-  .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .btn-ghost:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
+  /* Dialog/modal styles now use global ya-dialog classes */
 
   .btn-danger {
     background: #EF4444;
     border: none;
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     padding: 7px 16px;
     cursor: pointer;
@@ -871,17 +746,17 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 500;
     color: var(--text-secondary);
   }
 
   .form-input {
     background: var(--bg-input, rgba(255,255,255,0.05));
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
+    font-size: 0.8125rem;
     padding: 8px 10px;
     font-family: inherit;
     outline: none;
@@ -916,10 +791,10 @@
     flex: 1;
     padding: 6px 4px;
     border: 1px solid var(--border-subtle);
-    border-radius: 6px;
+    border-radius: 0.625rem;
     background: transparent;
     color: var(--text-secondary);
-    font-size: 11px;
+    font-size: 0.6875rem;
     font-family: inherit;
     cursor: pointer;
     transition: all 0.15s;
@@ -935,12 +810,12 @@
     display: flex; gap: 4px; margin-top: 4px;
   }
   .add-cat-input {
-    flex: 1; padding: 4px 8px !important; font-size: 12px !important;
+    flex: 1; padding: 4px 8px !important; font-size: 0.75rem !important;
   }
   .btn-add-cat {
     background: var(--accent); color: #fff; border: none;
-    border-radius: 6px; width: 28px; height: 28px;
-    font-size: 16px; font-weight: 700; cursor: pointer;
+    border-radius: 0.625rem; width: 28px; height: 28px;
+    font-size: 1rem; font-weight: 700; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.15s; flex-shrink: 0;
   }

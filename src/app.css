@@ -437,3 +437,476 @@ input[type="datetime-local"] {
   padding: 1px 4px !important;
   font-size: 0.7rem !important;
 }
+
+/* ═══════════════════════════════════════════════════════
+   YASHADMIN — Global Page Components
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Page Card (wrapper for page sections) ── */
+.ya-page-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 0.625rem;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.ya-page-card__header {
+  padding: 1.25rem 1.25rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ya-page-card__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.ya-page-card__body {
+  padding: 1.25rem;
+}
+
+/* ── KPI Row (badges en haut de page) ── */
+.ya-kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ya-kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 0.625rem;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ya-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.ya-kpi__value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.ya-kpi__label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.ya-kpi--primary .ya-kpi__value { color: var(--primary); }
+.ya-kpi--success .ya-kpi__value { color: var(--success); }
+.ya-kpi--danger .ya-kpi__value { color: var(--danger); }
+.ya-kpi--warning .ya-kpi__value { color: var(--warning); }
+.ya-kpi--info .ya-kpi__value { color: var(--info); }
+.ya-kpi--secondary .ya-kpi__value { color: var(--secondary); }
+
+/* ── Icon Box ── */
+.ya-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+}
+
+.ya-icon-box--primary { background: rgba(var(--primary-rgb), 0.15); color: var(--primary); }
+.ya-icon-box--success { background: rgba(var(--success-rgb), 0.15); color: var(--success); }
+.ya-icon-box--danger { background: rgba(var(--danger-rgb), 0.15); color: var(--danger); }
+.ya-icon-box--warning { background: rgba(var(--warning-rgb), 0.15); color: var(--warning); }
+.ya-icon-box--info { background: rgba(var(--info-rgb), 0.15); color: var(--info); }
+.ya-icon-box--secondary { background: rgba(var(--secondary-rgb), 0.15); color: var(--secondary); }
+
+/* ── Badge ── */
+.ya-badge {
+  display: inline-block;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 0.375rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 0;
+  line-height: 1.5;
+}
+
+.ya-badge--primary { background: rgba(var(--primary-rgb), 0.15); color: var(--primary); }
+.ya-badge--success { background: rgba(var(--success-rgb), 0.15); color: var(--success); }
+.ya-badge--danger { background: rgba(var(--danger-rgb), 0.15); color: var(--danger); }
+.ya-badge--warning { background: rgba(var(--warning-rgb), 0.15); color: var(--warning); }
+.ya-badge--info { background: rgba(var(--info-rgb), 0.15); color: var(--info); }
+.ya-badge--secondary { background: rgba(var(--secondary-rgb), 0.15); color: var(--secondary); }
+
+/* ── Table ── */
+.ya-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ya-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  background: transparent;
+}
+
+.ya-table tbody tr {
+  transition: background 0.15s;
+}
+
+.ya-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+
+.ya-table tbody td {
+  padding: 0.625rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+
+.ya-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Table responsive wrapper ── */
+.ya-table-wrap {
+  overflow-x: auto;
+}
+
+/* ── Progress bar (reusable) ── */
+.ya-progress-bar {
+  width: 100%;
+  height: 0.3125rem;
+  background: rgba(255,255,255,0.08);
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+[data-theme="glass-light"] .ya-progress-bar {
+  background: rgba(0,0,0,0.06);
+}
+
+.ya-progress-bar__fill {
+  height: 100%;
+  border-radius: 1rem;
+  transition: width 0.6s ease-out;
+}
+
+/* ── Toolbar / Filter bar ── */
+.ya-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.ya-toolbar__search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+.ya-toolbar__search input {
+  width: 100%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.625rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.ya-toolbar__search input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 0.25rem rgba(var(--primary-rgb), 0.15);
+  outline: none;
+}
+
+/* ── Button styles ── */
+.ya-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 1rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  border: none;
+}
+
+.ya-btn--primary {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
+}
+.ya-btn--primary:hover {
+  filter: brightness(1.15);
+  box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.4);
+}
+
+.ya-btn--secondary {
+  background: var(--secondary);
+  color: #fff;
+}
+.ya-btn--secondary:hover {
+  filter: brightness(1.1);
+}
+
+.ya-btn--ghost {
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+.ya-btn--ghost:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+  color: var(--text-primary);
+}
+
+/* ── Tabs (pill style) ── */
+.ya-tabs {
+  display: flex;
+  gap: 0.25rem;
+  background: var(--bg-input);
+  border-radius: 0.625rem;
+  padding: 0.25rem;
+}
+
+.ya-tab {
+  padding: 0.375rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+}
+
+.ya-tab:hover {
+  color: var(--text-primary);
+}
+
+.ya-tab--active {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(var(--primary-rgb), 0.3);
+}
+
+/* ── Quick filter pills ── */
+.ya-pills {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.ya-pill {
+  padding: 0.3125rem 0.75rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-badge);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  font-family: inherit;
+}
+
+.ya-pill:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.ya-pill--active {
+  background: rgba(var(--primary-rgb), 0.15);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ── Dialog / Modal — YashAdmin style ── */
+.ya-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.ya-dialog {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  border-radius: 0.625rem;
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+}
+
+.ya-dialog__header {
+  padding: 1.25rem 1.25rem 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ya-dialog__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0;
+}
+
+.ya-dialog__close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+.ya-dialog__close:hover {
+  color: var(--text-primary);
+}
+
+.ya-dialog__body {
+  padding: 1.25rem;
+}
+
+.ya-dialog__footer {
+  padding: 0 1.25rem 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* ── FullCalendar YashAdmin theme ── */
+.app-fullcalendar .fc {
+  font-family: 'Poppins', sans-serif;
+}
+
+.app-fullcalendar .fc-toolbar-title {
+  font-size: 1.125rem !important;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.app-fullcalendar .fc-button {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  font-size: 0.8125rem !important;
+  font-family: 'Poppins', sans-serif !important;
+  padding: 0.375rem 0.75rem !important;
+  border-radius: 0.375rem !important;
+  text-transform: capitalize !important;
+}
+
+.app-fullcalendar .fc-button:hover {
+  filter: brightness(1.15);
+}
+
+.app-fullcalendar .fc-button-active {
+  background: var(--primary-hover) !important;
+  border-color: var(--primary-hover) !important;
+}
+
+.app-fullcalendar .fc-daygrid-day {
+  border-color: var(--border-subtle) !important;
+}
+
+.app-fullcalendar .fc-scrollgrid {
+  border-color: var(--border-subtle) !important;
+}
+
+.app-fullcalendar .fc-col-header-cell {
+  background: transparent;
+  border-color: var(--border-subtle) !important;
+  padding: 0.5rem 0;
+}
+
+.app-fullcalendar .fc-col-header-cell-cushion {
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.app-fullcalendar .fc-daygrid-day-number {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  padding: 0.375rem 0.5rem;
+}
+
+.app-fullcalendar .fc-day-today {
+  background: rgba(var(--primary-rgb), 0.08) !important;
+}
+
+.app-fullcalendar .fc-day-today .fc-daygrid-day-number {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.app-fullcalendar .fc-daygrid-event {
+  border-radius: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.6875rem;
+  border: none !important;
+}
+
+.app-fullcalendar .fc-timegrid-slot {
+  border-color: var(--border-subtle) !important;
+  height: 2.5rem;
+}
+
+.app-fullcalendar .fc-timegrid-slot-label-cushion {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+
+.app-fullcalendar .fc-list-event:hover td {
+  background: var(--bg-hover) !important;
+}
+
+.app-fullcalendar .fc-list-day-cushion {
+  background: var(--bg-input) !important;
+  color: var(--text-heading);
+}
+
+.app-fullcalendar th,
+.app-fullcalendar td {
+  border-color: var(--border-subtle) !important;
+}

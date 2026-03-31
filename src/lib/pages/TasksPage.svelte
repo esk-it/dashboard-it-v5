@@ -503,74 +503,80 @@
 </script>
 
 <div class="tasks-page">
-  <!-- ── Stats Bar ──────────────────────────────────────── -->
-  <div class="stats-bar">
-    <div class="stat-card stat-open">
-      <div class="stat-value">{openCount}</div>
-      <div class="stat-label">En cours</div>
+  <!-- ── KPI Row (YashAdmin task.html style) ──────────────── -->
+  <div class="ya-kpi-row">
+    <div class="ya-kpi ya-kpi--primary">
+      <span class="ya-kpi__value">{totalCount}</span>
+      <span class="ya-kpi__label">Total</span>
     </div>
-    <div class="stat-card stat-overdue">
-      <div class="stat-value">{overdueCount}</div>
-      <div class="stat-label">En retard</div>
+    <div class="ya-kpi ya-kpi--info">
+      <span class="ya-kpi__value">{openCount}</span>
+      <span class="ya-kpi__label">En cours</span>
     </div>
-    <div class="stat-card stat-week">
-      <div class="stat-value">{weekCount}</div>
-      <div class="stat-label">Cette semaine</div>
+    <div class="ya-kpi ya-kpi--danger">
+      <span class="ya-kpi__value">{overdueCount}</span>
+      <span class="ya-kpi__label">En retard</span>
     </div>
-    <div class="stat-card stat-done">
-      <div class="stat-value">{doneCount}</div>
-      <div class="stat-label">Terminées</div>
+    <div class="ya-kpi ya-kpi--warning">
+      <span class="ya-kpi__value">{weekCount}</span>
+      <span class="ya-kpi__label">Cette semaine</span>
     </div>
-  </div>
-
-  <!-- Progress bar -->
-  <div class="progress-wrapper">
-    <div class="progress-bar">
-      <div class="progress-fill" style="width: {progressPct}%"></div>
+    <div class="ya-kpi ya-kpi--success">
+      <span class="ya-kpi__value">{doneCount}</span>
+      <span class="ya-kpi__label">Terminees</span>
     </div>
-    <span class="progress-label">{progressPct}% complété</span>
-  </div>
-
-  <!-- ── Action bar ─────────────────────────────────────── -->
-  <div class="action-bar">
-    <div class="action-left">
-      <div class="view-segmented">
-        <button class="vseg" class:vseg-active={viewMode === 'list'} on:click={() => viewMode = 'list'}>{'\u{1F4CB}'} Liste</button>
-        <button class="vseg" class:vseg-active={viewMode === 'kanban'} on:click={() => viewMode = 'kanban'}>{'\u{1F5C2}\uFE0F'} Kanban</button>
-        <button class="vseg" class:vseg-active={viewMode === 'stats'} on:click={() => viewMode = 'stats'}>{'\u{1F4CA}'} Stats</button>
+    <div class="ya-kpi">
+      <span class="ya-kpi__value" style="color: var(--text-heading)">{progressPct}%</span>
+      <span class="ya-kpi__label">Completion</span>
+      <div class="ya-progress-bar" style="margin-top:0.375rem">
+        <div class="ya-progress-bar__fill" style="width:{progressPct}%;background:linear-gradient(90deg, var(--primary), var(--success))"></div>
       </div>
-      <button class="btn-ghost" on:click={openTemplateModal}>📋 Templates</button>
-      <button class="btn-primary" on:click={openCreateDialog}>+ Ajouter</button>
     </div>
-    <div class="action-right">
-      <select class="filter-select" bind:value={filterStatus}>
-        <option value="all">Tout</option>
-        <option value="open">À faire</option>
-        <option value="done">Fait</option>
-      </select>
-      <select class="filter-select" bind:value={filterSite}>
-        {#each SITES as s}
-          <option value={s.value}>{s.label}</option>
+  </div>
+
+  <!-- ── Action bar (YashAdmin style) ─────────────────────── -->
+  <div class="ya-page-card" style="margin-bottom:1rem">
+    <div class="ya-page-card__body" style="padding:1rem 1.25rem">
+      <div class="action-bar">
+        <div class="action-left">
+          <div class="ya-tabs">
+            <button class="ya-tab" class:ya-tab--active={viewMode === 'list'} on:click={() => viewMode = 'list'}>Liste</button>
+            <button class="ya-tab" class:ya-tab--active={viewMode === 'kanban'} on:click={() => viewMode = 'kanban'}>Kanban</button>
+            <button class="ya-tab" class:ya-tab--active={viewMode === 'stats'} on:click={() => viewMode = 'stats'}>Stats</button>
+          </div>
+          <button class="ya-btn ya-btn--ghost" on:click={openTemplateModal}>Templates</button>
+          <button class="ya-btn ya-btn--primary" on:click={openCreateDialog}>+ Ajouter</button>
+        </div>
+        <div class="action-right">
+          <select class="filter-select" bind:value={filterStatus}>
+            <option value="all">Tout</option>
+            <option value="open">A faire</option>
+            <option value="done">Fait</option>
+          </select>
+          <select class="filter-select" bind:value={filterSite}>
+            {#each SITES as s}
+              <option value={s.value}>{s.label}</option>
+            {/each}
+          </select>
+          <div class="ya-toolbar__search">
+            <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick filter pills -->
+      <div class="ya-pills" style="margin-top:0.75rem">
+        {#each QUICK_FILTERS as qf}
+          <button
+            class="ya-pill"
+            class:ya-pill--active={quickFilter === qf.key}
+            on:click={() => quickFilter = qf.key}
+          >
+            {qf.label}
+          </button>
         {/each}
-      </select>
-      <div class="search-box">
-        <span class="search-icon">🔍</span>
-        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} class="search-input" />
       </div>
     </div>
-  </div>
-
-  <!-- Quick filter chips -->
-  <div class="chips-bar">
-    {#each QUICK_FILTERS as qf}
-      <button
-        class="chip"
-        class:chip-active={quickFilter === qf.key}
-        on:click={() => quickFilter = qf.key}
-      >
-        {qf.label}
-      </button>
-    {/each}
   </div>
 
   <!-- ── Content ────────────────────────────────────────── -->
@@ -1016,188 +1022,48 @@
     animation: fadeIn 0.35s ease-out;
   }
 
-  /* ── Stats bar ─────────────────────────────────────────── */
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 12px;
-  }
-
-  .stat-card {
-    background: var(--bg-card);
-    backdrop-filter: blur(16px);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    padding: 14px 18px;
-    text-align: center;
-    transition: border-color 0.2s;
-  }
-
-  .stat-card:hover {
-    border-color: var(--border-hover);
-  }
-
-  .stat-value {
-    font-size: 28px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .stat-label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.6px;
-    color: var(--text-muted);
-    margin-top: 2px;
-  }
-
-  .stat-open .stat-value { color: #3B82F6; }
-  .stat-overdue .stat-value { color: #EF4444; }
-  .stat-week .stat-value { color: #F59E0B; }
-  .stat-done .stat-value { color: #22C55E; }
-
-  /* ── Progress ──────────────────────────────────────────── */
-  .progress-wrapper {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-
-  .progress-bar {
-    flex: 1;
-    height: 6px;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 3px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: linear-gradient(90deg, var(--accent), #22C55E);
-    border-radius: 3px;
-    transition: width 0.4s ease;
-  }
-
-  .progress-label {
-    font-size: 12px;
-    color: var(--text-muted);
-    white-space: nowrap;
-  }
+  /* Stats bar now uses global ya-kpi-row classes */
 
   /* ── Action bar ────────────────────────────────────────── */
   .action-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 10px;
+    gap: 0.75rem;
     flex-wrap: wrap;
   }
 
   .action-left, .action-right {
     display: flex;
     align-items: center;
-    gap: 8px;
-  }
-
-  .btn-toggle {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .btn-toggle:hover, .btn-toggle.active {
-    background: rgba(var(--accent-rgb), 0.12);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-
-  .btn-ghost {
-    background: transparent;
-    border: 1px solid var(--border-subtle);
-    border-radius: 8px;
-    color: var(--text-secondary);
-    font-size: 13px;
-    padding: 6px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .btn-ghost:hover {
-    background: var(--bg-hover);
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
-
-  .btn-primary {
-    background: var(--accent);
-    border: none;
-    border-radius: 8px;
-    color: #fff;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 7px 16px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-    box-shadow: 0 2px 12px rgba(var(--accent-rgb), 0.3);
-  }
-
-  .btn-primary:hover {
-    filter: brightness(1.15);
-    box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.4);
-  }
-
-  .btn-primary:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+    gap: 0.5rem;
   }
 
   .filter-select {
-    background: var(--bg-card);
+    background: var(--bg-input);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
-    padding: 6px 10px;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.625rem;
     font-family: inherit;
     cursor: pointer;
     outline: none;
   }
 
   .filter-select:focus {
-    border-color: var(--accent);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 0.25rem rgba(var(--primary-rgb), 0.15);
   }
 
-  .search-box {
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .search-icon {
-    position: absolute;
-    left: 8px;
-    font-size: 13px;
-    pointer-events: none;
-  }
-
+  /* search-input is unused now — toolbar__search takes over */
   .search-input {
-    background: var(--bg-card);
+    background: var(--bg-input);
     border: 1px solid var(--border-subtle);
-    border-radius: 8px;
+    border-radius: 0.625rem;
     color: var(--text-primary);
-    font-size: 13px;
-    padding: 6px 10px 6px 28px;
+    font-size: 0.8125rem;
+    padding: 0.375rem 0.625rem;
     width: 180px;
     font-family: inherit;
     outline: none;
@@ -1209,35 +1075,7 @@
   }
 
   /* ── Chips ──────────────────────────────────────────────── */
-  .chips-bar {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
-  }
-
-  .chip {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 20px;
-    color: var(--text-secondary);
-    font-size: 12px;
-    padding: 4px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-
-  .chip:hover {
-    border-color: var(--border-hover);
-    color: var(--text-primary);
-  }
-
-  .chip-active {
-    background: rgba(var(--accent-rgb), 0.15);
-    border-color: var(--accent);
-    color: var(--accent);
-  }
+  /* chips now use global ya-pills / ya-pill classes */
 
   /* ── Sections ──────────────────────────────────────────── */
   .section {
@@ -1275,15 +1113,15 @@
   /* ── Task row ──────────────────────────────────────────── */
   .task-row {
     background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 10px;
-    margin-bottom: 6px;
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
+    margin-bottom: 0.375rem;
     overflow: hidden;
-    transition: border-color 0.2s;
+    transition: background 0.15s;
   }
 
   .task-row:hover {
-    border-color: var(--border-hover);
+    background: var(--bg-hover);
   }
 
   .task-done {

@@ -4,15 +4,14 @@
   import { settings } from '../stores/settings.js';
   import { currentPage } from '../stores/navigation.js';
   import { success } from '../stores/toast.js';
-  import PriorityCard from '../components/cards/PriorityCard.svelte';
-  import SysMonCard from '../components/cards/SysMonCard.svelte';
-  import GaugeChart from '../components/cards/GaugeChart.svelte';
   import SparklineChart from '../components/cards/SparklineChart.svelte';
   import DonutChart from '../components/cards/DonutChart.svelte';
-  import QuickLinksCard from '../components/cards/QuickLinksCard.svelte';
-  import WeatherCard from '../components/cards/WeatherCard.svelte';
+  import EventsCard from '../components/cards/EventsCard.svelte';
+  import ActiveProjectsCard from '../components/cards/ActiveProjectsCard.svelte';
+  import SysMonCard from '../components/cards/SysMonCard.svelte';
   import ActivityCard from '../components/cards/ActivityCard.svelte';
-  import LauncherFavCard from '../components/cards/LauncherFavCard.svelte';
+  import QuickLinksCard from '../components/cards/QuickLinksCard.svelte';
+  import GaugeChart from '../components/cards/GaugeChart.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
@@ -21,139 +20,8 @@
   let clockTimer;
   let refreshTimer;
 
-  // Widget config — order, visibility, and size
-  const WIDGET_DEFS = [
-    { id: 'priority', label: 'T\u00e2ches prioritaires', emoji: '\u{1F4CB}' },
-    { id: 'sysmon', label: 'Monitoring syst\u00e8me', emoji: '\u{1F4BB}' },
-    { id: 'gauge', label: 'Taux de compl\u00e9tion', emoji: '\u{1F4CA}' },
-    { id: 'sparkline', label: 'Activit\u00e9 hebdo', emoji: '\u{1F4C8}' },
-    { id: 'donut', label: 'Cat\u00e9gories', emoji: '\u{1F369}' },
-    { id: 'quicklinks', label: 'Acc\u00e8s rapides', emoji: '\u26A1' },
-    { id: 'activity', label: 'Activit\u00e9 r\u00e9cente', emoji: '\u{1F553}' },
-    { id: 'launcher', label: 'Liens favoris', emoji: '\u{1F680}' },
-  ];
-
-  const SIZE_LABELS = { 1: '1/3', 2: '1/2', 3: 'Pleine' };
-  const DEFAULT_CONFIG = WIDGET_DEFS.map((w, i) => ({ id: w.id, visible: true, size: 2, order: i }));
-
-  let widgetConfig = [];
-  let showWidgetConfig = false;
-
-  $: orderedWidgets = [...widgetConfig].sort((a, b) => a.order - b.order).filter(w => w.visible);
-
-  function loadWidgetConfig() {
-    try {
-      const saved = localStorage.getItem('itm-widgets-v2');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        for (const def of DEFAULT_CONFIG) {
-          if (!parsed.find(w => w.id === def.id)) {
-            parsed.push({ ...def, order: parsed.length });
-          }
-        }
-        widgetConfig = parsed;
-        return;
-      }
-    } catch {}
-    widgetConfig = [...DEFAULT_CONFIG];
-  }
-
-  function saveWidgetConfig() {
-    localStorage.setItem('itm-widgets-v2', JSON.stringify(widgetConfig));
-    widgetConfig = [...widgetConfig];
-  }
-
-  function toggleWidget(id) {
-    const w = widgetConfig.find(w => w.id === id);
-    if (w) { w.visible = !w.visible; saveWidgetConfig(); }
-  }
-
-  function cycleSize(id) {
-    const w = widgetConfig.find(w => w.id === id);
-    if (w) {
-      w.size = w.size === 2 ? 3 : w.size === 3 ? 1 : 2;
-      saveWidgetConfig();
-    }
-  }
-
-  function moveWidget(id, dir) {
-    const idx = widgetConfig.findIndex(w => w.id === id);
-    const swapIdx = idx + dir;
-    if (swapIdx < 0 || swapIdx >= widgetConfig.length) return;
-    const tmp = widgetConfig[idx].order;
-    widgetConfig[idx].order = widgetConfig[swapIdx].order;
-    widgetConfig[swapIdx].order = tmp;
-    saveWidgetConfig();
-  }
-
-  function resetWidgetConfig() {
-    widgetConfig = [...DEFAULT_CONFIG];
-    saveWidgetConfig();
-  }
-
-  function getWidgetDef(id) {
-    return WIDGET_DEFS.find(w => w.id === id);
-  }
-
-  function sizeToSpan(size) {
-    if (size === 3) return 'span 6';
-    if (size === 1) return 'span 2';
-    return 'span 3';
-  }
-
-  // ── Widget reorder with drop zones ──────────────────────
-  let moveSourceId = null;
-  let holdTimer = null;
-
-  function onWidgetMouseDown(e, id) {
-    if (e.target.closest('button, input, select, a, textarea')) return;
-    holdTimer = setTimeout(() => {
-      moveSourceId = id;
-    }, 1200);
-  }
-
-  function onWidgetMouseUp() {
-    clearTimeout(holdTimer);
-  }
-
-  function onWidgetMouseLeave() {
-    clearTimeout(holdTimer);
-  }
-
-  function insertWidgetAt(targetOrder) {
-    if (!moveSourceId) return;
-    const sorted = [...widgetConfig].sort((a, b) => a.order - b.order);
-    const srcIdx = sorted.findIndex(w => w.id === moveSourceId);
-    if (srcIdx === -1) { moveSourceId = null; return; }
-
-    const [moved] = sorted.splice(srcIdx, 1);
-    const insertAt = Math.min(targetOrder, sorted.length);
-    sorted.splice(insertAt, 0, moved);
-
-    sorted.forEach((w, i) => {
-      const cfg = widgetConfig.find(c => c.id === w.id);
-      if (cfg) cfg.order = i;
-    });
-
-    saveWidgetConfig();
-    moveSourceId = null;
-  }
-
-  function cancelMove() {
-    moveSourceId = null;
-  }
-
   // KPI data
   let weatherData = null;
-
-  async function loadWeather() {
-    try {
-      const res = await fetch('http://localhost:8010/api/dashboard/weather');
-      weatherData = await res.json();
-      if (!weatherData.temperature && weatherData.temperature !== 0) weatherData = null;
-    } catch { weatherData = null; }
-  }
-
   let kpiTasks = 0;
   let kpiOverdue = 0;
   let kpiWeek = 0;
@@ -161,20 +29,17 @@
   let kpiParc = 0;
 
   // Component refs
-  let priorityCard;
-  let sysMonCard;
-  let gaugeChart;
   let sparklineChart;
   let donutChart;
-  let weatherCard;
+  let eventsCard;
+  let activeProjectsCard;
+  let sysMonCard;
   let activityCard;
-  let launcherFavCard;
+  let gaugeChart;
 
   $: greeting = getGreeting();
   $: username = $settings.username || 'Utilisateur';
   $: dateStr = getDateStr();
-
-  // Derived KPI helpers
   $: kpiWeekTotal = 28;
   $: kpiWeekPercent = kpiWeekTotal > 0 ? Math.round((kpiWeek / kpiWeekTotal) * 100) : 0;
   $: kpiOverduePercent = (kpiTasks + kpiOverdue) > 0 ? Math.round((kpiOverdue / (kpiTasks + kpiOverdue)) * 100) : 0;
@@ -194,6 +59,14 @@
     clockStr = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   }
 
+  async function loadWeather() {
+    try {
+      const res = await fetch('http://localhost:8010/api/dashboard/weather');
+      weatherData = await res.json();
+      if (!weatherData.temperature && weatherData.temperature !== 0) weatherData = null;
+    } catch { weatherData = null; }
+  }
+
   async function fetchKpis() {
     try {
       const data = await api.get('/api/dashboard/kpis');
@@ -210,13 +83,13 @@
   function refreshAll() {
     fetchKpis();
     loadWeather();
-    if (priorityCard?.refresh) priorityCard.refresh();
-    if (gaugeChart?.refresh) gaugeChart.refresh();
     if (sparklineChart?.refresh) sparklineChart.refresh();
     if (donutChart?.refresh) donutChart.refresh();
-    if (weatherCard?.refresh) weatherCard.refresh();
+    if (eventsCard?.refresh) eventsCard.refresh();
+    if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
+    if (sysMonCard?.refresh) sysMonCard.refresh();
     if (activityCard?.refresh) activityCard.refresh();
-    if (launcherFavCard?.refresh) launcherFavCard.refresh();
+    if (gaugeChart?.refresh) gaugeChart.refresh();
     success('Donn\u00e9es actualis\u00e9es');
   }
 
@@ -225,7 +98,6 @@
   }
 
   onMount(() => {
-    loadWidgetConfig();
     updateClock();
     clockTimer = setInterval(updateClock, 1000);
     fetchKpis();
@@ -253,7 +125,7 @@
         {#if weatherData}
           <span class="weather-inline">
             <span class="wi-emoji">{weatherData.emoji}</span>
-            <span class="wi-temp">{Math.round(weatherData.temperature)}{'\u00b0'}C</span>
+            <span class="wi-temp">{Math.round(weatherData.temperature)}&deg;C</span>
             <span class="wi-desc">{weatherData.description}</span>
             <span class="wi-city">&mdash; {weatherData.city}</span>
           </span>
@@ -264,11 +136,8 @@
       <div class="clock-frame">
         <span class="clock">{clockStr}</span>
       </div>
-      <button class="btn-ghost" on:click={() => showWidgetConfig = !showWidgetConfig} title="Configurer les widgets">
-        {'\u2699\uFE0F'} Widgets
-      </button>
       <button class="btn-ghost" on:click={refreshAll}>
-        {'\u{1F504}'} Actualiser
+        &#x21BB; Actualiser
       </button>
       <button class="btn-primary-action" on:click={goNewTask}>
         + T&acirc;che
@@ -278,14 +147,14 @@
 
   <!-- ═══ ROW 1: 4 YashAdmin-style KPI cards ═══ -->
   <div class="row">
-    <!-- Card 1: Purple — Tâches en cours -->
+    <!-- Card 1: Purple — Taches en cours -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="col-3 ya-card ya-card--purple" on:click={() => currentPage.set('/tasks')}>
       <div class="ya-card__deco-circle ya-card__deco-circle--1"></div>
       <div class="ya-card__deco-circle ya-card__deco-circle--2"></div>
       <div class="ya-card__body">
-        <span class="ya-card__label">Tâches en cours</span>
+        <span class="ya-card__label">Taches en cours</span>
         <span class="ya-card__value">{kpiTasks}</span>
         <div class="ya-card__bars">
           <svg viewBox="0 0 120 40" class="ya-bars-svg">
@@ -337,7 +206,7 @@
       </div>
     </div>
 
-    <!-- Card 3: Teal gradient — Summary -->
+    <!-- Card 3: Teal gradient — Synthese IT -->
     <div class="col-3 ya-card ya-card--teal">
       <div class="ya-card__teal-deco">
         <svg viewBox="0 0 80 80" fill="none">
@@ -347,14 +216,14 @@
         </svg>
       </div>
       <div class="ya-card__body ya-card__body--teal">
-        <span class="ya-card__label ya-card__label--lg">Votre IT, s&eacute;curis&eacute; et surveill&eacute;</span>
-        <p class="ya-card__desc">Parc informatique, t&acirc;ches et documents sous contr&ocirc;le.</p>
+        <span class="ya-card__label ya-card__label--lg">Votre IT, securise et surveille</span>
+        <p class="ya-card__desc">Parc informatique, taches et documents sous controle.</p>
         <div class="ya-card__avatars ya-card__avatars--row">
           <span class="ya-avatar" style="background:#2dd4bf;">P</span>
           <span class="ya-avatar" style="background:#14b8a6;">M</span>
           <span class="ya-avatar" style="background:#0d9488;">S</span>
         </div>
-        <span class="ya-card__clients">{kpiParc}+ &Eacute;quipements g&eacute;r&eacute;s</span>
+        <span class="ya-card__clients">{kpiParc}+ Equipements geres</span>
       </div>
     </div>
 
@@ -376,19 +245,18 @@
               class="ya-radial__arc"
             />
             <text x="60" y="56" text-anchor="middle" class="ya-radial__text">{kpiWeekPercent}%</text>
-            <text x="60" y="72" text-anchor="middle" class="ya-radial__sub">compl&eacute;t&eacute;</text>
+            <text x="60" y="72" text-anchor="middle" class="ya-radial__sub">complete</text>
           </svg>
         </div>
         <span class="ya-card__label ya-card__label--center">Ma Progression</span>
-        <p class="ya-card__desc ya-card__desc--sm">Suivi hebdomadaire des t&acirc;ches assign&eacute;es.</p>
-        <button class="ya-card__details-btn" on:click={() => currentPage.set('/tasks')}>Plus de d&eacute;tails</button>
+        <p class="ya-card__desc ya-card__desc--sm">Suivi hebdomadaire des taches assignees.</p>
+        <button class="ya-card__details-btn" on:click={() => currentPage.set('/tasks')}>Plus de details</button>
       </div>
     </div>
   </div>
 
-  <!-- ═══ ROW 2: Sub-cards under first 2 columns ═══ -->
+  <!-- ═══ ROW 2: Sub-cards (Cette semaine + Documents) ═══ -->
   <div class="row row--sub">
-    <!-- Card 5: Cette semaine — progress bar -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/tasks')}>
@@ -399,12 +267,10 @@
           <div class="ya-progress__bar">
             <div class="ya-progress__fill" style="width: {kpiWeekPercent}%"></div>
           </div>
-          <span class="ya-progress__text">Compl&eacute;t&eacute;es {kpiWeek}/{kpiWeekTotal}</span>
+          <span class="ya-progress__text">Completees {kpiWeek}/{kpiWeekTotal}</span>
         </div>
       </div>
     </div>
-
-    <!-- Card 6: Documents — sparkline -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/documents')}>
@@ -427,12 +293,15 @@
     </div>
   </div>
 
-  <!-- ═══ Row 3: Vue d'ensemble (col-8) + Mes tâches (col-4) ═══ -->
+  <!-- ═══ ROW 3: Projects Overview (col-8) + Events (col-4) ═══ -->
   <div class="row">
     <div class="col-8">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Vue d'ensemble</h4>
+          <div class="w-card__actions">
+            <span class="w-card__period">7 derniers jours</span>
+          </div>
         </div>
         <div class="w-card__body">
           <SparklineChart bind:this={sparklineChart} />
@@ -440,7 +309,7 @@
         <div class="w-card__stats">
           <div class="w-stat">
             <span class="w-stat__val">{kpiTasks}</span>
-            <span class="w-stat__label">Total tâches</span>
+            <span class="w-stat__label">Total taches</span>
           </div>
           <div class="w-stat">
             <span class="w-stat__val w-stat__val--primary">{kpiWeek}</span>
@@ -452,7 +321,7 @@
           </div>
           <div class="w-stat">
             <span class="w-stat__val w-stat__val--success">{kpiParc}</span>
-            <span class="w-stat__label">Équipements</span>
+            <span class="w-stat__label">Equipements</span>
           </div>
         </div>
       </div>
@@ -460,53 +329,50 @@
     <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Mes tâches</h4>
-          <div class="w-card__actions">
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <span class="w-link" on:click={() => currentPage.set('/tasks')}>Voir tout</span>
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <span class="w-link w-link--add" on:click={goNewTask}>+ Ajouter</span>
-          </div>
+          <h4 class="w-card__title">Evenements</h4>
         </div>
         <div class="w-card__body w-card__body--flush">
-          <PriorityCard bind:this={priorityCard} />
+          <EventsCard bind:this={eventsCard} />
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ Row 4: Activité récente (col-8) + Complétion (col-4) ═══ -->
+  <!-- ═══ ROW 4: Active Projects (col-8) + Donut (col-4) ═══ -->
   <div class="row">
     <div class="col-8">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Activité récente</h4>
+          <h4 class="w-card__title">Taches actives</h4>
+          <div class="w-card__actions">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="w-link" on:click={() => currentPage.set('/tasks')}>Voir tout</span>
+          </div>
         </div>
         <div class="w-card__body w-card__body--flush">
-          <ActivityCard bind:this={activityCard} />
+          <ActiveProjectsCard bind:this={activeProjectsCard} />
         </div>
       </div>
     </div>
     <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Complétion du mois</h4>
+          <h4 class="w-card__title">Repartition</h4>
         </div>
-        <div class="w-card__body" style="display:flex;justify-content:center;">
-          <GaugeChart bind:this={gaugeChart} />
+        <div class="w-card__body w-card__body--flush">
+          <DonutChart bind:this={donutChart} />
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ═══ Row 5: Système (col-4) + Catégories (col-4) + Accès rapides (col-4) ═══ -->
+  <!-- ═══ ROW 5: Systeme (col-4) + Activite (col-4) + Completion (col-4) ═══ -->
   <div class="row">
     <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Système</h4>
+          <h4 class="w-card__title">Systeme</h4>
         </div>
         <div class="w-card__body w-card__body--flush">
           <SysMonCard bind:this={sysMonCard} />
@@ -516,17 +382,31 @@
     <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Répartition par catégorie</h4>
+          <h4 class="w-card__title">Activite recente</h4>
         </div>
-        <div class="w-card__body">
-          <DonutChart bind:this={donutChart} />
+        <div class="w-card__body w-card__body--flush">
+          <ActivityCard bind:this={activityCard} />
         </div>
       </div>
     </div>
     <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
-          <h4 class="w-card__title">Accès rapides</h4>
+          <h4 class="w-card__title">Completion du mois</h4>
+        </div>
+        <div class="w-card__body" style="display:flex;justify-content:center;">
+          <GaugeChart bind:this={gaugeChart} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 6: Acces rapides (full width) ═══ -->
+  <div class="row">
+    <div class="col-12">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Acces rapides</h4>
         </div>
         <div class="w-card__body w-card__body--flush">
           <QuickLinksCard />
@@ -605,7 +485,6 @@
     border: 1px solid var(--border-subtle);
     border-radius: 0.625rem;
     padding: 0.375rem 0.875rem;
-    backdrop-filter: blur(12px);
   }
 
   .clock {
@@ -669,11 +548,13 @@
   .col-4 { grid-column: span 4; }
   .col-6 { grid-column: span 6; }
   .col-8 { grid-column: span 8; }
+  .col-12 { grid-column: span 12; }
 
   @media (max-width: 1200px) {
     .col-3 { grid-column: span 6; }
     .col-4 { grid-column: span 6; }
     .col-8 { grid-column: span 12; }
+    .col-12 { grid-column: span 12; }
   }
 
   @media (max-width: 768px) {
@@ -681,6 +562,7 @@
     .col-4 { grid-column: span 12; }
     .col-6 { grid-column: span 12; }
     .col-8 { grid-column: span 12; }
+    .col-12 { grid-column: span 12; }
   }
 
   /* ═══ YashAdmin Card Base ═══ */
@@ -703,7 +585,6 @@
     box-shadow: 0 8px 30px rgba(0,0,0,0.12);
   }
 
-  /* Decorative circles for colored cards */
   .ya-card__deco-circle {
     position: absolute;
     border-radius: 50%;
@@ -923,7 +804,6 @@
     margin-right: -0.375rem;
   }
 
-  /* ═══ Badge (percentage circle) ═══ */
   .ya-card__badge {
     display: inline-flex;
     align-items: center;
@@ -938,7 +818,6 @@
     border: 2px solid rgba(255,255,255,0.3);
   }
 
-  /* ═══ Plus button ═══ */
   .ya-card__plus {
     display: inline-flex;
     align-items: center;
@@ -990,7 +869,6 @@
     letter-spacing: 0.05em;
   }
 
-  /* ═══ Details button ═══ */
   .ya-card__details-btn {
     margin-top: 0.5rem;
     background: var(--accent);
@@ -1082,6 +960,14 @@
     align-items: center;
   }
 
+  .w-card__period {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    background: var(--bg-badge);
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+  }
+
   .w-link {
     font-size: 0.8125rem;
     color: var(--primary);
@@ -1090,7 +976,6 @@
     transition: opacity 0.15s;
   }
   .w-link:hover { opacity: 0.8; }
-  .w-link--add { color: var(--text-heading); }
 
   .w-card__body {
     padding: 1.25rem;

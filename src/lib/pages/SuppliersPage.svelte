@@ -430,13 +430,13 @@
 
 <!-- ── Supplier Dialog ────────────────────────────────────── -->
 {#if showSupplierDialog}
-<div class="dialog-overlay" on:click|self={() => showSupplierDialog = false}>
-  <div class="dialog">
-    <div class="dialog-header">
-      <h2>{editingSupplier ? 'Modifier le prestataire' : 'Nouveau prestataire'}</h2>
-      <button class="btn-close" on:click={() => showSupplierDialog = false}>&times;</button>
+<div class="ya-dialog-overlay" on:click|self={() => showSupplierDialog = false}>
+  <div class="ya-dialog">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">{editingSupplier ? 'Modifier le prestataire' : 'Nouveau prestataire'}</h2>
+      <button class="ya-dialog__close" on:click={() => showSupplierDialog = false}>&times;</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <div class="logo-name-row">
         <div class="logo-picker" on:click={() => fileInputEl?.click()}>
           {#if logoPreview}
@@ -465,9 +465,9 @@
       </div>
       <label class="full-width">Notes<textarea bind:value={form.notes} rows="3" placeholder="Notes, commentaires…"></textarea></label>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => showSupplierDialog = false}>Annuler</button>
-      <button class="btn-primary" on:click={saveSupplier} disabled={saving || !form.name.trim()}>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => showSupplierDialog = false}>Annuler</button>
+      <button class="ya-btn ya-btn--primary" on:click={saveSupplier} disabled={saving || !form.name.trim()}>
         {saving ? 'Enregistrement…' : 'Enregistrer'}
       </button>
     </div>
@@ -477,17 +477,17 @@
 
 <!-- ── Delete Confirm ─────────────────────────────────────── -->
 {#if confirmDeleteSupplier}
-<div class="dialog-overlay" on:click|self={() => confirmDeleteSupplier = null}>
-  <div class="dialog small">
-    <div class="dialog-header">
-      <h2>Supprimer</h2>
-      <button class="btn-close" on:click={() => confirmDeleteSupplier = null}>&times;</button>
+<div class="ya-dialog-overlay" on:click|self={() => confirmDeleteSupplier = null}>
+  <div class="ya-dialog" style="width:400px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Supprimer</h2>
+      <button class="ya-dialog__close" on:click={() => confirmDeleteSupplier = null}>&times;</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <p>Supprimer <strong>{confirmDeleteSupplier.name}</strong> ?</p>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => confirmDeleteSupplier = null}>Annuler</button>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => confirmDeleteSupplier = null}>Annuler</button>
       <button class="btn-danger" on:click={deleteSupplier} disabled={deleting}>
         {deleting ? 'Suppression…' : 'Supprimer'}
       </button>
@@ -498,13 +498,13 @@
 
 <!-- ── Domain Manager Dialog ──────────────────────────────── -->
 {#if showDomainDialog}
-<div class="dialog-overlay" on:click|self={() => showDomainDialog = false}>
-  <div class="dialog wide">
-    <div class="dialog-header">
-      <h2>Gestion des domaines</h2>
-      <button class="btn-close" on:click={() => showDomainDialog = false}>&times;</button>
+<div class="ya-dialog-overlay" on:click|self={() => showDomainDialog = false}>
+  <div class="ya-dialog" style="width:640px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Gestion des domaines</h2>
+      <button class="ya-dialog__close" on:click={() => showDomainDialog = false}>&times;</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <div class="domain-add-row">
         <input type="text" bind:value={newDomain.name} placeholder="Nouveau domaine" class="domain-input" />
         <input type="color" bind:value={newDomain.color_hex} class="color-picker" title="Couleur" />
@@ -524,8 +524,8 @@
         {/each}
       </div>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => showDomainDialog = false}>Fermer</button>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => showDomainDialog = false}>Fermer</button>
     </div>
   </div>
 </div>
@@ -540,7 +540,7 @@
   .stats-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
   .stat-chip {
     display: flex; align-items: center; gap: 6px;
-    padding: 5px 12px; border-radius: 20px; font-size: 0.8rem;
+    padding: 5px 12px; border-radius: 1rem; font-size: 0.8rem;
     border: 1px solid transparent; cursor: pointer;
     background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
     transition: all 0.2s;
@@ -554,13 +554,13 @@
   .filters-bar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
   .search-input {
     flex: 1; min-width: 220px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-card);
+    border-radius: 0.625rem; color: #fff; font-size: 0.85rem;
   }
   .search-input::placeholder { color: rgba(255,255,255,0.3); }
   .filter-select {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-card); border-radius: 0.625rem;
     color: #fff; font-size: 0.85rem;
   }
   .filter-select option { background: #1e1e2e; color: #fff; }
@@ -574,13 +574,13 @@
   }
   .domain-header-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
   .domain-header-name { font-size: 0.85rem; font-weight: 700; color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 0.05em; }
-  .domain-header-count { font-size: 0.7rem; font-weight: 700; border-radius: 10px; padding: 1px 8px; }
+  .domain-header-count { font-size: 0.7rem; font-weight: 700; border-radius: 0.625rem; padding: 1px 8px; }
   .domain-header-line { flex: 1; height: 1px; }
 
   .supplier-row {
     display: flex; align-items: center; gap: 14px;
-    padding: 10px 16px; border-radius: 10px;
-    background: var(--bg-card, rgba(255,255,255,0.04));
+    padding: 10px 16px; border-radius: 0.625rem;
+    background: var(--bg-card);
     border: 1px solid transparent;
     cursor: pointer; transition: all 0.15s; width: 100%;
     text-align: left; color: inherit; font: inherit;
@@ -602,12 +602,12 @@
 
   .domain-badge {
     font-size: 0.75rem; font-weight: 600; padding: 3px 10px;
-    border-radius: 12px; border: 1px solid; white-space: nowrap; flex-shrink: 0;
+    border-radius: 0.625rem; border: 1px solid; white-space: nowrap; flex-shrink: 0;
   }
 
   .row-actions { display: flex; gap: 4px; flex-shrink: 0; }
   .btn-action {
-    background: rgba(255,255,255,0.06); border: none; border-radius: 6px;
+    background: var(--bg-card); border: none; border-radius: 0.625rem;
     padding: 4px 8px; cursor: pointer; font-size: 0.82rem; transition: background 0.15s;
   }
   .btn-action:hover { background: rgba(255,255,255,0.12); }
@@ -626,7 +626,7 @@
   }
   .detail-panel {
     width: 480px; max-width: 90vw; height: 100vh;
-    background: var(--bg-card-solid, #1a1a2e); border-left: 1px solid var(--border-subtle);
+    background: var(--bg-card); border-left: 1px solid var(--border-card);
     display: flex; flex-direction: column; overflow: hidden;
     animation: slideInRight 0.25s ease;
     box-shadow: -8px 0 40px rgba(0,0,0,0.3);
@@ -637,88 +637,64 @@
     padding: 20px 24px; border-bottom: 1px solid var(--border-subtle);
   }
   .detail-avatar {
-    width: 56px; height: 56px; border-radius: 14px; border: 2px solid;
+    width: 56px; height: 56px; border-radius: 0.625rem; border: 2px solid;
     overflow: hidden; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
     background: rgba(255,255,255,0.04);
   }
   .detail-avatar img { width: 100%; height: 100%; object-fit: contain; }
   .detail-initials { font-size: 20px; font-weight: 700; }
   .detail-title { flex: 1; min-width: 0; }
-  .detail-title h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary); }
+  .detail-title h2 { margin: 0; font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
   .detail-header-actions { display: flex; gap: 6px; }
   .btn-close-detail {
-    background: none; border: none; color: var(--text-muted); font-size: 18px;
-    cursor: pointer; padding: 4px 8px; border-radius: 6px;
+    background: none; border: none; color: var(--text-muted); font-size: 1.125rem;
+    cursor: pointer; padding: 4px 8px; border-radius: 0.625rem;
   }
   .btn-close-detail:hover { background: var(--bg-hover); color: var(--text-primary); }
 
   .detail-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
   .detail-section { margin-bottom: 22px; }
-  .detail-section h3 { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-section h3 { margin: 0 0 10px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
   .detail-fields { display: flex; flex-direction: column; gap: 6px; }
   .detail-field {
     display: flex; align-items: center; gap: 10px;
-    padding: 8px 12px; border-radius: 8px; background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.04);
+    padding: 8px 12px; border-radius: 0.625rem; background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
   }
   .detail-field.clickable { cursor: pointer; transition: all 0.15s; }
   .detail-field.clickable:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.08); }
   .df-icon { font-size: 16px; flex-shrink: 0; }
-  .df-label { font-size: 11px; color: var(--text-muted); min-width: 65px; }
-  .df-value { flex: 1; font-size: 13px; color: var(--text-primary); }
-  .df-copy { font-size: 12px; opacity: 0; transition: opacity 0.15s; }
+  .df-label { font-size: 0.6875rem; color: var(--text-muted); min-width: 65px; }
+  .df-value { flex: 1; font-size: 0.8125rem; color: var(--text-primary); }
+  .df-copy { font-size: 0.75rem; opacity: 0; transition: opacity 0.15s; }
   .detail-field.clickable:hover .df-copy { opacity: 0.5; }
 
-  .detail-notes { font-size: 13px; color: var(--text-secondary); line-height: 1.6; margin: 0; white-space: pre-wrap; }
-  .detail-empty { font-size: 12px; color: var(--text-muted); margin: 0; }
+  .detail-notes { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; margin: 0; white-space: pre-wrap; }
+  .detail-empty { font-size: 0.75rem; color: var(--text-muted); margin: 0; }
 
   .detail-docs { display: flex; flex-direction: column; gap: 4px; }
   .detail-doc-row {
     display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.04);
+    padding: 6px 10px; border-radius: 0.625rem; background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
   }
   .doc-type-badge {
     font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px;
     background: rgba(var(--accent-rgb, 108,99,255), 0.1); color: var(--accent);
     flex-shrink: 0;
   }
-  .doc-title { flex: 1; font-size: 12px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .doc-date { font-size: 11px; color: var(--text-muted); flex-shrink: 0; }
+  .doc-title { flex: 1; font-size: 0.75rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-date { font-size: 0.6875rem; color: var(--text-muted); flex-shrink: 0; }
 
   .detail-meta-section { border-top: 1px solid var(--border-subtle); padding-top: 12px; }
-  .detail-meta { font-size: 11px; color: var(--text-muted); }
+  .detail-meta { font-size: 0.6875rem; color: var(--text-muted); }
 
-  .dialog-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-    display: flex; align-items: center; justify-content: center; z-index: 100;
-    backdrop-filter: blur(4px);
-  }
-  .dialog {
-    background: var(--bg-dialog, #1e1e2e);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
-    border-radius: 16px; width: 540px; max-width: 95vw;
-    max-height: 90vh; overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .dialog.small { width: 400px; }
-  .dialog.wide { width: 640px; }
-  .dialog-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
-  .btn-close { background: none; border: none; color: rgba(255,255,255,0.5); font-size: 1.4rem; cursor: pointer; }
-  .dialog-body { padding: 20px 24px; }
-  .dialog-footer {
-    display: flex; justify-content: flex-end; gap: 10px;
-    padding: 14px 24px; border-top: 1px solid rgba(255,255,255,0.08);
-  }
+  /* Dialog styles now use global ya-dialog classes */
 
   .logo-name-row { display: flex; gap: 16px; margin-bottom: 16px; }
   .logo-picker {
-    width: 80px; height: 80px; border-radius: 12px; flex-shrink: 0;
-    background: rgba(255,255,255,0.06); border: 2px dashed rgba(255,255,255,0.15);
+    width: 80px; height: 80px; border-radius: 0.625rem; flex-shrink: 0;
+    background: var(--bg-card); border: 2px dashed var(--border-subtle);
     display: flex; align-items: center; justify-content: center; cursor: pointer;
     overflow: hidden; transition: border-color 0.2s;
   }
@@ -731,17 +707,17 @@
   .full-width { display: block; margin-bottom: 12px; }
   label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); }
   input, select, textarea {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-card); border-radius: 0.625rem;
     color: #fff; font-size: 0.85rem; font-family: inherit;
   }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent, #6C63FF); }
   select option { background: #1e1e2e; color: #fff; }
   textarea { resize: vertical; }
 
-  .domain-add-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .domain-add-row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border-subtle); }
   .domain-input { flex: 1; min-width: 120px; }
-  .color-picker { width: 36px; height: 36px; border: none; cursor: pointer; border-radius: 6px; padding: 0; background: none; }
+  .color-picker { width: 36px; height: 36px; border: none; cursor: pointer; border-radius: 0.375rem; padding: 0; background: none; }
   .sort-input { width: 60px; text-align: center; }
   .domain-list { display: flex; flex-direction: column; gap: 6px; }
   .domain-edit-row { display: flex; gap: 8px; align-items: center; }
@@ -749,25 +725,20 @@
 
   .btn-primary {
     background: var(--accent, #6C63FF); color: #fff; border: none;
-    border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
+    border-radius: 0.625rem; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
     font-weight: 600; transition: opacity 0.2s;
   }
   .btn-primary:hover { opacity: 0.9; }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-primary.small { padding: 6px 14px; font-size: 0.8rem; }
-  .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
-  }
   .btn-danger {
     background: #EF4444; color: #fff; border: none;
-    border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    border-radius: 0.625rem; padding: 8px 20px; cursor: pointer; font-size: 0.85rem; font-weight: 600;
   }
   .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-ghost {
-    background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+    background: var(--bg-card); color: rgba(255,255,255,0.7);
+    border: 1px solid var(--border-subtle); border-radius: 0.625rem;
     padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
   }
   .btn-ghost:hover { background: rgba(255,255,255,0.1); }

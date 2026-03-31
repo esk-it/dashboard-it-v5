@@ -457,46 +457,46 @@
     <h1>Parc Informatique</h1>
     <div class="header-actions">
       {#if glpiConfig}
-        <button class="btn-sync" on:click={triggerGlpiSync} disabled={glpiSyncing} title="Synchroniser avec GLPI">
+        <button class="ya-btn btn-sync" on:click={triggerGlpiSync} disabled={glpiSyncing} title="Synchroniser avec GLPI">
           {glpiSyncing ? '⏳ Sync…' : '🔄 Sync GLPI'}
         </button>
         {#if glpiStats?.last_sync}
           <span class="sync-info">Dernière sync : {new Date(glpiStats.last_sync).toLocaleString('fr-FR')}</span>
         {/if}
       {/if}
-      <button class="btn-export" on:click={exportInventoryPdf} title="Exporter l'inventaire en PDF">
+      <button class="ya-btn ya-btn--ghost" on:click={exportInventoryPdf} title="Exporter l'inventaire en PDF">
         {'\u{1F4C4}'} PDF
       </button>
-      <button class="btn-export" on:click={openQrLabels} title="{'\u00C9'}tiquettes QR">
+      <button class="ya-btn ya-btn--ghost" on:click={openQrLabels} title="{'\u00C9'}tiquettes QR">
         {'\u{1F3F7}\uFE0F'} QR Labels
       </button>
-      <button class="btn-primary" on:click={openNew}>+ Ajouter</button>
+      <button class="ya-btn ya-btn--primary" on:click={openNew}>+ Ajouter</button>
     </div>
   </div>
 
-  <div class="stats-row">
-    <div class="stat-card accent">
-      <span class="stat-value">{stats.total}</span>
-      <span class="stat-label">Total</span>
+  <div class="ya-kpi-row">
+    <div class="ya-kpi ya-kpi--primary">
+      <span class="ya-kpi__value">{stats.total}</span>
+      <span class="ya-kpi__label">Total</span>
     </div>
     {#each Object.entries(stats.by_type) as [type, count]}
-      <div class="stat-card">
-        <span class="stat-value">{count}</span>
-        <span class="stat-label">{type}</span>
+      <div class="ya-kpi">
+        <span class="ya-kpi__value">{count}</span>
+        <span class="ya-kpi__label">{type}</span>
       </div>
     {/each}
   </div>
 </div>
 
 <!-- ── Tabs ────────────────────────────────────────────────── -->
-<div class="tabs">
-  <button class="tab" class:active={activeTab === 'inventory'} on:click={() => switchTab('inventory')}>
+<div class="ya-tabs">
+  <button class="ya-tab" class:ya-tab--active={activeTab === 'inventory'} on:click={() => switchTab('inventory')}>
     Inventaire
   </button>
-  <button class="tab" class:active={activeTab === 'audit'} on:click={() => switchTab('audit')}>
+  <button class="ya-tab" class:ya-tab--active={activeTab === 'audit'} on:click={() => switchTab('audit')}>
     Audit
     {#if auditLoaded && auditData}
-      <span class="badge">{auditData.issues.length}</span>
+      <span class="ya-badge ya-badge--danger">{auditData.issues.length}</span>
     {/if}
   </button>
 </div>
@@ -567,9 +567,11 @@
   <!-- Main Content -->
   <div class="main-content">
     <!-- Filters -->
-    <div class="filters-bar">
-      <input type="text" placeholder="Rechercher hostname, SN, marque…"
-             class="search-input" bind:value={searchQuery} />
+    <div class="ya-toolbar">
+      <div class="ya-toolbar__search">
+        <input type="text" placeholder="Rechercher hostname, SN, marque…"
+               bind:value={searchQuery} />
+      </div>
       <select class="filter-select" bind:value={filterType}>
         <option value="">— Type —</option>
         {#each typeList as t}<option value={t}>{t}</option>{/each}
@@ -585,51 +587,55 @@
     {#if loading}
       <div class="loading">Chargement…</div>
     {:else}
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>Hostname</th>
-              <th>Type</th>
-              <th>OS</th>
-              <th>N° Série</th>
-              <th>Marque / Modèle</th>
-              <th>Localisation</th>
-              <th>Source</th>
-              <th>Dernier utilisateur</th>
-              <th class="actions-col">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each filteredEquipment as eq}
-              <tr>
-                <td class="hostname">{eq.hostname}</td>
-                <td><span class="type-badge">{eq.equip_type}</span></td>
-                <td class="os-cell">{eq.os}</td>
-                <td>{eq.serial_number || '—'}</td>
-                <td>{[eq.brand, eq.model].filter(Boolean).join(' ') || '—'}</td>
-                <td class="loc-cell">
-                  {#if eq.site_name}
-                    <span class="loc-part">{eq.site_name}</span>
-                    {#if eq.building_name}<span class="loc-sep">›</span><span class="loc-part">{eq.building_name}</span>{/if}
-                    {#if eq.room_name}<span class="loc-sep">›</span><span class="loc-part">{eq.room_name}</span>{/if}
-                  {:else}
-                    <span class="muted">—</span>
-                  {/if}
-                </td>
-                <td><span class="source-tag">{eq.source}</span></td>
-                <td>{eq.last_user || '—'}</td>
-                <td class="actions-col">
-                  <button class="btn-icon" title="Modifier" on:click={() => openEdit(eq)}>✏️</button>
-                  <button class="btn-icon danger" title="Supprimer" on:click={() => confirmDelete = eq}>🗑️</button>
-                </td>
-              </tr>
-            {/each}
-            {#if filteredEquipment.length === 0}
-              <tr><td colspan="9" class="empty-row">Aucun équipement trouvé</td></tr>
-            {/if}
-          </tbody>
-        </table>
+      <div class="ya-page-card">
+        <div class="ya-page-card__body" style="padding:0">
+          <div class="ya-table-wrap">
+            <table class="ya-table">
+              <thead>
+                <tr>
+                  <th>Hostname</th>
+                  <th>Type</th>
+                  <th>OS</th>
+                  <th>N° Série</th>
+                  <th>Marque / Modèle</th>
+                  <th>Localisation</th>
+                  <th>Source</th>
+                  <th>Dernier utilisateur</th>
+                  <th class="actions-col">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each filteredEquipment as eq}
+                  <tr>
+                    <td class="hostname">{eq.hostname}</td>
+                    <td><span class="ya-badge ya-badge--primary">{eq.equip_type}</span></td>
+                    <td class="os-cell">{eq.os}</td>
+                    <td>{eq.serial_number || '—'}</td>
+                    <td>{[eq.brand, eq.model].filter(Boolean).join(' ') || '—'}</td>
+                    <td class="loc-cell">
+                      {#if eq.site_name}
+                        <span class="loc-part">{eq.site_name}</span>
+                        {#if eq.building_name}<span class="loc-sep">›</span><span class="loc-part">{eq.building_name}</span>{/if}
+                        {#if eq.room_name}<span class="loc-sep">›</span><span class="loc-part">{eq.room_name}</span>{/if}
+                      {:else}
+                        <span class="muted">—</span>
+                      {/if}
+                    </td>
+                    <td><span class="ya-badge ya-badge--secondary">{eq.source}</span></td>
+                    <td>{eq.last_user || '—'}</td>
+                    <td class="actions-col">
+                      <button class="btn-icon" title="Modifier" on:click={() => openEdit(eq)}>✏️</button>
+                      <button class="btn-icon danger" title="Supprimer" on:click={() => confirmDelete = eq}>🗑️</button>
+                    </td>
+                  </tr>
+                {/each}
+                {#if filteredEquipment.length === 0}
+                  <tr><td colspan="9" class="empty-row">Aucun équipement trouvé</td></tr>
+                {/if}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     {/if}
   </div>
@@ -642,32 +648,32 @@
     <div class="loading">Chargement audit…</div>
   {:else if auditData}
     <!-- Summary bar -->
-    <div class="audit-summary">
-      <div class="audit-stat-card compliance">
+    <div class="ya-kpi-row audit-summary">
+      <div class="ya-kpi ya-kpi--success compliance">
         <div class="audit-pct">{auditData.summary.compliance_percent}%</div>
-        <div class="audit-pct-bar"><div class="audit-pct-fill" style="width:{auditData.summary.compliance_percent}%"></div></div>
-        <span class="audit-stat-label">Conformit{'\u00e9'}</span>
+        <div class="ya-progress-bar"><div class="ya-progress-bar__fill" style="width:{auditData.summary.compliance_percent}%"></div></div>
+        <span class="ya-kpi__label">Conformit{'\u00e9'}</span>
       </div>
-      <div class="audit-stat-card">
-        <span class="audit-stat-value">{auditData.summary.total_checked}</span>
-        <span class="audit-stat-label">V{'\u00e9'}rifi{'\u00e9'}s</span>
+      <div class="ya-kpi ya-kpi--info">
+        <span class="ya-kpi__value">{auditData.summary.total_checked}</span>
+        <span class="ya-kpi__label">V{'\u00e9'}rifi{'\u00e9'}s</span>
       </div>
-      <div class="audit-stat-card ok-card">
-        <span class="audit-stat-value">{auditData.summary.compliant}</span>
-        <span class="audit-stat-label">Conformes</span>
+      <div class="ya-kpi ya-kpi--success">
+        <span class="ya-kpi__value">{auditData.summary.compliant}</span>
+        <span class="ya-kpi__label">Conformes</span>
       </div>
-      <div class="audit-stat-card warn-card" class:has-issues={auditData.summary.warnings > 0}>
-        <span class="audit-stat-value">{auditData.summary.warnings}</span>
-        <span class="audit-stat-label">Avertissements</span>
+      <div class="ya-kpi ya-kpi--warning" class:has-issues={auditData.summary.warnings > 0}>
+        <span class="ya-kpi__value">{auditData.summary.warnings}</span>
+        <span class="ya-kpi__label">Avertissements</span>
       </div>
-      <div class="audit-stat-card crit-card" class:has-issues={auditData.summary.critical > 0}>
-        <span class="audit-stat-value">{auditData.summary.critical}</span>
-        <span class="audit-stat-label">Critiques</span>
+      <div class="ya-kpi ya-kpi--danger" class:has-issues={auditData.summary.critical > 0}>
+        <span class="ya-kpi__value">{auditData.summary.critical}</span>
+        <span class="ya-kpi__label">Critiques</span>
       </div>
-      <button class="btn-rules" on:click={() => showRulesPanel = !showRulesPanel}>
+      <button class="ya-btn ya-btn--ghost" on:click={() => showRulesPanel = !showRulesPanel}>
         {'\u2699\uFE0F'} R{'\u00e8'}gles
       </button>
-      <button class="btn-rules" on:click={exportAuditPdf}>
+      <button class="ya-btn ya-btn--ghost" on:click={exportAuditPdf}>
         {'\u{1F4C4}'} Export PDF
       </button>
     </div>
@@ -798,13 +804,13 @@
 
 <!-- ── Equipment Dialog ───────────────────────────────────── -->
 {#if showDialog}
-<div class="dialog-overlay" on:click|self={() => showDialog = false}>
-  <div class="dialog">
-    <div class="dialog-header">
-      <h2>{editingEquipment ? 'Modifier' : 'Ajouter'} un équipement</h2>
-      <button class="btn-close" on:click={() => showDialog = false}>×</button>
+<div class="ya-dialog-overlay" on:click|self={() => showDialog = false}>
+  <div class="ya-dialog">
+    <div class="ya-dialog__header">
+      <h3 class="ya-dialog__title">{editingEquipment ? 'Modifier' : 'Ajouter'} un équipement</h3>
+      <button class="ya-dialog__close" on:click={() => showDialog = false}>×</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <div class="form-row">
         <label>Hostname<input type="text" bind:value={form.hostname} /></label>
         <label>Type
@@ -865,9 +871,9 @@
       </div>
       <label class="full-width">Notes<textarea bind:value={form.notes} rows="3"></textarea></label>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => showDialog = false}>Annuler</button>
-      <button class="btn-primary" on:click={saveEquipment} disabled={saving || !form.hostname}>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => showDialog = false}>Annuler</button>
+      <button class="ya-btn ya-btn--primary" on:click={saveEquipment} disabled={saving || !form.hostname}>
         {saving ? 'Enregistrement…' : 'Enregistrer'}
       </button>
     </div>
@@ -877,18 +883,18 @@
 
 <!-- ── Delete Confirm ─────────────────────────────────────── -->
 {#if confirmDelete}
-<div class="dialog-overlay" on:click|self={() => confirmDelete = null}>
-  <div class="dialog small">
-    <div class="dialog-header">
-      <h2>Supprimer</h2>
-      <button class="btn-close" on:click={() => confirmDelete = null}>×</button>
+<div class="ya-dialog-overlay" on:click|self={() => confirmDelete = null}>
+  <div class="ya-dialog small">
+    <div class="ya-dialog__header">
+      <h3 class="ya-dialog__title">Supprimer</h3>
+      <button class="ya-dialog__close" on:click={() => confirmDelete = null}>×</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <p>Supprimer <strong>{confirmDelete.hostname}</strong> ?</p>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => confirmDelete = null}>Annuler</button>
-      <button class="btn-danger" on:click={deleteEquipment} disabled={deleting}>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => confirmDelete = null}>Annuler</button>
+      <button class="ya-btn" style="background:var(--danger);color:#fff" on:click={deleteEquipment} disabled={deleting}>
         {deleting ? 'Suppression…' : 'Supprimer'}
       </button>
     </div>
@@ -898,13 +904,13 @@
 
 <!-- ── QR Labels Dialog ───────────────────────────────────── -->
 {#if showQrDialog}
-<div class="dialog-overlay" on:click|self={() => showQrDialog = false}>
-  <div class="dialog">
-    <div class="dialog-header">
-      <h2>{'\u{1F3F7}\uFE0F'} {'\u00C9'}tiquettes QR</h2>
-      <button class="btn-close" on:click={() => showQrDialog = false}>{'\u00D7'}</button>
+<div class="ya-dialog-overlay" on:click|self={() => showQrDialog = false}>
+  <div class="ya-dialog">
+    <div class="ya-dialog__header">
+      <h3 class="ya-dialog__title">{'\u{1F3F7}\uFE0F'} {'\u00C9'}tiquettes QR</h3>
+      <button class="ya-dialog__close" on:click={() => showQrDialog = false}>{'\u00D7'}</button>
     </div>
-    <div class="dialog-body">
+    <div class="ya-dialog__body">
       <p style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-bottom:12px">
         G{'\u00e9'}n{'\u00e9'}rer des {'\u00e9'}tiquettes QR code pour coller sur les {'\u00e9'}quipements.
         Chaque {'\u00e9'}tiquette contient le hostname, type, n{'\u00b0'} de s{'\u00e9'}rie et site.
@@ -913,9 +919,9 @@
         <strong>{qrEquipments.length}</strong> {'\u00e9'}quipements s{'\u00e9'}lectionn{'\u00e9'}s (filtre actuel, max 50)
       </p>
     </div>
-    <div class="dialog-footer">
-      <button class="btn-secondary" on:click={() => showQrDialog = false}>Annuler</button>
-      <button class="btn-primary" on:click={generateQrLabels} disabled={qrGenerating}>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => showQrDialog = false}>Annuler</button>
+      <button class="ya-btn ya-btn--primary" on:click={generateQrLabels} disabled={qrGenerating}>
         {qrGenerating ? 'G\u00e9n\u00e9ration...' : `G\u00e9n\u00e9rer ${qrEquipments.length} \u00e9tiquettes`}
       </button>
     </div>
@@ -932,40 +938,7 @@
   }
   .title-row h1 { font-size: 1.5rem; font-weight: 700; color: #fff; margin: 0; }
 
-  .stats-row {
-    display: flex; gap: 12px; flex-wrap: wrap;
-  }
-  .stat-card {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; padding: 14px 20px;
-    text-align: center; min-width: 100px;
-    backdrop-filter: blur(12px);
-  }
-  .stat-card.accent { border-color: var(--accent, #6C63FF); }
-  .stat-value { display: block; font-size: 1.5rem; font-weight: 700; color: #fff; }
-  .stat-label { font-size: 0.75rem; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.05em; }
-
-  /* ── Tabs ────────────────────────────────────────────────── */
-  .tabs {
-    display: flex; gap: 4px; margin-bottom: 16px;
-    border-bottom: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    padding-bottom: 0;
-  }
-  .tab {
-    background: none; border: none; color: rgba(255,255,255,0.5);
-    padding: 10px 20px; cursor: pointer; font-size: 0.9rem;
-    border-bottom: 2px solid transparent; transition: all 0.2s;
-  }
-  .tab:hover { color: rgba(255,255,255,0.8); }
-  .tab.active {
-    color: #fff; border-bottom-color: var(--accent, #6C63FF);
-  }
-  .badge {
-    background: var(--accent, #6C63FF); color: #fff;
-    border-radius: 10px; padding: 1px 7px; font-size: 0.7rem;
-    margin-left: 6px; vertical-align: middle;
-  }
+  /* old .stats-row / .stat-card / .tabs / .badge removed — now global ya-kpi-row + ya-tabs */
 
   /* ── Inventory layout ───────────────────────────────────── */
   .inventory-layout { display: flex; gap: 16px; min-height: 500px; }
@@ -973,16 +946,16 @@
   /* ── Tree Sidebar ───────────────────────────────────────── */
   .tree-sidebar {
     width: 260px; min-width: 260px;
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 14px; padding: 14px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; padding: 14px;
     backdrop-filter: blur(16px); overflow-y: auto; max-height: 70vh;
     box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   }
   .tree-header {
     display: flex; align-items: center; gap: 6px;
     margin-bottom: 12px; padding-bottom: 10px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    border-bottom: 1px solid var(--border-subtle);
     font-size: 0.9rem; color: rgba(255,255,255,0.7);
   }
   .tree-header-icon { font-size: 1rem; }
@@ -996,8 +969,8 @@
   .tree-item {
     display: flex; align-items: center; gap: 6px; width: 100%;
     background: none; border: none; color: rgba(255,255,255,0.75);
-    padding: 6px 8px; border-radius: 8px; cursor: pointer;
-    font-size: 0.82rem; text-align: left; transition: all 0.15s;
+    padding: 6px 8px; border-radius: 0.625rem; cursor: pointer;
+    font-size: 0.8125rem; text-align: left; transition: all 0.15s;
     border: 1px solid transparent; font-family: inherit;
   }
   .tree-item:hover {
@@ -1018,15 +991,15 @@
   .tree-ico { font-size: 0.85rem; flex-shrink: 0; line-height: 1; }
   .tree-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
   .tree-count {
-    font-size: 0.68rem; color: rgba(var(--accent-rgb, 108,99,255), 0.8);
+    font-size: 0.6875rem; color: rgba(var(--accent-rgb, 108,99,255), 0.8);
     background: rgba(var(--accent-rgb, 108,99,255), 0.1);
-    border-radius: 10px; padding: 2px 7px; font-weight: 600;
+    border-radius: 0.625rem; padding: 2px 7px; font-weight: 600;
     min-width: 22px; text-align: center;
   }
   .site-level { font-weight: 600; }
   .tree-children {
     margin-left: 12px; padding-left: 10px;
-    border-left: 1px solid rgba(255,255,255,0.06);
+    border-left: 1px solid var(--border-subtle);
   }
   .building-level .tree-label { font-weight: 500; }
   .room-level { padding-left: 24px; }
@@ -1040,34 +1013,34 @@
   }
   .search-input {
     flex: 1; min-width: 200px; padding: 8px 14px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: 0.625rem; color: #fff; font-size: 0.875rem;
   }
   .search-input::placeholder { color: rgba(255,255,255,0.3); }
   .filter-select {
     padding: 8px 12px;
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 8px; color: #fff; font-size: 0.85rem;
+    background: var(--bg-card); border: 1px solid var(--border-subtle);
+    border-radius: 0.625rem; color: #fff; font-size: 0.875rem;
   }
-  .filter-select option { background: #1e1e2e; color: #fff; }
-  .result-count { font-size: 0.8rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
+  .filter-select option { background: var(--bg-card); color: #fff; }
+  .result-count { font-size: 0.75rem; color: rgba(255,255,255,0.4); white-space: nowrap; }
 
   /* ── Table ──────────────────────────────────────────────── */
   .table-wrapper {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; overflow: auto; max-height: 60vh;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; overflow: auto; max-height: 60vh;
     backdrop-filter: blur(12px);
   }
-  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   thead { position: sticky; top: 0; z-index: 2; }
   th {
     background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.6);
     padding: 10px 12px; text-align: left; font-weight: 600; white-space: nowrap;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border-subtle);
   }
   td {
-    padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+    padding: 8px 12px; border-bottom: 1px solid var(--border-subtle);
     color: rgba(255,255,255,0.85); white-space: nowrap;
   }
   tr:hover td { background: rgba(255,255,255,0.03); }
@@ -1075,10 +1048,10 @@
   .os-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
   .type-badge {
     background: rgba(108,99,255,0.2); color: var(--accent, #6C63FF);
-    border-radius: 6px; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
+    border-radius: 0.625rem; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
   }
   .source-tag {
-    background: rgba(255,255,255,0.06); border-radius: 6px;
+    background: var(--bg-card); border-radius: 0.625rem;
     padding: 2px 8px; font-size: 0.75rem;
   }
   .loc-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
@@ -1091,7 +1064,7 @@
 
   .btn-icon {
     background: none; border: none; cursor: pointer; font-size: 0.9rem;
-    padding: 4px; border-radius: 6px; transition: background 0.15s;
+    padding: 4px; border-radius: 0.625rem; transition: background 0.15s;
   }
   .btn-icon:hover { background: rgba(255,255,255,0.08); }
 
@@ -1099,54 +1072,27 @@
   .audit-summary {
     display: flex; gap: 10px; align-items: stretch; flex-wrap: wrap; margin-bottom: 16px;
   }
-  .audit-stat-card {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; padding: 12px 18px; text-align: center;
-    min-width: 100px; backdrop-filter: blur(12px);
-    display: flex; flex-direction: column; justify-content: center; gap: 4px;
-  }
-  .audit-stat-card.compliance { min-width: 140px; }
-  .audit-stat-card.ok-card { border-color: rgba(34,197,94,0.3); }
-  .audit-stat-card.warn-card.has-issues { border-color: #F59E0B; background: rgba(245,158,11,0.06); }
-  .audit-stat-card.crit-card.has-issues { border-color: #EF4444; background: rgba(239,68,68,0.06); }
-  .audit-stat-value { font-size: 1.4rem; font-weight: 700; color: #fff; }
-  .audit-stat-label { font-size: 0.7rem; color: rgba(255,255,255,0.45); text-transform: uppercase; letter-spacing: 0.05em; }
+  /* old .audit-stat-card removed — now global ya-kpi */
   .audit-pct { font-size: 1.6rem; font-weight: 800; color: #22C55E; }
-  .audit-pct-bar {
-    height: 5px; background: rgba(255,255,255,0.08); border-radius: 4px;
-    overflow: hidden; margin: 4px 0;
-  }
-  .audit-pct-fill {
-    height: 100%; background: linear-gradient(90deg, #22C55E, #4ADE80);
-    border-radius: 4px; transition: width 0.5s ease;
-  }
-  .btn-rules {
-    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 10px; padding: 10px 16px; cursor: pointer;
-    color: rgba(255,255,255,0.7); font-size: 0.85rem; font-family: inherit;
-    transition: all 0.15s; display: flex; align-items: center; gap: 6px;
-  }
-  .btn-rules:hover { background: rgba(255,255,255,0.1); color: #fff; }
 
   /* Rules panel */
   .rules-panel {
-    background: var(--bg-card, rgba(255,255,255,0.06));
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
-    border-radius: 12px; padding: 20px; margin-bottom: 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem; padding: 20px; margin-bottom: 16px;
     backdrop-filter: blur(12px);
   }
   .rules-panel h3 { margin: 0 0 6px; font-size: 1rem; color: #fff; }
-  .rules-help { font-size: 0.8rem; color: rgba(255,255,255,0.45); margin: 0 0 14px; }
+  .rules-help { font-size: 0.75rem; color: rgba(255,255,255,0.45); margin: 0 0 14px; }
   .rules-table-wrap { overflow-x: auto; }
-  .rules-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  .rules-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   .rules-table th {
     padding: 8px 10px; text-align: center; color: rgba(255,255,255,0.5);
     font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--border-subtle);
   }
   .rules-table th:first-child { text-align: left; }
-  .rules-table td { padding: 6px 10px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .rules-table td { padding: 6px 10px; text-align: center; border-bottom: 1px solid var(--border-subtle); }
   .rules-table td:first-child { text-align: left; }
   .rule-type { font-weight: 600; color: #fff; }
   .rules-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent, #6C63FF); cursor: pointer; }
@@ -1154,7 +1100,7 @@
 
   /* Severity badges */
   .severity-badge {
-    border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; font-weight: 600;
+    border-radius: 0.625rem; padding: 3px 8px; font-size: 0.75rem; font-weight: 600;
   }
   .severity-badge.critical { background: rgba(239,68,68,0.15); color: #EF4444; }
   .severity-badge.warning { background: rgba(245,158,11,0.15); color: #F59E0B; }
@@ -1163,7 +1109,7 @@
   .missing-tags { display: flex; gap: 4px; flex-wrap: wrap; }
   .missing-tag {
     background: rgba(239,68,68,0.1); color: #F87171;
-    border-radius: 5px; padding: 2px 7px; font-size: 0.7rem; font-weight: 500;
+    border-radius: 0.625rem; padding: 2px 7px; font-size: 0.6875rem; font-weight: 500;
     white-space: nowrap;
   }
 
@@ -1176,68 +1122,24 @@
   .audit-all-ok h3 { color: #22C55E; margin: 0 0 8px; font-size: 1.2rem; }
   .audit-all-ok p { margin: 0; font-size: 0.9rem; }
 
-  /* ── Dialog ─────────────────────────────────────────────── */
-  .dialog-overlay {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-    display: flex; align-items: center; justify-content: center; z-index: 100;
-    backdrop-filter: blur(4px);
-  }
-  .dialog {
-    background: var(--bg-dialog, #1e1e2e);
-    border: 1px solid var(--border-subtle, rgba(255,255,255,0.12));
-    border-radius: 16px; width: 640px; max-width: 95vw;
-    max-height: 90vh; overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-  }
-  .dialog.small { width: 400px; }
-  .dialog-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 18px 24px; border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  .dialog-header h2 { margin: 0; font-size: 1.1rem; color: #fff; }
-  .btn-close {
-    background: none; border: none; color: rgba(255,255,255,0.5);
-    font-size: 1.4rem; cursor: pointer; padding: 0 4px;
-  }
-  .dialog-body { padding: 20px 24px; }
-  .dialog-footer {
-    display: flex; justify-content: flex-end; gap: 10px;
-    padding: 14px 24px; border-top: 1px solid rgba(255,255,255,0.08);
-  }
+  /* old .dialog-overlay / .dialog / .dialog-header / .dialog-body / .dialog-footer / .btn-close removed — now global ya-dialog */
 
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
   .form-row.triple { grid-template-columns: 1fr 1fr 1fr; }
   .full-width { display: block; margin-bottom: 12px; }
-  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; color: rgba(255,255,255,0.6); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8125rem; color: rgba(255,255,255,0.6); }
   input, select, textarea {
-    padding: 8px 12px; background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    color: #fff; font-size: 0.85rem; font-family: inherit;
+    padding: 8px 12px; background: var(--bg-card);
+    border: 1px solid var(--border-subtle); border-radius: 0.625rem;
+    color: #fff; font-size: 0.875rem; font-family: inherit;
   }
   input:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--accent, #6C63FF);
   }
-  select option { background: #1e1e2e; color: #fff; }
+  select option { background: var(--bg-card); color: #fff; }
   textarea { resize: vertical; }
 
-  .btn-primary {
-    background: var(--accent, #6C63FF); color: #fff; border: none;
-    border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
-    font-weight: 600; transition: opacity 0.2s;
-  }
-  .btn-primary:hover { opacity: 0.9; }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-secondary {
-    background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8);
-    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;
-    padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
-  }
-  .btn-danger {
-    background: #EF4444; color: #fff; border: none;
-    border-radius: 8px; padding: 8px 20px; cursor: pointer; font-size: 0.85rem;
-    font-weight: 600;
-  }
-  .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+  /* old .btn-primary / .btn-secondary / .btn-danger removed — now global ya-btn */
 
   /* ── Header actions ──────────────────────────────────────── */
   .header-actions {
@@ -1245,21 +1147,21 @@
   }
   .btn-sync {
     background: rgba(34,197,94,0.15); color: #22C55E;
-    border: 1px solid rgba(34,197,94,0.3); border-radius: 8px;
-    padding: 8px 14px; cursor: pointer; font-size: 0.82rem;
+    border: 1px solid rgba(34,197,94,0.3); border-radius: 0.625rem;
+    padding: 8px 14px; cursor: pointer; font-size: 0.8125rem;
     font-weight: 600; transition: all 0.2s;
   }
   .btn-sync:hover { background: rgba(34,197,94,0.25); }
   .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
   .btn-export {
     background: rgba(108,99,255,0.1); color: var(--accent, #6C63FF);
-    border: 1px solid rgba(108,99,255,0.25); border-radius: 8px;
-    padding: 7px 12px; cursor: pointer; font-size: 0.8rem;
+    border: 1px solid rgba(108,99,255,0.25); border-radius: 0.625rem;
+    padding: 7px 12px; cursor: pointer; font-size: 0.75rem;
     font-weight: 600; transition: all 0.2s; font-family: inherit;
   }
   .btn-export:hover { background: rgba(108,99,255,0.2); }
   .sync-info {
-    font-size: 0.72rem; color: rgba(255,255,255,0.4);
+    font-size: 0.75rem; color: rgba(255,255,255,0.4);
     white-space: nowrap;
   }
 </style>

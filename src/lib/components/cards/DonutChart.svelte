@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { api } from '../../api/client.js';
-  import GlassCard from '../GlassCard.svelte';
   import { Doughnut } from 'svelte-chartjs';
   import {
     Chart as ChartJS,
@@ -15,7 +14,8 @@
   let categories = [];
   let loading = true;
 
-  const colors = ['#4B8BFF', '#22C55E', '#F59E0B', '#EC4899', '#8B5CF6', '#14B8A6', '#F97316'];
+  // YashAdmin-inspired colors
+  const colors = ['#452B90', '#F8B940', '#3A9B94', '#FF5E5E', '#58bad7', '#EC4899', '#FF9F00'];
 
   export function refresh() {
     fetchData();
@@ -44,9 +44,10 @@
       {
         data: categories.map(c => c.count || c.value || 0),
         backgroundColor: colors.slice(0, categories.length),
-        borderColor: 'rgba(14, 20, 36, 0.8)',
-        borderWidth: 2,
-        hoverBorderColor: 'rgba(255, 255, 255, 0.2)',
+        borderColor: '#182237',
+        borderWidth: 3,
+        hoverBorderColor: 'rgba(255, 255, 255, 0.3)',
+        hoverOffset: 6,
       },
     ],
   };
@@ -54,98 +55,139 @@
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '65%',
+    cutout: '70%',
     plugins: {
-      legend: {
-        position: 'bottom',
-        labels: {
-          color: 'rgba(148, 163, 184, 0.85)',
-          font: { size: 11 },
-          padding: 12,
-          usePointStyle: true,
-          pointStyleWidth: 8,
-        },
-      },
+      legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(14, 20, 36, 0.95)',
-        borderColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: '#182237',
+        borderColor: 'rgba(255,255,255,0.1)',
         borderWidth: 1,
-        titleColor: 'rgba(226, 232, 240, 0.92)',
-        bodyColor: 'rgba(148, 163, 184, 0.85)',
-        padding: 10,
+        titleColor: '#fff',
+        bodyColor: '#828690',
+        padding: 12,
         cornerRadius: 8,
       },
     },
   };
 </script>
 
-<GlassCard padding="0">
-  <div class="card-inner">
-    <div class="card-header">
-      <h3>{'\u{1F4CA}'} R&eacute;partition par cat&eacute;gorie</h3>
-    </div>
-
-    <div class="chart-wrap">
-      {#if !loading && categories.length > 0}
-        <div class="chart-container">
-          <Doughnut data={chartData} options={chartOptions} />
-          <div class="center-label">
-            <span class="center-value">{total}</span>
-          </div>
+<div class="donut-widget">
+  <div class="donut-chart-area">
+    {#if !loading && categories.length > 0}
+      <div class="donut-container">
+        <Doughnut data={chartData} options={chartOptions} />
+        <div class="donut-center">
+          <span class="donut-center__value">{total}</span>
+          <span class="donut-center__label">Total</span>
         </div>
-      {:else if loading}
-        <div class="empty">Chargement...</div>
-      {:else}
-        <div class="empty">Aucune donn&eacute;e</div>
-      {/if}
-    </div>
+      </div>
+    {:else if loading}
+      <div class="donut-empty">Chargement...</div>
+    {:else}
+      <div class="donut-empty">Aucune donnee</div>
+    {/if}
   </div>
-</GlassCard>
+
+  {#if !loading && categories.length > 0}
+    <div class="donut-legend">
+      {#each categories as cat, i}
+        <div class="donut-legend__item">
+          <span class="donut-legend__dot" style="background:{colors[i % colors.length]}"></span>
+          <span class="donut-legend__name">{cat.name || cat.label}</span>
+          <span class="donut-legend__count">{cat.count || cat.value || 0}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
+</div>
 
 <style>
-  .card-inner {
+  .donut-widget {
     display: flex;
     flex-direction: column;
+    height: 100%;
   }
 
-  .card-header {
-    padding: 16px 20px 0;
+  .donut-chart-area {
+    padding: 0.5rem 1rem;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
-  .card-header h3 {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin: 0;
-  }
-
-  .chart-wrap {
-    padding: 12px 16px 16px;
-  }
-
-  .chart-container {
+  .donut-container {
     position: relative;
-    height: 220px;
+    width: 180px;
+    height: 180px;
   }
 
-  .center-label {
+  .donut-center {
     position: absolute;
-    top: 42%;
+    top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    pointer-events: none;
   }
 
-  .center-value {
-    font-size: 26px;
+  .donut-center__value {
+    font-size: 1.75rem;
     font-weight: 700;
-    color: var(--text-primary);
+    color: var(--text-heading);
+    line-height: 1;
   }
 
-  .empty {
-    padding: 40px;
+  .donut-center__label {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 0.125rem;
+  }
+
+  .donut-empty {
+    padding: 2.5rem;
     text-align: center;
     color: var(--text-muted);
-    font-size: 13px;
+    font-size: 0.8125rem;
+  }
+
+  /* ── Legend ── */
+  .donut-legend {
+    padding: 0.75rem 1.25rem;
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .donut-legend__item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+  }
+
+  .donut-legend__dot {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .donut-legend__name {
+    flex: 1;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .donut-legend__count {
+    font-weight: 600;
+    color: var(--text-heading);
   }
 </style>
