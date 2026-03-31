@@ -92,7 +92,7 @@
   --bg-base: #F3F0EC;
   --bg-card: #ffffff;
   --bg-card-solid: #ffffff;
-  --bg-sidebar: #ffffff;
+  --bg-sidebar: #1C2340;
   --bg-hover: rgba(0, 0, 0, 0.04);
   --bg-input: #f5f5f5;
   --bg-input-solid: #ffffff;
@@ -154,18 +154,19 @@
   color: var(--text-heading) !important;
 }
 
-[data-theme="glass-light"] *:not(.tab.active):not([class*="btn-"]):not(button) {
+/* Light text — only for content-body area, NOT sidebar */
+[data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *) {
   color: var(--text-primary);
 }
 
-[data-theme="glass-light"] p,
-[data-theme="glass-light"] span:not(.tab.active span),
-[data-theme="glass-light"] label,
-[data-theme="glass-light"] li,
-[data-theme="glass-light"] td,
-[data-theme="glass-light"] th,
-[data-theme="glass-light"] div:not(.tab.active),
-[data-theme="glass-light"] a:not(.tab.active) {
+[data-theme="glass-light"] .content-body p,
+[data-theme="glass-light"] .content-body span:not(.tab.active span),
+[data-theme="glass-light"] .content-body label,
+[data-theme="glass-light"] .content-body li,
+[data-theme="glass-light"] .content-body td,
+[data-theme="glass-light"] .content-body th,
+[data-theme="glass-light"] .content-body div:not(.tab.active),
+[data-theme="glass-light"] .content-body a:not(.tab.active) {
   color: var(--text-primary);
 }
 
@@ -196,36 +197,89 @@
   color-scheme: light;
 }
 
-/* Light — Cards & surfaces */
-[data-theme="glass-light"] .glass-card,
-[data-theme="glass-light"] [class*="card"] {
+/* Light — Cards & surfaces (content area only, not sidebar) */
+[data-theme="glass-light"] .content-body .glass-card,
+[data-theme="glass-light"] .content-body [class*="w-card"],
+[data-theme="glass-light"] .content-body [class*="ya-page-card"],
+[data-theme="glass-light"] .content-body [class*="ya-kpi"] {
   background: var(--bg-card) !important;
   border-color: var(--border-subtle) !important;
 }
 
-/* Light — Sidebar & nav-header */
+/* Light — Sidebar stays DARK (YashAdmin pattern) */
 [data-theme="glass-light"] .deznav,
 [data-theme="glass-light"] .nav-header {
-  background: var(--bg-sidebar) !important;
-  border-color: var(--border-subtle) !important;
+  background: #1C2340 !important;
+  border-color: rgba(255,255,255,0.1) !important;
 }
 
 [data-theme="glass-light"] .deznav .nav-text,
-[data-theme="glass-light"] .deznav .menu-icon {
-  color: var(--text-primary) !important;
+[data-theme="glass-light"] .deznav .menu-icon,
+[data-theme="glass-light"] .deznav a {
+  color: #828690 !important;
 }
 
 [data-theme="glass-light"] .deznav .mm-active a,
-[data-theme="glass-light"] .deznav .mm-active .nav-text {
-  color: var(--primary) !important;
+[data-theme="glass-light"] .deznav .mm-active .nav-text,
+[data-theme="glass-light"] .deznav .mm-active .menu-icon {
+  color: #F8B940 !important;
 }
 
 [data-theme="glass-light"] .nav-header .brand-title {
-  color: var(--text-heading) !important;
+  color: #fff !important;
 }
 
 [data-theme="glass-light"] .deznav .menu-title {
-  color: var(--text-muted) !important;
+  color: rgba(255,255,255,0.4) !important;
+}
+
+[data-theme="glass-light"] .deznav .nav-bottom-item .nav-text,
+[data-theme="glass-light"] .deznav .nav-bottom-item .menu-icon {
+  color: #828690 !important;
+}
+
+[data-theme="glass-light"] .deznav .nav-bottom-item.mm-active .nav-text,
+[data-theme="glass-light"] .deznav .nav-bottom-item.mm-active .menu-icon {
+  color: #F8B940 !important;
+}
+
+[data-theme="glass-light"] .deznav .version-text {
+  color: rgba(255,255,255,0.3) !important;
+}
+
+[data-theme="glass-light"] .nav-control {
+  background: #1C2340 !important;
+  border-color: var(--secondary) !important;
+  color: var(--secondary) !important;
+}
+
+/* Light — Header stays white with proper styling */
+[data-theme="glass-light"] .header {
+  background: #fff !important;
+  border-bottom-color: #E6E6E6 !important;
+}
+
+[data-theme="glass-light"] .bc-title {
+  color: var(--primary) !important;
+}
+
+[data-theme="glass-light"] .search-input {
+  border-color: #E6E6E6 !important;
+  background: #fff !important;
+}
+
+[data-theme="glass-light"] .search-icon {
+  color: var(--primary) !important;
+}
+
+[data-theme="glass-light"] .header-icon {
+  background: var(--bg-base) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="glass-light"] .profile-avatar {
+  background: var(--primary) !important;
+  color: #fff !important;
 }
 
 /* Light — Dialogs */
