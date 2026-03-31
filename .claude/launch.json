@@ -4,8 +4,9 @@
     {
       "name": "frontend",
       "runtimeExecutable": "C:\\Program Files\\nodejs\\npx.cmd",
-      "runtimeArgs": ["vite", "--host"],
-      "port": 5173
+      "runtimeArgs": ["vite"],
+      "port": 5173,
+      "autoPort": true
     }
   ]
 }

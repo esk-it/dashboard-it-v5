@@ -4,7 +4,6 @@
   import { settings } from '../stores/settings.js';
   import { currentPage } from '../stores/navigation.js';
   import { success } from '../stores/toast.js';
-  import KpiCard from '../components/KpiCard.svelte';
   import PriorityCard from '../components/cards/PriorityCard.svelte';
   import SysMonCard from '../components/cards/SysMonCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
@@ -16,7 +15,7 @@
   import LauncherFavCard from '../components/cards/LauncherFavCard.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-  const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const MOIS = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
 
   let clockStr = '';
   let clockTimer;
@@ -30,7 +29,6 @@
     { id: 'sparkline', label: 'Activit\u00e9 hebdo', emoji: '\u{1F4C8}' },
     { id: 'donut', label: 'Cat\u00e9gories', emoji: '\u{1F369}' },
     { id: 'quicklinks', label: 'Acc\u00e8s rapides', emoji: '\u26A1' },
-    // Weather is shown in the header, not as a widget
     { id: 'activity', label: 'Activit\u00e9 r\u00e9cente', emoji: '\u{1F553}' },
     { id: 'launcher', label: 'Liens favoris', emoji: '\u{1F680}' },
   ];
@@ -38,10 +36,9 @@
   const SIZE_LABELS = { 1: '1/3', 2: '1/2', 3: 'Pleine' };
   const DEFAULT_CONFIG = WIDGET_DEFS.map((w, i) => ({ id: w.id, visible: true, size: 2, order: i }));
 
-  let widgetConfig = []; // [{id, visible, size, order}]
+  let widgetConfig = [];
   let showWidgetConfig = false;
 
-  // Derived: sorted visible widgets
   $: orderedWidgets = [...widgetConfig].sort((a, b) => a.order - b.order).filter(w => w.visible);
 
   function loadWidgetConfig() {
@@ -49,7 +46,6 @@
       const saved = localStorage.getItem('itm-widgets-v2');
       if (saved) {
         const parsed = JSON.parse(saved);
-        // Merge in any new widgets not in saved config
         for (const def of DEFAULT_CONFIG) {
           if (!parsed.find(w => w.id === def.id)) {
             parsed.push({ ...def, order: parsed.length });
@@ -64,7 +60,7 @@
 
   function saveWidgetConfig() {
     localStorage.setItem('itm-widgets-v2', JSON.stringify(widgetConfig));
-    widgetConfig = [...widgetConfig]; // trigger reactivity
+    widgetConfig = [...widgetConfig];
   }
 
   function toggleWidget(id) {
@@ -75,7 +71,6 @@
   function cycleSize(id) {
     const w = widgetConfig.find(w => w.id === id);
     if (w) {
-      // Cycle: 2 -> 3 -> 1 -> 2
       w.size = w.size === 2 ? 3 : w.size === 3 ? 1 : 2;
       saveWidgetConfig();
     }
@@ -85,7 +80,6 @@
     const idx = widgetConfig.findIndex(w => w.id === id);
     const swapIdx = idx + dir;
     if (swapIdx < 0 || swapIdx >= widgetConfig.length) return;
-    // Swap orders
     const tmp = widgetConfig[idx].order;
     widgetConfig[idx].order = widgetConfig[swapIdx].order;
     widgetConfig[swapIdx].order = tmp;
@@ -104,12 +98,10 @@
   function sizeToSpan(size) {
     if (size === 3) return 'span 6';
     if (size === 1) return 'span 2';
-    return 'span 3'; // default: half
+    return 'span 3';
   }
 
   // ── Widget reorder with drop zones ──────────────────────
-  // Long press selects a widget, then drop zones appear BETWEEN widgets
-  // Click a drop zone to insert the widget at that position
   let moveSourceId = null;
   let holdTimer = null;
 
@@ -134,13 +126,10 @@
     const srcIdx = sorted.findIndex(w => w.id === moveSourceId);
     if (srcIdx === -1) { moveSourceId = null; return; }
 
-    // Remove source
     const [moved] = sorted.splice(srcIdx, 1);
-    // Insert at the target position (clamped)
     const insertAt = Math.min(targetOrder, sorted.length);
     sorted.splice(insertAt, 0, moved);
 
-    // Reassign sequential orders
     sorted.forEach((w, i) => {
       const cfg = widgetConfig.find(c => c.id === w.id);
       if (cfg) cfg.order = i;
@@ -155,7 +144,6 @@
   }
 
   // KPI data
-  // Weather in header
   let weatherData = null;
 
   async function loadWeather() {
@@ -185,6 +173,11 @@
   $: greeting = getGreeting();
   $: username = $settings.username || 'Utilisateur';
   $: dateStr = getDateStr();
+
+  // Derived KPI helpers
+  $: kpiWeekTotal = 28;
+  $: kpiWeekPercent = kpiWeekTotal > 0 ? Math.round((kpiWeek / kpiWeekTotal) * 100) : 0;
+  $: kpiOverduePercent = (kpiTasks + kpiOverdue) > 0 ? Math.round((kpiOverdue / (kpiTasks + kpiOverdue)) * 100) : 0;
 
   function getGreeting() {
     const h = new Date().getHours();
@@ -238,7 +231,6 @@
     fetchKpis();
     loadWeather();
 
-    // Auto-refresh
     const mins = $settings.auto_refresh_minutes || 5;
     refreshTimer = setInterval(() => {
       fetchKpis();
@@ -263,7 +255,7 @@
             <span class="wi-emoji">{weatherData.emoji}</span>
             <span class="wi-temp">{Math.round(weatherData.temperature)}{'\u00b0'}C</span>
             <span class="wi-desc">{weatherData.description}</span>
-            <span class="wi-city">— {weatherData.city}</span>
+            <span class="wi-city">&mdash; {weatherData.city}</span>
           </span>
         {/if}
       </div>
@@ -278,133 +270,269 @@
       <button class="btn-ghost" on:click={refreshAll}>
         {'\u{1F504}'} Actualiser
       </button>
-      <button class="btn-primary" on:click={goNewTask}>
+      <button class="btn-primary-action" on:click={goNewTask}>
         + T&acirc;che
       </button>
     </div>
   </header>
 
-  <!-- KPI Row -->
-  <div class="kpi-row">
-    <KpiCard
-      title="T&Acirc;CHES EN COURS"
-      value={kpiTasks}
-      orbColor={[75, 139, 255]}
-      onClick={() => currentPage.set('/tasks')}
-    />
-    <KpiCard
-      title="EN RETARD"
-      value={kpiOverdue}
-      orbColor={kpiOverdue > 0 ? [239, 68, 68] : [34, 197, 94]}
-      hint={kpiOverdue > 0 ? 'Action requise' : 'Tout est à jour'}
-    />
-    <KpiCard
-      title="CETTE SEMAINE"
-      value={kpiWeek}
-      orbColor={[45, 212, 191]}
-    />
-    <KpiCard
-      title="DOCUMENTS"
-      value={kpiDocs}
-      orbColor={[245, 158, 11]}
-      onClick={() => currentPage.set('/documents')}
-    />
-    <KpiCard
-      title="PARC INFORMATIQUE"
-      value={kpiParc}
-      orbColor={[162, 89, 255]}
-      onClick={() => currentPage.set('/parc')}
-    />
-  </div>
-
-  <!-- Widget Config Panel -->
-  {#if showWidgetConfig}
-    <div class="widget-config">
-      <div class="widget-config-header">
-        <span>{'\u2699\uFE0F'} Configuration des widgets</span>
-        <div style="display:flex;gap:6px;align-items:center">
-          <button class="btn-reset-sm" on:click={resetWidgetConfig}>R{'\u00e9'}initialiser</button>
-          <button class="btn-close-sm" on:click={() => showWidgetConfig = false}>{'\u2715'}</button>
-        </div>
-      </div>
-      <div class="widget-config-list">
-        {#each [...widgetConfig].sort((a,b) => a.order - b.order) as wc, i (wc.id)}
-          {@const def = getWidgetDef(wc.id)}
-          {#if def}
-            <div class="widget-config-row" class:disabled={!wc.visible}>
-              <div class="wc-move">
-                <button class="wc-arrow" on:click={() => moveWidget(wc.id, -1)} disabled={i === 0}>{'\u25B2'}</button>
-                <button class="wc-arrow" on:click={() => moveWidget(wc.id, 1)} disabled={i === widgetConfig.length - 1}>{'\u25BC'}</button>
-              </div>
-              <label class="wc-toggle">
-                <input type="checkbox" checked={wc.visible} on:change={() => toggleWidget(wc.id)} />
-              </label>
-              <span class="wc-emoji">{def.emoji}</span>
-              <span class="wc-label">{def.label}</span>
-              <button class="wc-size" on:click={() => cycleSize(wc.id)} title="Changer la taille">
-                {SIZE_LABELS[wc.size] || '1/2'}
-              </button>
-            </div>
-          {/if}
-        {/each}
-      </div>
-    </div>
-  {/if}
-
-  <!-- Move mode hint -->
-  {#if moveSourceId}
+  <!-- ═══ ROW 1: 4 YashAdmin-style KPI cards ═══ -->
+  <div class="row">
+    <!-- Card 1: Purple — Tâches en cours -->
     <!-- svelte-ignore a11y_click_events_have_key_events -->
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="move-hint" on:click={cancelMove}>
-      {'\u2195\uFE0F'} Cliquez sur une zone verte pour placer le widget, ou cliquez ici pour annuler
-    </div>
-  {/if}
-
-  <!-- Cards Grid (6-column base for flexible sizing) -->
-  <div class="cards-grid-flex">
-    {#each orderedWidgets as wc, i (wc.id)}
-      <!-- Drop zone BEFORE this widget (only in move mode) -->
-      {#if moveSourceId && moveSourceId !== wc.id}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <div class="drop-zone" style="grid-column:{sizeToSpan(wc.size)}" on:click={() => insertWidgetAt(i)}>
-          <div class="drop-zone-line"></div>
-          <span class="drop-zone-label">{'\u2B07'} Ins{'\u00e9'}rer ici</span>
-          <div class="drop-zone-line"></div>
+    <div class="col-3 ya-card ya-card--purple" on:click={() => currentPage.set('/tasks')}>
+      <div class="ya-card__deco-circle ya-card__deco-circle--1"></div>
+      <div class="ya-card__deco-circle ya-card__deco-circle--2"></div>
+      <div class="ya-card__body">
+        <span class="ya-card__label">Tâches en cours</span>
+        <span class="ya-card__value">{kpiTasks}</span>
+        <div class="ya-card__bars">
+          <svg viewBox="0 0 120 40" class="ya-bars-svg">
+            <rect x="2"  y="22" width="10" height="18" rx="2" fill="rgba(255,255,255,0.25)" />
+            <rect x="16" y="10" width="10" height="30" rx="2" fill="rgba(255,255,255,0.35)" />
+            <rect x="30" y="16" width="10" height="24" rx="2" fill="rgba(255,255,255,0.25)" />
+            <rect x="44" y="6"  width="10" height="34" rx="2" fill="rgba(255,255,255,0.45)" />
+            <rect x="58" y="14" width="10" height="26" rx="2" fill="rgba(255,255,255,0.30)" />
+            <rect x="72" y="20" width="10" height="20" rx="2" fill="rgba(255,255,255,0.20)" />
+            <rect x="86" y="8"  width="10" height="32" rx="2" fill="rgba(255,255,255,0.40)" />
+            <rect x="100" y="18" width="10" height="22" rx="2" fill="rgba(255,255,255,0.28)" />
+          </svg>
         </div>
-      {/if}
-
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div
-        class="card-slot-flex"
-        class:move-source={moveSourceId === wc.id}
-        style="grid-column:{sizeToSpan(wc.size)}"
-        on:mousedown={(e) => onWidgetMouseDown(e, wc.id)}
-        on:mouseup={onWidgetMouseUp}
-        on:mouseleave={onWidgetMouseLeave}
-      >
-        {#if wc.id === 'priority'}<PriorityCard bind:this={priorityCard} />
-        {:else if wc.id === 'sysmon'}<SysMonCard bind:this={sysMonCard} />
-        {:else if wc.id === 'gauge'}<GaugeChart bind:this={gaugeChart} />
-        {:else if wc.id === 'sparkline'}<SparklineChart bind:this={sparklineChart} />
-        {:else if wc.id === 'donut'}<DonutChart bind:this={donutChart} />
-        {:else if wc.id === 'quicklinks'}<QuickLinksCard />
-        {:else if wc.id === 'activity'}<ActivityCard bind:this={activityCard} />
-        {:else if wc.id === 'launcher'}<LauncherFavCard bind:this={launcherFavCard} />
-        {/if}
       </div>
-    {/each}
-
-    <!-- Drop zone at the END (to move widget to last position) -->
-    {#if moveSourceId}
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <div class="drop-zone drop-zone-end" style="grid-column:span 6" on:click={() => insertWidgetAt(orderedWidgets.length)}>
-        <div class="drop-zone-line"></div>
-        <span class="drop-zone-label">{'\u2B07'} Ins{'\u00e9'}rer en dernier</span>
-        <div class="drop-zone-line"></div>
+      <div class="ya-card__footer">
+        <div class="ya-card__avatars">
+          <span class="ya-avatar" style="background:#7B5EC6;">IT</span>
+          <span class="ya-avatar" style="background:#9B8AD8;">Eq</span>
+        </div>
+        <span class="ya-card__badge">{kpiTasks > 0 ? Math.min(Math.round((kpiTasks / (kpiTasks + kpiOverdue || 1)) * 100), 100) : 0}%</span>
       </div>
-    {/if}
+    </div>
+
+    <!-- Card 2: Gold — En retard -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="col-3 ya-card ya-card--gold" on:click={() => currentPage.set('/tasks')}>
+      <div class="ya-card__deco-circle ya-card__deco-circle--1"></div>
+      <div class="ya-card__deco-circle ya-card__deco-circle--2"></div>
+      <div class="ya-card__body">
+        <span class="ya-card__label">En retard</span>
+        <span class="ya-card__value">{kpiOverdue}</span>
+        <div class="ya-card__bars">
+          <svg viewBox="0 0 120 40" class="ya-bars-svg">
+            <rect x="2"  y="18" width="10" height="22" rx="2" fill="rgba(255,255,255,0.30)" />
+            <rect x="16" y="24" width="10" height="16" rx="2" fill="rgba(255,255,255,0.22)" />
+            <rect x="30" y="8"  width="10" height="32" rx="2" fill="rgba(255,255,255,0.40)" />
+            <rect x="44" y="14" width="10" height="26" rx="2" fill="rgba(255,255,255,0.30)" />
+            <rect x="58" y="20" width="10" height="20" rx="2" fill="rgba(255,255,255,0.25)" />
+            <rect x="72" y="4"  width="10" height="36" rx="2" fill="rgba(255,255,255,0.45)" />
+            <rect x="86" y="16" width="10" height="24" rx="2" fill="rgba(255,255,255,0.28)" />
+            <rect x="100" y="12" width="10" height="28" rx="2" fill="rgba(255,255,255,0.35)" />
+          </svg>
+        </div>
+      </div>
+      <div class="ya-card__footer">
+        <span class="ya-card__hint">{kpiOverdue > 0 ? 'Action requise' : 'Tout est \u00e0 jour'}</span>
+        <button class="ya-card__plus" on:click|stopPropagation={goNewTask}>+</button>
+      </div>
+    </div>
+
+    <!-- Card 3: Teal gradient — Summary -->
+    <div class="col-3 ya-card ya-card--teal">
+      <div class="ya-card__teal-deco">
+        <svg viewBox="0 0 80 80" fill="none">
+          <circle cx="40" cy="40" r="36" stroke="rgba(255,255,255,0.15)" stroke-width="2" fill="none" />
+          <path d="M28 42 L36 50 L54 30" stroke="rgba(255,255,255,0.6)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+          <circle cx="40" cy="40" r="26" stroke="rgba(255,255,255,0.08)" stroke-width="1.5" fill="none" />
+        </svg>
+      </div>
+      <div class="ya-card__body ya-card__body--teal">
+        <span class="ya-card__label ya-card__label--lg">Votre IT, s&eacute;curis&eacute; et surveill&eacute;</span>
+        <p class="ya-card__desc">Parc informatique, t&acirc;ches et documents sous contr&ocirc;le.</p>
+        <div class="ya-card__avatars ya-card__avatars--row">
+          <span class="ya-avatar" style="background:#2dd4bf;">P</span>
+          <span class="ya-avatar" style="background:#14b8a6;">M</span>
+          <span class="ya-avatar" style="background:#0d9488;">S</span>
+        </div>
+        <span class="ya-card__clients">{kpiParc}+ &Eacute;quipements g&eacute;r&eacute;s</span>
+      </div>
+    </div>
+
+    <!-- Card 4: Radial progress — Ma Progression -->
+    <div class="col-3 ya-card ya-card--progress">
+      <div class="ya-card__body ya-card__body--center">
+        <div class="ya-radial">
+          <svg viewBox="0 0 120 120" class="ya-radial__svg">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--border-subtle)" stroke-width="8" />
+            <circle
+              cx="60" cy="60" r="52"
+              fill="none"
+              stroke="var(--accent)"
+              stroke-width="8"
+              stroke-linecap="round"
+              stroke-dasharray="{2 * Math.PI * 52}"
+              stroke-dashoffset="{2 * Math.PI * 52 * (1 - (kpiWeekPercent / 100))}"
+              transform="rotate(-90 60 60)"
+              class="ya-radial__arc"
+            />
+            <text x="60" y="56" text-anchor="middle" class="ya-radial__text">{kpiWeekPercent}%</text>
+            <text x="60" y="72" text-anchor="middle" class="ya-radial__sub">compl&eacute;t&eacute;</text>
+          </svg>
+        </div>
+        <span class="ya-card__label ya-card__label--center">Ma Progression</span>
+        <p class="ya-card__desc ya-card__desc--sm">Suivi hebdomadaire des t&acirc;ches assign&eacute;es.</p>
+        <button class="ya-card__details-btn" on:click={() => currentPage.set('/tasks')}>Plus de d&eacute;tails</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 2: Sub-cards under first 2 columns ═══ -->
+  <div class="row row--sub">
+    <!-- Card 5: Cette semaine — progress bar -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/tasks')}>
+      <div class="ya-card__body">
+        <span class="ya-card__label">Cette semaine</span>
+        <span class="ya-card__value ya-card__value--md">{kpiWeek}</span>
+        <div class="ya-progress">
+          <div class="ya-progress__bar">
+            <div class="ya-progress__fill" style="width: {kpiWeekPercent}%"></div>
+          </div>
+          <span class="ya-progress__text">Compl&eacute;t&eacute;es {kpiWeek}/{kpiWeekTotal}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 6: Documents — sparkline -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/documents')}>
+      <div class="ya-card__body">
+        <span class="ya-card__label">Documents</span>
+        <span class="ya-card__value ya-card__value--md">{kpiDocs}</span>
+        <div class="ya-sparkline-inline">
+          <svg viewBox="0 0 140 36" class="ya-sparkline-svg" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3" />
+                <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0,28 Q10,26 20,24 T40,18 T60,22 T80,14 T100,10 T120,16 T140,8 L140,36 L0,36 Z" fill="url(#sparkGrad)" />
+            <path d="M0,28 Q10,26 20,24 T40,18 T60,22 T80,14 T100,10 T120,16 T140,8" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Row 3: Vue d'ensemble (col-8) + Mes tâches (col-4) ═══ -->
+  <div class="row">
+    <div class="col-8">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Vue d'ensemble</h4>
+        </div>
+        <div class="w-card__body">
+          <SparklineChart bind:this={sparklineChart} />
+        </div>
+        <div class="w-card__stats">
+          <div class="w-stat">
+            <span class="w-stat__val">{kpiTasks}</span>
+            <span class="w-stat__label">Total tâches</span>
+          </div>
+          <div class="w-stat">
+            <span class="w-stat__val w-stat__val--primary">{kpiWeek}</span>
+            <span class="w-stat__label">Cette semaine</span>
+          </div>
+          <div class="w-stat">
+            <span class="w-stat__val">{kpiDocs}</span>
+            <span class="w-stat__label">Documents</span>
+          </div>
+          <div class="w-stat">
+            <span class="w-stat__val w-stat__val--success">{kpiParc}</span>
+            <span class="w-stat__label">Équipements</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Mes tâches</h4>
+          <div class="w-card__actions">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="w-link" on:click={() => currentPage.set('/tasks')}>Voir tout</span>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="w-link w-link--add" on:click={goNewTask}>+ Ajouter</span>
+          </div>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <PriorityCard bind:this={priorityCard} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Row 4: Activité récente (col-8) + Complétion (col-4) ═══ -->
+  <div class="row">
+    <div class="col-8">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Activité récente</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <ActivityCard bind:this={activityCard} />
+        </div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Complétion du mois</h4>
+        </div>
+        <div class="w-card__body" style="display:flex;justify-content:center;">
+          <GaugeChart bind:this={gaugeChart} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Row 5: Système (col-4) + Catégories (col-4) + Accès rapides (col-4) ═══ -->
+  <div class="row">
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Système</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <SysMonCard bind:this={sysMonCard} />
+        </div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Répartition par catégorie</h4>
+        </div>
+        <div class="w-card__body">
+          <DonutChart bind:this={donutChart} />
+        </div>
+      </div>
+    </div>
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Accès rapides</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <QuickLinksCard />
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -413,24 +541,24 @@
     animation: fadeIn 0.35s ease-out;
   }
 
-  /* Header */
+  /* ═══ Header ═══ */
   .home-header {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 28px;
-    gap: 16px;
+    margin-bottom: 1.75rem;
+    gap: 1rem;
     flex-wrap: wrap;
   }
 
   .header-left {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 0.25rem;
   }
 
   .greeting {
-    font-size: 26px;
+    font-size: 1.625rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -444,44 +572,44 @@
   .date-weather-row {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.75rem;
     flex-wrap: wrap;
   }
   .date-str {
-    font-size: 14px;
+    font-size: 0.875rem;
     color: var(--text-secondary);
     margin: 0;
   }
   .weather-inline {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 0.375rem;
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 10px;
-    padding: 4px 12px;
+    border-radius: 0.625rem;
+    padding: 0.25rem 0.75rem;
   }
-  .wi-emoji { font-size: 18px; line-height: 1; }
-  .wi-temp { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-  .wi-desc { font-size: 12px; color: var(--text-secondary); }
-  .wi-city { font-size: 11px; color: var(--text-muted); }
+  .wi-emoji { font-size: 1.125rem; line-height: 1; }
+  .wi-temp { font-size: 0.875rem; font-weight: 700; color: var(--text-primary); }
+  .wi-desc { font-size: 0.75rem; color: var(--text-secondary); }
+  .wi-city { font-size: 0.6875rem; color: var(--text-muted); }
 
   .header-right {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 0.625rem;
   }
 
   .clock-frame {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
-    border-radius: 10px;
-    padding: 6px 14px;
+    border-radius: 0.625rem;
+    padding: 0.375rem 0.875rem;
     backdrop-filter: blur(12px);
   }
 
   .clock {
-    font-size: 15px;
+    font-size: 0.9375rem;
     font-weight: 600;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
@@ -491,10 +619,10 @@
   .btn-ghost {
     background: transparent;
     border: 1px solid var(--border-subtle);
-    border-radius: 10px;
+    border-radius: 0.625rem;
     color: var(--text-secondary);
-    font-size: 13px;
-    padding: 7px 14px;
+    font-size: 0.8125rem;
+    padding: 0.4375rem 0.875rem;
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
@@ -506,216 +634,508 @@
     color: var(--text-primary);
   }
 
-  .btn-primary {
+  .btn-primary-action {
     background: var(--accent);
     border: none;
-    border-radius: 10px;
+    border-radius: 0.625rem;
     color: #fff;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
-    padding: 8px 16px;
+    padding: 0.5rem 1rem;
     cursor: pointer;
     transition: all 0.15s;
     font-family: inherit;
     box-shadow: 0 2px 12px rgba(var(--accent-rgb), 0.3);
   }
 
-  .btn-primary:hover {
+  .btn-primary-action:hover {
     filter: brightness(1.15);
     box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.4);
   }
 
-  /* KPI Row */
-  .kpi-row {
+  /* ═══ 12-column Grid System ═══ */
+  .row {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
-    margin-bottom: 20px;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 1.563rem;
+    margin-bottom: 1.563rem;
   }
 
+  .row--sub {
+    margin-top: -0.25rem;
+  }
+
+  .col-3 { grid-column: span 3; }
+  .col-4 { grid-column: span 4; }
+  .col-6 { grid-column: span 6; }
+  .col-8 { grid-column: span 8; }
+
   @media (max-width: 1200px) {
-    .kpi-row {
-      grid-template-columns: repeat(3, 1fr);
-    }
+    .col-3 { grid-column: span 6; }
+    .col-4 { grid-column: span 6; }
+    .col-8 { grid-column: span 12; }
   }
 
   @media (max-width: 768px) {
-    .kpi-row {
-      grid-template-columns: repeat(2, 1fr);
-    }
+    .col-3 { grid-column: span 12; }
+    .col-4 { grid-column: span 12; }
+    .col-6 { grid-column: span 12; }
+    .col-8 { grid-column: span 12; }
   }
 
-  /* Flexible Cards Grid — 6 columns base */
-  .cards-grid-flex {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 16px;
-    align-items: stretch;
-  }
-
-  @media (max-width: 900px) {
-    .cards-grid-flex {
-      grid-template-columns: 1fr;
-    }
-    .card-slot-flex {
-      grid-column: span 1 !important;
-    }
-  }
-
-  .card-slot-flex {
-    animation: fadeIn 0.4s ease-out;
-    animation-fill-mode: both;
-    min-width: 0;
-    transition: box-shadow 0.3s, border-color 0.3s, transform 0.2s;
-    border-radius: 14px;
+  /* ═══ YashAdmin Card Base ═══ */
+  .ya-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
+    padding: 1.25rem;
     position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.3s;
+    cursor: default;
     display: flex;
     flex-direction: column;
-  }
-  /* Force child card components to fill the full height */
-  .card-slot-flex > :global(*) {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
+    min-height: 0;
   }
 
-  /* Move mode styles */
-  .card-slot-flex.move-source {
-    box-shadow: 0 0 20px rgba(108,99,255,0.35);
-    transform: scale(0.96);
-    opacity: 0.6;
-    z-index: 2;
+  .ya-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
   }
-  .card-slot-flex.move-source::after {
-    content: '\u2705 S\00e9lectionn\00e9';
+
+  /* Decorative circles for colored cards */
+  .ya-card__deco-circle {
     position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--accent, #6C63FF);
-    color: #fff;
-    font-size: 0.85rem;
-    font-weight: 700;
-    padding: 8px 20px;
-    border-radius: 10px;
-    z-index: 10;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.1);
     pointer-events: none;
-    box-shadow: 0 4px 16px rgba(108,99,255,0.4);
+    z-index: 0;
+  }
+  .ya-card__deco-circle--1 {
+    width: 8rem;
+    height: 8rem;
+    top: -2.5rem;
+    right: -2.5rem;
+  }
+  .ya-card__deco-circle--2 {
+    width: 5rem;
+    height: 5rem;
+    bottom: -1.5rem;
+    right: 2rem;
+    background: rgba(255,255,255,0.06);
   }
 
-  /* Drop zones between widgets */
-  .drop-zone {
+  /* ═══ Purple Card ═══ */
+  .ya-card--purple {
+    background: linear-gradient(135deg, #452B90 0%, #7B5EC6 100%);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(69,43,144,0.3);
+  }
+  .ya-card--purple:hover {
+    box-shadow: 0 10px 35px rgba(69,43,144,0.45);
+  }
+
+  /* ═══ Gold Card ═══ */
+  .ya-card--gold {
+    background: linear-gradient(135deg, #F8B940 0%, #FFD166 100%);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(248,185,64,0.3);
+  }
+  .ya-card--gold:hover {
+    box-shadow: 0 10px 35px rgba(248,185,64,0.45);
+  }
+
+  /* ═══ Teal Gradient Card ═══ */
+  .ya-card--teal {
+    background: linear-gradient(135deg, #0d9488 0%, #2dd4bf 100%);
+    border: none;
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(13,148,136,0.3);
+    position: relative;
+  }
+  .ya-card--teal:hover {
+    box-shadow: 0 10px 35px rgba(13,148,136,0.45);
+  }
+
+  .ya-card__teal-deco {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 5rem;
+    height: 5rem;
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ═══ Progress Card ═══ */
+  .ya-card--progress {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+  }
+
+  /* ═══ Flat sub-cards ═══ */
+  .ya-card--flat {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    cursor: pointer;
+  }
+
+  /* ═══ Card Body & Elements ═══ */
+  .ya-card__body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+  }
+
+  .ya-card__body--teal {
+    gap: 0.375rem;
+  }
+
+  .ya-card__body--center {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.375rem;
+    flex: 1;
+  }
+
+  .ya-card__label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+  }
+
+  .ya-card__label--lg {
+    font-size: 0.9375rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 1;
+    line-height: 1.3;
+  }
+
+  .ya-card__label--center {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity: 1;
+    color: var(--text-primary);
+    margin-top: 0.25rem;
+  }
+
+  .ya-card__value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .ya-card__value--md {
+    font-size: 1.5rem;
+    color: var(--text-heading);
+  }
+
+  .ya-card__desc {
+    font-size: 0.75rem;
+    opacity: 0.8;
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .ya-card__desc--sm {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    opacity: 1;
+    margin: 0;
+  }
+
+  .ya-card__clients {
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.9;
+    margin-top: 0.25rem;
+  }
+
+  /* ═══ SVG Bar Charts ═══ */
+  .ya-card__bars {
+    margin-top: 0.5rem;
+    flex: 1;
+    min-height: 2.5rem;
+  }
+
+  .ya-bars-svg {
+    width: 100%;
+    height: 2.5rem;
+    display: block;
+  }
+
+  /* ═══ Card Footer ═══ */
+  .ya-card__footer {
+    position: relative;
+    z-index: 1;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 0;
+    justify-content: space-between;
+    margin-top: 0.75rem;
+  }
+
+  .ya-card__hint {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    opacity: 0.85;
+  }
+
+  /* ═══ Avatars ═══ */
+  .ya-card__avatars {
+    display: flex;
+    align-items: center;
+  }
+
+  .ya-card__avatars--row {
+    margin-top: 0.375rem;
+  }
+
+  .ya-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.3);
+    margin-right: -0.375rem;
+  }
+
+  /* ═══ Badge (percentage circle) ═══ */
+  .ya-card__badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    font-size: 0.625rem;
+    font-weight: 700;
+    color: #fff;
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+
+  /* ═══ Plus button ═══ */
+  .ya-card__plus {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.25);
+    border: 2px solid rgba(255,255,255,0.35);
+    color: #fff;
+    font-size: 1.25rem;
+    font-weight: 300;
     cursor: pointer;
-    border-radius: 10px;
     transition: all 0.15s;
-    min-height: 36px;
+    line-height: 1;
+    font-family: inherit;
   }
-  .drop-zone:hover {
-    background: rgba(34,197,94,0.08);
+  .ya-card__plus:hover {
+    background: rgba(255,255,255,0.35);
+    transform: scale(1.1);
   }
-  .drop-zone:hover .drop-zone-line {
-    background: #22C55E;
-    height: 3px;
+
+  /* ═══ Radial Progress ═══ */
+  .ya-radial {
+    width: 7.5rem;
+    height: 7.5rem;
+    margin-bottom: 0.25rem;
   }
-  .drop-zone:hover .drop-zone-label {
-    color: #22C55E;
-    opacity: 1;
+
+  .ya-radial__svg {
+    width: 100%;
+    height: 100%;
   }
-  .drop-zone-line {
-    flex: 1;
-    height: 2px;
-    background: rgba(34,197,94,0.3);
-    border-radius: 2px;
-    transition: all 0.15s;
+
+  .ya-radial__arc {
+    transition: stroke-dashoffset 0.8s ease-out;
   }
-  .drop-zone-label {
-    font-size: 0.72rem;
+
+  .ya-radial__text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    fill: var(--text-heading);
+  }
+
+  .ya-radial__sub {
+    font-size: 0.625rem;
+    fill: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  /* ═══ Details button ═══ */
+  .ya-card__details-btn {
+    margin-top: 0.5rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 0.375rem;
+    padding: 0.375rem 1rem;
+    font-size: 0.75rem;
     font-weight: 600;
-    color: rgba(34,197,94,0.5);
-    white-space: nowrap;
-    transition: all 0.15s;
-    opacity: 0.7;
-  }
-
-  .move-hint {
-    background: rgba(108,99,255,0.1);
-    border: 1px solid rgba(108,99,255,0.2);
-    border-radius: 10px;
-    padding: 10px 16px;
-    margin-bottom: 12px;
-    font-size: 0.82rem;
-    color: var(--accent, #6C63FF);
-    text-align: center;
     cursor: pointer;
-    animation: fadeIn 0.2s ease;
-  }
-  .move-hint:hover { background: rgba(108,99,255,0.15); }
-
-  .card-slot-flex:nth-child(1) { animation-delay: 0.05s; }
-  .card-slot-flex:nth-child(2) { animation-delay: 0.1s; }
-  .card-slot-flex:nth-child(3) { animation-delay: 0.15s; }
-  .card-slot-flex:nth-child(4) { animation-delay: 0.2s; }
-  .card-slot-flex:nth-child(5) { animation-delay: 0.25s; }
-  .card-slot-flex:nth-child(6) { animation-delay: 0.3s; }
-
-  /* Widget config panel */
-  .widget-config {
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: 12px;
-    padding: 16px 20px;
-    margin-bottom: 16px;
-    backdrop-filter: blur(12px);
-    animation: fadeIn 0.2s ease-out;
-  }
-  .widget-config-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 12px; font-size: 0.9rem; font-weight: 600; color: var(--text-primary);
-  }
-  .btn-close-sm {
-    background: none; border: none; color: var(--text-secondary);
-    cursor: pointer; font-size: 1rem; padding: 2px 6px; border-radius: 4px;
-  }
-  .btn-close-sm:hover { background: var(--bg-hover); color: var(--text-primary); }
-  .btn-reset-sm {
-    background: rgba(255,255,255,0.06); border: 1px solid var(--border-subtle);
-    border-radius: 6px; padding: 3px 10px; font-size: 0.72rem; color: var(--text-secondary);
-    cursor: pointer; font-family: inherit;
-  }
-  .btn-reset-sm:hover { background: var(--bg-hover); color: var(--text-primary); }
-
-  .widget-config-list {
-    display: flex; flex-direction: column; gap: 6px;
-  }
-  .widget-config-row {
-    display: flex; align-items: center; gap: 10px;
-    padding: 6px 8px; border-radius: 8px;
-    background: rgba(255,255,255,0.02);
-    transition: background 0.15s;
-  }
-  .widget-config-row:hover { background: rgba(255,255,255,0.04); }
-  .widget-config-row.disabled { opacity: 0.4; }
-  .wc-move { display: flex; flex-direction: column; gap: 1px; }
-  .wc-arrow {
-    background: none; border: none; color: var(--text-muted); cursor: pointer;
-    font-size: 0.6rem; padding: 0 4px; line-height: 1; border-radius: 3px;
-  }
-  .wc-arrow:hover:not(:disabled) { color: var(--text-primary); background: var(--bg-hover); }
-  .wc-arrow:disabled { opacity: 0.2; cursor: default; }
-  .wc-toggle input[type="checkbox"] {
-    width: 16px; height: 16px; accent-color: var(--accent); cursor: pointer;
-  }
-  .wc-emoji { font-size: 1rem; width: 20px; text-align: center; }
-  .wc-label { flex: 1; font-size: 0.82rem; color: var(--text-secondary); }
-  .wc-size {
-    background: rgba(var(--accent-rgb), 0.1); color: var(--accent);
-    border: 1px solid rgba(var(--accent-rgb), 0.2); border-radius: 6px;
-    padding: 2px 10px; font-size: 0.72rem; font-weight: 600; cursor: pointer;
-    font-family: inherit; min-width: 50px; text-align: center;
     transition: all 0.15s;
+    font-family: inherit;
   }
-  .wc-size:hover { background: rgba(var(--accent-rgb), 0.2); }
+  .ya-card__details-btn:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 4px 16px rgba(var(--accent-rgb), 0.3);
+  }
+
+  /* ═══ Progress Bar ═══ */
+  .ya-progress {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+
+  .ya-progress__bar {
+    width: 100%;
+    height: 0.5rem;
+    background: rgba(var(--accent-rgb), 0.15);
+    border-radius: 1rem;
+    overflow: hidden;
+  }
+
+  .ya-progress__fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 1rem;
+    transition: width 0.6s ease-out;
+    min-width: 0.25rem;
+  }
+
+  .ya-progress__text {
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+  }
+
+  /* ═══ Inline Sparkline ═══ */
+  .ya-sparkline-inline {
+    margin-top: 0.5rem;
+    height: 2.25rem;
+  }
+
+  .ya-sparkline-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* ═══ Widget Cards — YashAdmin style ═══ */
+  .w-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.625rem;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .w-card__header {
+    padding: 1.25rem 1.25rem 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .w-card__title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin: 0;
+  }
+
+  .w-card__actions {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+
+  .w-link {
+    font-size: 0.8125rem;
+    color: var(--primary);
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .w-link:hover { opacity: 0.8; }
+  .w-link--add { color: var(--text-heading); }
+
+  .w-card__body {
+    padding: 1.25rem;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .w-card__body--flush {
+    padding: 0;
+  }
+
+  .w-card__body--flush > :global(*) {
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  /* Stats row below chart */
+  .w-card__stats {
+    display: flex;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .w-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.875rem 0.5rem;
+    border-right: 1px solid var(--border-subtle);
+  }
+  .w-stat:last-child { border-right: none; }
+
+  .w-stat__val {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--text-heading);
+  }
+  .w-stat__val--primary { color: var(--primary); }
+  .w-stat__val--success { color: var(--success); }
+
+  .w-stat__label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.125rem;
+  }
 </style>

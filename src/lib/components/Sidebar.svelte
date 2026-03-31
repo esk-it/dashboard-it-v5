@@ -1,9 +1,15 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { currentPage, navItems } from '../stores/navigation.js';
+  import { createEventDispatcher } from 'svelte';
+  import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
+  import { theme, toggleTheme } from '../stores/theme.js';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
   import logoUrl from '../../assets/logo.png';
 
-  let hovered = false;
+  const dispatch = createEventDispatcher();
+
+  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings };
+
   let appVersion = '';
   let overdueCount = 0;
   let interval;
@@ -34,274 +40,372 @@
     currentPage.set(path);
   }
 
-  $: mainItems = navItems.filter(item => item.type === 'separator' || !item.bottom);
+  $: mainItems = navItems.filter(item => !item.bottom);
   $: bottomItems = navItems.filter(item => item.bottom);
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<aside
-  class="sidebar"
-  class:expanded={hovered}
-  on:mouseenter={() => hovered = true}
-  on:mouseleave={() => hovered = false}
->
-  <div class="sidebar-inner">
-    <!-- Brand -->
-    <div class="brand">
-      <img src={logoUrl} alt="Logo" class="brand-logo" />
-      {#if hovered}
-        <span class="brand-text">ITManager</span>
-      {/if}
-    </div>
+<!-- Nav Header (logo area) — YashAdmin .nav-header -->
+<div class="nav-header" class:collapsed={!$sidebarOpen}>
+  <a href="#/" class="brand-logo" on:click|preventDefault={() => navigate('/')}>
+    <img src={logoUrl} alt="Logo" class="logo-icon" />
+    {#if $sidebarOpen}
+      <span class="brand-title">ITManager</span>
+    {/if}
+  </a>
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="nav-control" on:click={() => sidebarOpen.update(v => !v)}>
+    {#if $sidebarOpen}
+      <ChevronLeft size={20} />
+    {:else}
+      <Menu size={20} />
+    {/if}
+  </div>
+</div>
 
-    <!-- Main nav -->
-    <nav class="nav-main">
+<!-- Sidebar (deznav) — YashAdmin .deznav -->
+<div class="deznav" class:collapsed={!$sidebarOpen}>
+  <div class="deznav-scroll">
+    <ul class="metismenu">
       {#each mainItems as item}
-        {#if item.type === 'separator'}
-          <div class="separator"></div>
+        {#if item.type === 'section'}
+          {#if $sidebarOpen}
+            <li class="menu-title">{item.label}</li>
+          {:else}
+            <li class="menu-title-dot"></li>
+          {/if}
         {:else}
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
-          <div
-            class="nav-item"
-            class:active={$currentPage === item.path}
-            title={hovered ? '' : item.label}
+          <li
+            class:mm-active={$currentPage === item.path}
             on:click={() => navigate(item.path)}
           >
-            <span class="nav-emoji">{item.emoji}</span>
-            {#if hovered}
-              <span class="nav-label">{item.label}</span>
-            {/if}
-            {#if item.key === 'tasks' && overdueCount > 0}
-              <span class="overdue-badge">{overdueCount}</span>
-            {/if}
-          </div>
+            <a href="#/{item.key}" on:click|preventDefault>
+              <div class="menu-icon">
+                {#if iconMap[item.icon]}
+                  <svelte:component this={iconMap[item.icon]} size={22} strokeWidth={1.5} />
+                {:else}
+                  <span class="nav-emoji">{item.emoji}</span>
+                {/if}
+              </div>
+              {#if $sidebarOpen}
+                <span class="nav-text">{item.label}</span>
+              {/if}
+              {#if item.key === 'tasks' && overdueCount > 0}
+                <span class="badge-count">{overdueCount}</span>
+              {/if}
+            </a>
+          </li>
         {/if}
       {/each}
-    </nav>
+    </ul>
 
-    <!-- Bottom nav -->
-    <nav class="nav-bottom">
+    <!-- Bottom items -->
+    <div class="nav-bottom-section">
       {#each bottomItems as item}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div
-          class="nav-item"
-          class:active={$currentPage === item.path}
-          title={hovered ? '' : item.label}
+          class="nav-bottom-item"
+          class:mm-active={$currentPage === item.path}
           on:click={() => navigate(item.path)}
         >
-          <span class="nav-emoji">{item.emoji}</span>
-          {#if hovered}
-            <span class="nav-label">{item.label}</span>
+          <div class="menu-icon">
+            {#if iconMap[item.icon]}
+              <svelte:component this={iconMap[item.icon]} size={20} strokeWidth={1.5} />
+            {/if}
+          </div>
+          {#if $sidebarOpen}
+            <span class="nav-text">{item.label}</span>
           {/if}
         </div>
       {/each}
-
-      <!-- Version -->
-      <div class="version">
-        {#if hovered}
-          <span>v{appVersion}</span>
-        {:else}
-          <span class="version-dot"></span>
-        {/if}
-      </div>
-    </nav>
+      {#if $sidebarOpen}
+        <div class="version-text">v{appVersion}</div>
+      {/if}
+    </div>
   </div>
-</aside>
+</div>
 
 <style>
-  .sidebar {
-    width: var(--sidebar-width-collapsed);
-    min-width: var(--sidebar-width-collapsed);
-    height: 100vh;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border-subtle);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    transition: width 220ms cubic-bezier(0.4, 0, 0.2, 1),
-                min-width 220ms cubic-bezier(0.4, 0, 0.2, 1);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-    user-select: none;
-  }
-
-  .sidebar.expanded {
-    width: var(--sidebar-width-expanded);
-    min-width: var(--sidebar-width-expanded);
-  }
-
-  .sidebar-inner {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    padding: 8px;
-  }
-
-  /* Brand */
-  .brand {
+  /* ═══════════════════════════════════════
+     NAV HEADER — Logo area (YashAdmin exact)
+     Height: 4.375rem (70px), Width: 15rem (240px)
+     ═══════════════════════════════════════ */
+  .nav-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--sidebar-width);
+    height: var(--header-height);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px 8px;
-    margin-bottom: 8px;
-    white-space: nowrap;
-    overflow: hidden;
+    justify-content: space-between;
+    background-color: var(--bg-sidebar);
+    z-index: 7;
+    transition: all 0.2s ease;
+    padding: 0 0.5rem 0 1.1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    border-right: 1px solid var(--border-subtle);
+  }
+
+  .nav-header.collapsed {
+    width: var(--sidebar-width-collapsed);
   }
 
   .brand-logo {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-    flex-shrink: 0;
-    border-radius: 6px;
-  }
-
-  .brand-icon {
-    font-size: 22px;
-    flex-shrink: 0;
-    width: 30px;
-    text-align: center;
-  }
-
-  .brand-text {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text-primary);
-    letter-spacing: -0.3px;
-    opacity: 0;
-    animation: fadeLabel 180ms ease forwards;
-  }
-
-  /* Navigation */
-  .nav-main {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden;
-  }
-
-  .nav-bottom {
-    margin-top: auto;
-    padding-top: 8px;
-    border-top: 1px solid var(--border-subtle);
-  }
-
-  .nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 9px 10px;
-    margin: 2px 0;
-    border-radius: 10px;
-    cursor: pointer;
-    white-space: nowrap;
+    gap: 0.6375rem;
+    text-decoration: none;
     overflow: hidden;
-    transition: background 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .logo-icon {
+    width: 2.2rem;
+    height: 2.2rem;
+    object-fit: contain;
+    flex-shrink: 0;
+    border-radius: 0.5rem;
+  }
+
+  .brand-title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--text-heading);
+    white-space: nowrap;
+    letter-spacing: -0.3px;
+  }
+
+  .nav-control {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .nav-control:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+  }
+
+  /* ═══════════════════════════════════════
+     DEZNAV — Sidebar (YashAdmin exact)
+     Width: 15rem (240px)
+     Top: 4.375rem (70px, below nav-header)
+     ═══════════════════════════════════════ */
+  .deznav {
+    position: fixed;
+    top: var(--header-height);
+    left: 0;
+    width: var(--sidebar-width);
+    height: calc(100vh - var(--header-height));
+    background-color: var(--bg-sidebar);
+    border-right: 1px solid var(--border-subtle);
+    z-index: 6;
+    transition: all 0.2s ease;
+    box-shadow: 0rem 0.9375rem 1.875rem 0rem rgba(0, 0, 0, 0.02);
+    overflow: hidden;
+  }
+
+  .deznav.collapsed {
+    width: var(--sidebar-width-collapsed);
+  }
+
+  .deznav-scroll {
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-top: 1rem;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ═══════════════════════════════════════
+     METISMENU — Nav items (YashAdmin exact)
+     ═══════════════════════════════════════ */
+  .metismenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  /* Section titles */
+  .menu-title {
+    margin: 0.625rem 1.875rem 0;
+    padding: 1.5625rem 0 0.625rem;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05rem;
+    border-top: 1px solid var(--border-subtle);
+    color: #999999;
+    user-select: none;
+  }
+
+  .menu-title:first-child {
+    border-top: none;
+    margin-top: 0;
+    padding-top: 0;
+  }
+
+  .menu-title-dot {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 0.75rem 1rem;
+  }
+
+  /* Nav items */
+  .metismenu li:not(.menu-title):not(.menu-title-dot) {
     position: relative;
   }
 
-  .nav-item:hover {
-    background: var(--bg-hover);
+  .metismenu li a {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.75rem 1.875rem;
+    font-size: 0.9375rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
   }
 
-  .nav-item.active {
-    background: rgba(var(--accent-rgb), 0.15);
-    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.2);
+  .metismenu li a:hover {
+    color: var(--secondary);
   }
 
-  .nav-item.active::before {
-    content: '';
-    position: absolute;
-    left: -8px;
-    top: 4px;
-    bottom: 4px;
-    width: 3px;
-    background: var(--accent);
-    border-radius: 0 3px 3px 0;
-    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
+  .metismenu li a:hover .menu-icon :global(svg) {
+    color: var(--secondary);
   }
 
-  .nav-item.active .nav-emoji {
-    filter: drop-shadow(0 0 4px rgba(var(--accent-rgb), 0.5));
-  }
-
-  .nav-item.active .nav-label {
-    color: var(--accent);
+  /* Active state — YashAdmin uses secondary (gold #F8B940) */
+  .metismenu li.mm-active > a {
+    color: var(--secondary);
     font-weight: 500;
   }
 
-  .nav-emoji {
-    font-size: 18px;
+  .metismenu li.mm-active > a .menu-icon :global(svg) {
+    color: var(--secondary);
+    stroke: var(--secondary);
+  }
+
+  /* Menu icon container */
+  .menu-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
     flex-shrink: 0;
-    width: 26px;
-    text-align: center;
+  }
+
+  .menu-icon :global(svg) {
+    color: #96A0AF;
+    transition: color 0.2s ease;
+  }
+
+  .nav-emoji {
+    font-size: 1.125rem;
     line-height: 1;
   }
 
-  .nav-label {
-    font-size: 13.5px;
-    color: var(--text-secondary);
-    opacity: 0;
-    animation: fadeLabel 180ms ease forwards;
-  }
-
-  .separator {
-    height: 1px;
-    background: var(--border-subtle);
-    margin: 8px 10px;
-  }
-
-  /* Version */
-  .version {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 10px 0 4px;
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-
-  .version-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    opacity: 0.5;
+  .nav-text {
+    font-size: 0.9375rem;
+    line-height: 1;
   }
 
   /* Overdue badge */
-  .overdue-badge {
+  .badge-count {
     position: absolute;
-    top: 4px; right: 4px;
-    background: #EF4444;
+    top: 0.5rem;
+    right: 1rem;
+    background: var(--danger);
     color: #fff;
-    font-size: 10px;
+    font-size: 0.625rem;
     font-weight: 700;
-    min-width: 18px;
-    height: 18px;
-    border-radius: 9px;
+    min-width: 1.125rem;
+    height: 1.125rem;
+    border-radius: 0.5625rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 4px;
-    box-shadow: 0 0 6px rgba(239,68,68,0.4);
-    animation: badgePulse 2s ease-in-out infinite;
-  }
-  @keyframes badgePulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.1); }
+    padding: 0 0.25rem;
   }
 
-  @keyframes fadeLabel {
-    from {
-      opacity: 0;
-      transform: translateX(-4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+  /* ═══════════════════════════════════════
+     BOTTOM SECTION
+     ═══════════════════════════════════════ */
+  .nav-bottom-section {
+    margin-top: auto;
+    padding: 0.5rem 0 1rem;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .nav-bottom-item {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.625rem 1.875rem;
+    font-size: 0.9375rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  .nav-bottom-item:hover {
+    color: var(--secondary);
+  }
+
+  .nav-bottom-item:hover .menu-icon :global(svg) {
+    color: var(--secondary);
+  }
+
+  .nav-bottom-item.mm-active {
+    color: var(--secondary);
+  }
+
+  .nav-bottom-item.mm-active .menu-icon :global(svg) {
+    color: var(--secondary);
+    stroke: var(--secondary);
+  }
+
+  .version-text {
+    text-align: center;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    padding: 0.5rem 0 0;
+  }
+
+  /* ═══════════════════════════════════════
+     COLLAPSED STATE
+     ═══════════════════════════════════════ */
+  .collapsed .metismenu li a {
+    padding: 0.75rem 0;
+    justify-content: center;
+  }
+
+  .collapsed .nav-bottom-item {
+    padding: 0.625rem 0;
+    justify-content: center;
   }
 </style>

@@ -1,10 +1,10 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentPage } from './lib/stores/navigation.js';
+  import { currentPage, sidebarOpen } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
-  import GlassBackground from './lib/components/GlassBackground.svelte';
   import SplashScreen from './lib/components/SplashScreen.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
+  import Navbar from './lib/components/Navbar.svelte';
   import Toast from './lib/components/Toast.svelte';
   import SearchPalette from './lib/components/SearchPalette.svelte';
   import QuickCreate from './lib/components/QuickCreate.svelte';
@@ -28,12 +28,9 @@
   let showQuickCreate = false;
   let splashDone = false;
 
-  // Reload settings after splash is done (backend is ready by then)
   $: if (splashDone) loadSettings();
 
-  // Warn before closing if a form might be open (global beforeunload)
   function handleBeforeUnload(e) {
-    // Check if any dialog/modal is open by looking for overlay elements
     const hasOpenDialog = document.querySelector('.dialog-overlay, .modal-overlay');
     if (hasOpenDialog) {
       e.preventDefault();
@@ -50,7 +47,6 @@
         showSearch = !showSearch;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
-        // Don't override browser new window if not in Tauri
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
         e.preventDefault();
         showQuickCreate = !showQuickCreate;
@@ -68,70 +64,86 @@
 
 <SplashScreen on:done={() => splashDone = true} />
 
-<GlassBackground />
-
 {#if splashDone}
+  <!-- YashAdmin layout: nav-header + sidebar (in Sidebar component), header on top, content-body below -->
   <Sidebar />
+  <Navbar on:search={() => showSearch = !showSearch} on:lock={() => {}} />
 
-<main class="content">
-  {#key $currentPage}
-  <div class="page-transition">
-  {#if $currentPage === '/'}
-    <HomePage />
-  {:else if $currentPage === '/news'}
-    <NewsPage />
-  {:else if $currentPage === '/planning'}
-    <PlanningPage />
-  {:else if $currentPage === '/tasks'}
-    <TasksPage />
-  {:else if $currentPage === '/documents'}
-    <DocumentsPage />
-  {:else if $currentPage === '/suppliers'}
-    <SuppliersPage />
-  {:else if $currentPage === '/parc'}
-    <ParcPage />
-  {:else if $currentPage === '/security'}
-    <SecurityPage />
-  {:else if $currentPage === '/wiki'}
-    <WikiPage />
-  {:else if $currentPage === '/changelog'}
-    <ChangelogPage />
-  {:else if $currentPage === '/monitoring'}
-    <MonitoringPage />
-  {:else if $currentPage === '/launcher'}
-    <LauncherPage />
-  {:else if $currentPage === '/tools'}
-    <ToolsPage />
-  {:else if $currentPage === '/settings'}
-    <SettingsPage />
-  {:else}
-    <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
-  {/if}
+  <div class="content-body" class:sidebar-collapsed={!$sidebarOpen}>
+    {#key $currentPage}
+    <div class="page-transition">
+    {#if $currentPage === '/'}
+      <HomePage />
+    {:else if $currentPage === '/news'}
+      <NewsPage />
+    {:else if $currentPage === '/planning'}
+      <PlanningPage />
+    {:else if $currentPage === '/tasks'}
+      <TasksPage />
+    {:else if $currentPage === '/documents'}
+      <DocumentsPage />
+    {:else if $currentPage === '/suppliers'}
+      <SuppliersPage />
+    {:else if $currentPage === '/parc'}
+      <ParcPage />
+    {:else if $currentPage === '/security'}
+      <SecurityPage />
+    {:else if $currentPage === '/wiki'}
+      <WikiPage />
+    {:else if $currentPage === '/changelog'}
+      <ChangelogPage />
+    {:else if $currentPage === '/monitoring'}
+      <MonitoringPage />
+    {:else if $currentPage === '/launcher'}
+      <LauncherPage />
+    {:else if $currentPage === '/tools'}
+      <ToolsPage />
+    {:else if $currentPage === '/settings'}
+      <SettingsPage />
+    {:else}
+      <PlaceholderPage title="Page introuvable" emoji={'\u{1F50D}'} />
+    {/if}
+    </div>
+    {/key}
   </div>
-  {/key}
-</main>
 
-<Toast />
+  <Toast />
 
-{#if showSearch}
-  <SearchPalette on:close={() => showSearch = false} />
-{/if}
-{#if showQuickCreate}
-  <QuickCreate on:close={() => showQuickCreate = false} />
-{/if}
+  {#if showSearch}
+    <SearchPalette on:close={() => showSearch = false} />
+  {/if}
+  {#if showQuickCreate}
+    <QuickCreate on:close={() => showQuickCreate = false} />
+  {/if}
 {/if}
 
 <style>
-  .content {
-    flex: 1;
+  /* ═══════════════════════════════════════
+     CONTENT BODY — YashAdmin exact
+     margin-left: 15rem (240px) = sidebar width
+     margin-top: 4.375rem (70px) = header height
+     ═══════════════════════════════════════ */
+  .content-body {
+    position: fixed;
+    top: var(--header-height);
+    left: var(--sidebar-width);
+    right: 0;
+    bottom: 0;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 28px 32px;
-    min-height: 100vh;
+    padding: 1.875rem;
+    transition: left 0.2s ease;
+    background: var(--bg-base);
   }
+
+  .content-body.sidebar-collapsed {
+    left: var(--sidebar-width-collapsed);
+  }
+
   .page-transition {
     animation: pageIn 0.25s ease-out;
   }
+
   @keyframes pageIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
