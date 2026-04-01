@@ -311,44 +311,51 @@
         }
       },
 
-      // Drag existing event to new date — update via API (no re-fetch, trust FC state)
+      // Drag existing event to new date
       eventDrop: async (info) => {
         const props = info.event.extendedProps;
         if (props._type === 'task') { info.revert(); return; }
+        const start = info.event.start;
+        const end = info.event.end || info.event.start;
+        const isAllDay = info.event.allDay;
+        const newDateStart = toDateStr(start);
+        const newDateEnd = toDateStr(end.getTime() > start.getTime() && isAllDay ? new Date(end.getTime() - 86400000) : end);
+        const payload = { date_start: newDateStart, date_end: newDateEnd };
+        if (!isAllDay) {
+          payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+          payload.time_end = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : null;
+        }
         try {
-          const start = info.event.start;
-          const end = info.event.end || info.event.start;
-          const isAllDay = info.event.allDay;
-          const payload = {
-            date_start: toDateStr(start),
-            date_end: toDateStr(end.getTime() > start.getTime() && isAllDay ? new Date(end.getTime() - 86400000) : end),
-          };
-          if (!isAllDay) {
-            payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
-            payload.time_end = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : null;
-          }
           await api.put(`/api/planning/events/${props.id}`, payload);
-          // Don't re-fetch — trust FullCalendar's visual state
+          // Update extendedProps so click shows correct dates
+          info.event.setExtendedProp('date_start', newDateStart);
+          info.event.setExtendedProp('date_end', newDateEnd);
+          if (payload.time_start !== undefined) info.event.setExtendedProp('time_start', payload.time_start);
+          if (payload.time_end !== undefined) info.event.setExtendedProp('time_end', payload.time_end);
         } catch { info.revert(); }
       },
 
-      // Resize event (drag edges) — update via API (no re-fetch, trust FC state)
+      // Resize event (drag edges)
       eventResize: async (info) => {
         const props = info.event.extendedProps;
         if (props._type === 'task') { info.revert(); return; }
+        const start = info.event.start;
+        const end = info.event.end || info.event.start;
+        const isAllDay = info.event.allDay;
+        const newDateStart = toDateStr(start);
+        const newDateEnd = toDateStr(isAllDay ? new Date(end.getTime() - 86400000) : end);
+        const payload = { date_start: newDateStart, date_end: newDateEnd };
+        if (!isAllDay) {
+          payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+          payload.time_end = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+        }
         try {
-          const start = info.event.start;
-          const end = info.event.end || info.event.start;
-          const isAllDay = info.event.allDay;
-          const payload = {
-            date_start: toDateStr(start),
-            date_end: toDateStr(isAllDay ? new Date(end.getTime() - 86400000) : end),
-          };
-          if (!isAllDay) {
-            payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
-            payload.time_end = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
-          }
           await api.put(`/api/planning/events/${props.id}`, payload);
+          // Update extendedProps so click shows correct dates
+          info.event.setExtendedProp('date_start', newDateStart);
+          info.event.setExtendedProp('date_end', newDateEnd);
+          if (payload.time_start !== undefined) info.event.setExtendedProp('time_start', payload.time_start);
+          if (payload.time_end !== undefined) info.event.setExtendedProp('time_end', payload.time_end);
         } catch { info.revert(); }
       },
     });
