@@ -28,15 +28,15 @@ class PlanningEventCreate(BaseModel):
 
 
 class PlanningEventUpdate(BaseModel):
-    title: str
-    event_type: str = "other"
-    date_start: str
-    date_end: str
-    all_day: bool = True
+    title: str | None = None
+    event_type: str | None = None
+    date_start: str | None = None
+    date_end: str | None = None
+    all_day: bool | None = None
     time_start: str | None = None
     time_end: str | None = None
-    person: str = ""
-    notes: str = ""
+    person: str | None = None
+    notes: str | None = None
     task_id: int | None = None
 
 
@@ -133,24 +133,21 @@ async def update_event(event_id: int, body: PlanningEventUpdate, db=Depends(get_
     if not rows:
         raise HTTPException(status_code=404, detail="Event not found")
 
+    # Build partial update — only SET fields that were actually sent
+    updates = body.model_dump(exclude_unset=True)
+    if not updates:
+        return await get_event(event_id, db)
+
+    # Convert all_day bool to int for SQLite
+    if "all_day" in updates:
+        updates["all_day"] = int(updates["all_day"])
+
+    set_clause = ", ".join(f"{k}=?" for k in updates)
+    values = list(updates.values()) + [event_id]
+
     await db.execute(
-        """UPDATE planning_events
-           SET title=?, event_type=?, date_start=?, date_end=?, all_day=?,
-               time_start=?, time_end=?, person=?, notes=?, task_id=?
-           WHERE id=?""",
-        (
-            body.title,
-            body.event_type,
-            body.date_start,
-            body.date_end,
-            int(body.all_day),
-            body.time_start,
-            body.time_end,
-            body.person,
-            body.notes,
-            body.task_id,
-            event_id,
-        ),
+        f"UPDATE planning_events SET {set_clause} WHERE id=?",
+        values,
     )
     await db.commit()
     return await get_event(event_id, db)

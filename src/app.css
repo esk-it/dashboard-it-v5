@@ -898,23 +898,47 @@ input[type="datetime-local"] {
   color: var(--text-heading);
 }
 
+/* ── FC Buttons: YashAdmin style — inactive = ghost, active = filled ── */
 .app-fullcalendar .fc-button {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
+  background: transparent !important;
+  border: 1px solid var(--border-subtle) !important;
+  color: var(--text-secondary) !important;
   font-size: 0.8125rem !important;
   font-family: 'Poppins', sans-serif !important;
   padding: 0.375rem 0.75rem !important;
   border-radius: 0.375rem !important;
   text-transform: capitalize !important;
+  box-shadow: none !important;
+  transition: all 0.15s;
 }
 
-.app-fullcalendar .fc-button:hover {
-  filter: brightness(1.15);
+.app-fullcalendar .fc-button:hover,
+.app-fullcalendar .fc-button:focus {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
 }
 
-.app-fullcalendar .fc-button-active {
-  background: var(--primary-hover) !important;
-  border-color: var(--primary-hover) !important;
+.app-fullcalendar .fc-button-active,
+.app-fullcalendar .fc-button.fc-button-active {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* today button always filled */
+.app-fullcalendar .fc-today-button {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
+}
+
+/* prev/next arrow buttons */
+.app-fullcalendar .fc-prev-button,
+.app-fullcalendar .fc-next-button {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #fff !important;
 }
 
 .app-fullcalendar .fc-daygrid-day {
@@ -954,10 +978,50 @@ input[type="datetime-local"] {
 }
 
 .app-fullcalendar .fc-daygrid-event {
-  border-radius: 0.25rem;
-  padding: 0.125rem 0.375rem;
+  border-radius: 8px;
+  padding: 0.1875rem 0.5rem;
   font-size: 0.6875rem;
   border: none !important;
+  cursor: pointer;
+}
+
+/* Resizable event handles — dayGrid uses end resizer on right edge */
+.app-fullcalendar .fc-event {
+  position: relative;
+}
+
+.app-fullcalendar .fc-daygrid-event .fc-event-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.app-fullcalendar .fc-daygrid-event:hover .fc-event-resizer {
+  opacity: 1;
+  background: rgba(255,255,255,0.3);
+  border-radius: 0 8px 8px 0;
+}
+
+.app-fullcalendar .fc-daygrid-event .fc-event-resizer-end {
+  right: 0;
+}
+
+.app-fullcalendar .fc-daygrid-event .fc-event-resizer-start {
+  left: 0;
+  border-radius: 8px 0 0 8px;
+}
+
+/* Week number column styling */
+.app-fullcalendar .fc-daygrid-week-number {
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  opacity: 0.7;
+  padding: 0.25rem;
 }
 
 .app-fullcalendar .fc-timegrid-slot {

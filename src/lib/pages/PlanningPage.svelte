@@ -6,7 +6,7 @@
   import dayGridPlugin from '@fullcalendar/daygrid';
   import timeGridPlugin from '@fullcalendar/timegrid';
   import listPlugin from '@fullcalendar/list';
-  import interactionPlugin from '@fullcalendar/interaction';
+  import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
 
   // ---------------------------------------------------------------------------
   // Constants
@@ -24,7 +24,9 @@
   // State
   // ---------------------------------------------------------------------------
   let calendarEl;
+  let externalEventsEl;
   let calendar;
+  let draggable;
   let events = [];
   let calendarTasks = [];
 
@@ -114,11 +116,14 @@
         backgroundColor: color,
         borderColor: color,
         textColor: '#fff',
+        editable: true,
+        durationEditable: true,
+        startEditable: true,
         extendedProps: { ...evt, _type: 'event' },
       };
     });
 
-    // Add tasks
+    // Add tasks (not editable)
     const fcTasks = calendarTasks.map(t => ({
       id: `task-${t.id}`,
       title: `\u2705 ${t.title}`,
@@ -127,6 +132,7 @@
       backgroundColor: '#4B8BFF',
       borderColor: '#4B8BFF',
       textColor: '#fff',
+      editable: false,
       extendedProps: { ...t, _type: 'task' },
     }));
 
@@ -240,13 +246,14 @@
         day: 'Jour',
         list: 'Liste',
       },
-      height: 'auto',
-      contentHeight: 'auto',
+      height: '100%',
       expandRows: true,
       dayMaxEvents: 3,
       weekNumbers: true,
       navLinks: true,
-      editable: false,
+      editable: true,
+      eventResizableFromStart: true,
+      droppable: true,
       selectable: true,
       selectMirror: true,
       nowIndicator: true,
@@ -279,12 +286,95 @@
         const props = info.event.extendedProps;
         openEditEvent(props);
       },
+
+      // Drag & drop from sidebar — create event directly (no dialog)
+      drop: async (info) => {
+        const eventType = info.draggedEl.dataset.eventType || 'other';
+        const t = EVENT_TYPES[eventType];
+        const dateStr = toDateStr(info.date);
+        try {
+          await api.post('/api/planning/events', {
+            title: t ? t.label : 'Evenement',
+            event_type: eventType,
+            date_start: dateStr,
+            date_end: dateStr,
+            all_day: true,
+            time_start: null,
+            time_end: null,
+            person: '',
+            notes: '',
+            task_id: null,
+          });
+          await fetchEvents();
+        } catch (e) {
+          console.error('Failed to create event from drop', e);
+        }
+      },
+
+      // Drag existing event to new date — update via API (no re-fetch, trust FC state)
+      eventDrop: async (info) => {
+        const props = info.event.extendedProps;
+        if (props._type === 'task') { info.revert(); return; }
+        try {
+          const start = info.event.start;
+          const end = info.event.end || info.event.start;
+          const isAllDay = info.event.allDay;
+          const payload = {
+            date_start: toDateStr(start),
+            date_end: toDateStr(end.getTime() > start.getTime() && isAllDay ? new Date(end.getTime() - 86400000) : end),
+          };
+          if (!isAllDay) {
+            payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+            payload.time_end = end ? `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}` : null;
+          }
+          await api.put(`/api/planning/events/${props.id}`, payload);
+          // Don't re-fetch — trust FullCalendar's visual state
+        } catch { info.revert(); }
+      },
+
+      // Resize event (drag edges) — update via API (no re-fetch, trust FC state)
+      eventResize: async (info) => {
+        const props = info.event.extendedProps;
+        if (props._type === 'task') { info.revert(); return; }
+        try {
+          const start = info.event.start;
+          const end = info.event.end || info.event.start;
+          const isAllDay = info.event.allDay;
+          const payload = {
+            date_start: toDateStr(start),
+            date_end: toDateStr(isAllDay ? new Date(end.getTime() - 86400000) : end),
+          };
+          if (!isAllDay) {
+            payload.time_start = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+            payload.time_end = `${String(end.getHours()).padStart(2,'0')}:${String(end.getMinutes()).padStart(2,'0')}`;
+          }
+          await api.put(`/api/planning/events/${props.id}`, payload);
+        } catch { info.revert(); }
+      },
     });
 
     calendar.render();
+
+    // Initialize external events draggable
+    if (externalEventsEl) {
+      draggable = new Draggable(externalEventsEl, {
+        itemSelector: '.external-event',
+        eventData: (eventEl) => {
+          const eventType = eventEl.dataset.eventType || 'other';
+          const t = EVENT_TYPES[eventType];
+          return {
+            title: t ? t.label : eventEl.textContent.trim(),
+            backgroundColor: t ? t.color : '#64748B',
+            borderColor: t ? t.color : '#64748B',
+            create: false, // don't auto-create — we handle in drop callback
+          };
+        },
+      });
+    }
   });
 
   onDestroy(() => {
+    if (draggable) draggable.destroy();
     if (calendar) calendar.destroy();
   });
 </script>
@@ -296,19 +386,15 @@
       <div class="ya-page-card">
         <div class="ya-page-card__body">
           <h4 class="sidebar-title">Calendrier</h4>
-          <p class="sidebar-desc">Cliquez sur le calendrier pour creer un evenement</p>
+          <p class="sidebar-desc">Glissez-deposez un type dans le calendrier ou cliquez pour creer</p>
 
-          <div class="external-events">
+          <div class="external-events" bind:this={externalEventsEl}>
             {#each Object.entries(EVENT_TYPES) as [key, t]}
-              <div class="external-event" style="--evt-color:{t.color}">
+              <div class="external-event" data-event-type={key} style="--evt-color:{t.color}">
                 <span class="external-event__dot" style="background:{t.color}"></span>
                 <span>{t.label}</span>
               </div>
             {/each}
-            <div class="external-event" style="--evt-color:#4B8BFF">
-              <span class="external-event__dot" style="background:#4B8BFF"></span>
-              <span>Tache</span>
-            </div>
           </div>
 
           <button class="ya-btn ya-btn--primary" style="width:100%;margin-top:1.5rem" on:click={() => openNewEvent(toDateStr(new Date()))}>
@@ -430,6 +516,10 @@
 <style>
   .planning-page {
     animation: fadeIn 0.35s ease-out;
+    /* Fill available viewport height */
+    min-height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
   }
 
   /* ── 2-column layout (YashAdmin calendar style) ── */
@@ -437,12 +527,31 @@
     display: grid;
     grid-template-columns: 280px 1fr;
     gap: 1.5rem;
-    align-items: start;
+    align-items: stretch;
+    flex: 1;
+  }
+
+  .planning-main {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .planning-main > .ya-page-card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .planning-main > .ya-page-card > .ya-page-card__body {
+    flex: 1;
   }
 
   @media (max-width: 1024px) {
     .planning-layout {
       grid-template-columns: 1fr;
+    }
+    .planning-page {
+      min-height: auto;
     }
   }
 
@@ -475,13 +584,16 @@
     font-size: 1rem;
     font-weight: 500;
     color: var(--text-heading);
-    background: rgba(var(--primary-rgb), 0.04);
-    transition: background 0.15s;
-    cursor: default;
+    cursor: grab;
+    user-select: none;
   }
 
   .external-event:hover {
-    background: rgba(var(--primary-rgb), 0.08);
+    opacity: 0.85;
+  }
+
+  .external-event:active {
+    cursor: grabbing;
   }
 
   .external-event__dot {
