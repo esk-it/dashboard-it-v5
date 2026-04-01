@@ -985,33 +985,35 @@ input[type="datetime-local"] {
   cursor: pointer;
 }
 
-/* Resizable event handles — dayGrid uses end resizer on right edge */
+/* Resizable event handles — force visible (FC hides them by default in dayGrid) */
 .app-fullcalendar .fc-event {
   position: relative;
 }
 
-.app-fullcalendar .fc-daygrid-event .fc-event-resizer {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 8px;
-  cursor: ew-resize;
+.app-fullcalendar .fc-event-resizer {
+  display: block !important;
+  position: absolute !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 8px !important;
   opacity: 0;
+  cursor: ew-resize !important;
+  z-index: 2;
   transition: opacity 0.15s;
 }
 
-.app-fullcalendar .fc-daygrid-event:hover .fc-event-resizer {
+.app-fullcalendar .fc-event:hover .fc-event-resizer {
   opacity: 1;
   background: rgba(255,255,255,0.3);
+}
+
+.app-fullcalendar .fc-event-resizer-end {
+  right: 0 !important;
   border-radius: 0 8px 8px 0;
 }
 
-.app-fullcalendar .fc-daygrid-event .fc-event-resizer-end {
-  right: 0;
-}
-
-.app-fullcalendar .fc-daygrid-event .fc-event-resizer-start {
-  left: 0;
+.app-fullcalendar .fc-event-resizer-start {
+  left: 0 !important;
   border-radius: 8px 0 0 8px;
 }
 
