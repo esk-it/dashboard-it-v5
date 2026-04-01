@@ -41,11 +41,12 @@ _pending_verifier: str | None = None
 
 
 def load_config() -> dict | None:
+    """Load config. Returns dict if file exists with at least client_id, or None."""
     if not CONFIG_PATH.exists():
         return None
     try:
         data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        if data.get("refresh_token") and data.get("client_id"):
+        if data.get("client_id"):
             return data
     except Exception:
         pass
