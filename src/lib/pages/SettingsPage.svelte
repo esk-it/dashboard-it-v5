@@ -486,7 +486,13 @@
         body: JSON.stringify(gcalForm),
       });
       const { auth_url } = await res.json();
-      window.open(auth_url, '_blank');
+      // Use Tauri shell.open for desktop app, fallback to window.open
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(auth_url);
+      } catch {
+        window.open(auth_url, '_blank');
+      }
       // Poll for connection
       const poll = setInterval(async () => {
         try {
