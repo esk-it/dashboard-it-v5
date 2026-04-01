@@ -36,6 +36,11 @@
   let form = defaultForm();
   let openTasks = [];
 
+  // Google Calendar sync
+  let gcalConnected = false;
+  let gcalSyncing = false;
+  let gcalLastSync = null;
+
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
@@ -226,9 +231,35 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Google Calendar
+  // ---------------------------------------------------------------------------
+  async function checkGcalConnection() {
+    try {
+      const cfg = await api.get('/api/google-calendar/config');
+      gcalConnected = cfg.connected || false;
+      gcalLastSync = cfg.last_sync || null;
+    } catch {
+      gcalConnected = false;
+    }
+  }
+
+  async function syncGcal() {
+    gcalSyncing = true;
+    try {
+      await api.post('/api/google-calendar/sync');
+      await fetchEvents();
+      await checkGcalConnection();
+    } catch (e) {
+      console.error('Google Calendar sync failed', e);
+    }
+    gcalSyncing = false;
+  }
+
+  // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
   onMount(() => {
+    checkGcalConnection();
     calendar = new Calendar(calendarEl, {
       plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
       initialView: 'dayGridMonth',
@@ -407,6 +438,23 @@
           <button class="ya-btn ya-btn--primary" style="width:100%;margin-top:1.5rem" on:click={() => openNewEvent(toDateStr(new Date()))}>
             + Creer un evenement
           </button>
+
+          {#if gcalConnected}
+            <div class="gcal-sync" style="margin-top:1rem">
+              <button
+                class="ya-btn ya-btn--ghost gcal-sync-btn"
+                style="width:100%;display:flex;align-items:center;justify-content:center;gap:0.5rem"
+                on:click={syncGcal}
+                disabled={gcalSyncing}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
+                {gcalSyncing ? 'Synchronisation...' : 'Sync Google Calendar'}
+              </button>
+              {#if gcalLastSync}
+                <p class="gcal-last-sync">Dernier sync : {new Date(gcalLastSync).toLocaleString('fr-FR')}</p>
+              {/if}
+            </div>
+          {/if}
         </div>
       </div>
     </div>
@@ -748,5 +796,18 @@
 
   .type-label {
     font-weight: 500;
+  }
+
+  /* ── Google Calendar sync ── */
+  .gcal-sync-btn:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .gcal-last-sync {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin: 0.375rem 0 0;
   }
 </style>

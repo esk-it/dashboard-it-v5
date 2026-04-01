@@ -423,6 +423,18 @@ async def _run_migrations(db):
             "ALTER TABLE parc_equipment ADD COLUMN last_user TEXT NOT NULL DEFAULT ''"
         )
 
+    # Google Calendar sync columns on planning_events
+    cursor = await db.execute("PRAGMA table_info(planning_events)")
+    planning_cols = [row[1] for row in await cursor.fetchall()]
+    if "google_event_id" not in planning_cols:
+        await db.execute(
+            "ALTER TABLE planning_events ADD COLUMN google_event_id TEXT"
+        )
+    if "google_updated_at" not in planning_cols:
+        await db.execute(
+            "ALTER TABLE planning_events ADD COLUMN google_updated_at TEXT"
+        )
+
 
 async def _seed_defaults(db):
     """Insert default data into empty tables (first launch only)."""

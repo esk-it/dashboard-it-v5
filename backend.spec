@@ -72,6 +72,8 @@ a = Analysis(
         'backend.routers.security',
         'backend.routers.bastion',
         'backend.routers.tools',
+        'backend.routers.google_calendar',
+        'backend.services.google_calendar',
         'backend.schemas',
         'backend.schemas.bastion',
         'backend.schemas.changelog',

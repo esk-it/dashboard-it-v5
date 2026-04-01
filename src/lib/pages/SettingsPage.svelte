@@ -55,6 +55,13 @@
   let glpiSaving = false;
   let glpiStats = null;
 
+  // Google Calendar integration
+  let gcalConfig = null;
+  let gcalForm = { client_id: '', client_secret: '' };
+  let gcalSaving = false;
+  let gcalCalendars = [];
+  let gcalSelectedCalendar = '';
+
   // Update check
   let updateChecking = false;
   let updateResult = null;
@@ -455,8 +462,86 @@
     } catch (e) {}
   }
 
+  // ── Google Calendar ─────────────────────────────────
+  const GCAL_API = 'http://localhost:8010/api/google-calendar';
+
+  async function loadGcalConfig() {
+    try {
+      const res = await fetch(`${GCAL_API}/config`);
+      gcalConfig = await res.json();
+      if (gcalConfig && gcalConfig.connected) {
+        await loadGcalCalendars();
+      }
+    } catch (e) {
+      gcalConfig = null;
+    }
+  }
+
+  async function startGcalAuth() {
+    gcalSaving = true;
+    try {
+      const res = await fetch(`${GCAL_API}/auth/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(gcalForm),
+      });
+      const { auth_url } = await res.json();
+      window.open(auth_url, '_blank');
+      // Poll for connection
+      const poll = setInterval(async () => {
+        try {
+          const r = await fetch(`${GCAL_API}/config`);
+          const cfg = await r.json();
+          if (cfg.connected) {
+            clearInterval(poll);
+            gcalConfig = cfg;
+            gcalSaving = false;
+            await loadGcalCalendars();
+          }
+        } catch {}
+      }, 2000);
+      // Stop polling after 2 minutes
+      setTimeout(() => { clearInterval(poll); gcalSaving = false; }, 120000);
+    } catch (e) {
+      console.error('Google Calendar auth failed', e);
+      gcalSaving = false;
+    }
+  }
+
+  async function loadGcalCalendars() {
+    try {
+      const res = await fetch(`${GCAL_API}/calendars`);
+      const data = await res.json();
+      gcalCalendars = data.calendars || [];
+    } catch (e) {
+      gcalCalendars = [];
+    }
+  }
+
+  async function selectGcalCalendar() {
+    try {
+      await fetch(`${GCAL_API}/calendar`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calendar_id: gcalSelectedCalendar }),
+      });
+      await loadGcalConfig();
+      showSaved();
+    } catch (e) {}
+  }
+
+  async function disconnectGcal() {
+    try {
+      await fetch(`${GCAL_API}/config`, { method: 'DELETE' });
+      gcalConfig = null;
+      gcalCalendars = [];
+      gcalForm = { client_id: '', client_secret: '' };
+      showSaved();
+    } catch (e) {}
+  }
+
   // Load DB info & backups when switching to those panels
-  $: if (activePanel === 2) { loadGlpiConfig(); loadWsConfig(); }
+  $: if (activePanel === 2) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); }
   $: if (activePanel === 3) loadDbInfo();
   $: if (activePanel === 5) loadBackups();
 
@@ -861,6 +946,83 @@
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="integration-card">
+            <div class="int-header">
+              <span class="int-icon">{'\u{1F4C5}'}</span>
+              <div class="int-info">
+                <h3>Google Calendar</h3>
+                <p>Synchronisation bidirectionnelle du planning avec Google Calendar</p>
+              </div>
+              <span class="int-badge" class:active-badge={gcalConfig && gcalConfig.connected} class:soon={!gcalConfig || !gcalConfig.connected}>
+                {gcalConfig && gcalConfig.connected ? 'Actif' : 'Non configur\u00e9'}
+              </span>
+            </div>
+            <div class="gw-config-form">
+              {#if gcalConfig && gcalConfig.connected}
+                <div class="gw-status-grid">
+                  <div class="gw-status-item">
+                    <span>{'\u2705'}</span>
+                    <span>Compte : {gcalConfig.email || 'Connect\u00e9'}</span>
+                  </div>
+                  {#if gcalConfig.calendar_name}
+                    <div class="gw-status-item">
+                      <span>{'\u{1F4C5}'}</span>
+                      <span>Calendrier : {gcalConfig.calendar_name}</span>
+                    </div>
+                  {/if}
+                  {#if gcalConfig.last_sync}
+                    <div class="gw-status-item">
+                      <span>{'\u{1F552}'}</span>
+                      <span>Derni{'\u00e8'}re sync : {new Date(gcalConfig.last_sync).toLocaleString('fr-FR')}</span>
+                    </div>
+                  {/if}
+                </div>
+                {#if gcalCalendars.length > 0}
+                  <div class="glpi-form" style="margin-top:8px">
+                    <p class="gw-help" style="margin-bottom:8px">S{'\u00e9'}lectionner le calendrier :</p>
+                    <div class="glpi-fields">
+                      <select bind:value={gcalSelectedCalendar} class="glpi-input">
+                        <option value="">-- Choisir un calendrier --</option>
+                        {#each gcalCalendars as cal}
+                          <option value={cal.id}>{cal.summary || cal.id}</option>
+                        {/each}
+                      </select>
+                      <button class="btn-small" style="background:var(--accent,#06A6C9);color:#fff;font-weight:600"
+                        on:click={selectGcalCalendar}
+                        disabled={!gcalSelectedCalendar}>
+                        Appliquer
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+                <div style="display:flex;gap:8px;margin-top:8px">
+                  <button class="btn-danger" on:click={disconnectGcal} style="font-size:0.75rem;padding:4px 10px">
+                    D{'\u00e9'}connecter
+                  </button>
+                </div>
+              {:else}
+                <div class="glpi-form">
+                  <p class="gw-help" style="margin-bottom:8px">
+                    Entrez vos identifiants OAuth2 Google pour connecter votre calendrier :
+                  </p>
+                  <div class="glpi-fields">
+                    <input type="text" bind:value={gcalForm.client_id}
+                      placeholder="Client ID"
+                      class="glpi-input" />
+                    <input type="password" bind:value={gcalForm.client_secret}
+                      placeholder="Client Secret"
+                      class="glpi-input" />
+                    <button class="btn-small" style="background:var(--accent,#06A6C9);color:#fff;font-weight:600"
+                      on:click={startGcalAuth}
+                      disabled={gcalSaving || !gcalForm.client_id || !gcalForm.client_secret}>
+                      {gcalSaving ? 'Connexion en cours...' : 'Connecter'}
+                    </button>
+                  </div>
+                </div>
+              {/if}
             </div>
           </div>
 
