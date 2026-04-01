@@ -187,7 +187,7 @@ async def update_event(event_id: int, body: PlanningEventUpdate, db=Depends(get_
             evt = await get_event(event_id, db)
             g_id = evt.get("google_event_id")
             if g_id:
-                g_body = gcal.itm_to_google(evt)
+                g_body = gcal.itm_to_google_full(evt)
                 result = await gcal.update_google_event(g_id, g_body)
                 g_updated = result.get("updated", "")
                 await db.execute(

@@ -211,18 +211,29 @@ async def list_calendars() -> list[dict]:
         )
         resp.raise_for_status()
     items = resp.json().get("items", [])
-    return [{"id": c["id"], "summary": c.get("summary", ""), "primary": c.get("primary", False)} for c in items]
+    return [
+        {
+            "id": c["id"],
+            "summary": c.get("summary", ""),
+            "primary": c.get("primary", False),
+            "backgroundColor": c.get("backgroundColor", "#4B8BFF"),
+            "foregroundColor": c.get("foregroundColor", "#fff"),
+        }
+        for c in items
+    ]
 
 
 async def list_events(
     time_min: str | None = None,
     time_max: str | None = None,
     sync_token: str | None = None,
+    calendar_id: str | None = None,
 ) -> dict:
     """Fetch events from Google Calendar. Uses syncToken for incremental sync."""
     token = await _ensure_valid_token()
     cfg = load_config()
-    calendar_id = cfg.get("calendar_id", "primary")
+    if not calendar_id:
+        calendar_id = cfg.get("calendar_id", "primary")
 
     params: dict = {"maxResults": 250, "singleEvents": True, "orderBy": "startTime"}
     if sync_token:
@@ -276,12 +287,13 @@ async def create_google_event(event_body: dict) -> dict:
 
 
 async def update_google_event(event_id: str, event_body: dict) -> dict:
-    """Update an event on Google Calendar."""
+    """Update an event on Google Calendar using PUT (full replace, not PATCH).
+    PUT ensures switching between all-day and timed events works correctly."""
     token = await _ensure_valid_token()
     cfg = load_config()
     calendar_id = cfg.get("calendar_id", "primary")
     async with httpx.AsyncClient() as client:
-        resp = await client.patch(
+        resp = await client.put(
             f"{GOOGLE_CALENDAR_API}/calendars/{calendar_id}/events/{event_id}",
             headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
             json=event_body,
@@ -330,6 +342,23 @@ def itm_to_google(evt: dict) -> dict:
         tz = "Europe/Paris"
         body["start"] = {"dateTime": f"{evt['date_start']}T{evt.get('time_start', '09:00')}:00", "timeZone": tz}
         body["end"] = {"dateTime": f"{evt.get('date_end', evt['date_start'])}T{evt.get('time_end', '10:00')}:00", "timeZone": tz}
+    return body
+
+
+def itm_to_google_full(evt: dict) -> dict:
+    """Full event body for PUT (not PATCH) — ensures format switch between all_day/timed works."""
+    body = itm_to_google(evt)
+    # When switching between all_day and timed, we must clear the other format
+    if evt.get("all_day"):
+        # Ensure no dateTime keys linger
+        body["start"].pop("dateTime", None)
+        body["start"].pop("timeZone", None)
+        body["end"].pop("dateTime", None)
+        body["end"].pop("timeZone", None)
+    else:
+        # Ensure no date keys linger
+        body["start"].pop("date", None)
+        body["end"].pop("date", None)
     return body
 
 

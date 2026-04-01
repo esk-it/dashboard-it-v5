@@ -1,9 +1,13 @@
 """Google Calendar integration endpoints."""
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+logger = logging.getLogger(__name__)
 
 from ..database import get_raw_db
 from ..services import google_calendar as gcal
@@ -101,6 +105,49 @@ async def select_calendar(body: CalendarSelectRequest):
     """Select which Google Calendar to sync with."""
     gcal.save_config({"calendar_id": body.calendar_id})
     return {"calendar_id": body.calendar_id}
+
+
+@router.get("/events")
+async def get_calendar_events(
+    calendar_ids: str = "",
+    start: str = "",
+    end: str = "",
+):
+    """Fetch events from one or more Google Calendars (comma-separated IDs).
+    Returns events grouped by calendar_id with color info."""
+    if not gcal.is_connected():
+        return {"events": []}
+
+    ids = [c.strip() for c in calendar_ids.split(",") if c.strip()]
+    if not ids:
+        return {"events": []}
+
+    # Get calendar list for colors/names
+    calendars = await gcal.list_calendars()
+    cal_map = {c["id"]: c for c in calendars}
+
+    all_events = []
+    for cal_id in ids:
+        try:
+            result = await gcal.list_events(
+                time_min=start or None,
+                time_max=end or None,
+                calendar_id=cal_id,
+            )
+            cal_info = cal_map.get(cal_id, {})
+            for item in result.get("items", []):
+                if item.get("status") == "cancelled" or item.get("recurrence"):
+                    continue
+                evt = gcal.google_to_itm(item)
+                evt["_calendar_id"] = cal_id
+                evt["_calendar_name"] = cal_info.get("summary", cal_id)
+                evt["_calendar_color"] = cal_info.get("backgroundColor", "#4B8BFF")
+                evt["_readonly"] = True
+                all_events.append(evt)
+        except Exception as e:
+            logger.warning(f"Failed to fetch events from calendar {cal_id}: {e}")
+
+    return {"events": all_events}
 
 
 @router.post("/sync")

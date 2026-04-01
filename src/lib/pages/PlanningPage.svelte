@@ -40,6 +40,9 @@
   let gcalConnected = false;
   let gcalSyncing = false;
   let gcalLastSync = null;
+  let gcalCalendars = [];
+  let gcalEnabledCalendars = new Set();
+  let gcalExternalEvents = [];
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -141,7 +144,30 @@
       extendedProps: { ...t, _type: 'task' },
     }));
 
-    calendar.addEventSource([...fcEvents, ...fcTasks]);
+    // Add external Google Calendar events (read-only)
+    const fcGcal = gcalExternalEvents.map((evt, i) => {
+      const start = evt.all_day
+        ? evt.date_start
+        : `${evt.date_start}T${evt.time_start || '00:00'}`;
+      const end = evt.all_day
+        ? addOneDay(evt.date_end)
+        : (evt.time_end ? `${evt.date_end}T${evt.time_end}` : null);
+      const color = evt._calendar_color || '#888';
+      return {
+        id: `gcal-${i}`,
+        title: evt.title,
+        start,
+        end,
+        allDay: evt.all_day,
+        backgroundColor: color,
+        borderColor: color,
+        textColor: '#fff',
+        editable: false,
+        extendedProps: { ...evt, _type: 'gcal-external' },
+      };
+    });
+
+    calendar.addEventSource([...fcEvents, ...fcTasks, ...fcGcal]);
   }
 
   function addOneDay(dateStr) {
@@ -238,8 +264,48 @@
       const cfg = await api.get('/api/google-calendar/config');
       gcalConnected = cfg.connected || false;
       gcalLastSync = cfg.last_sync || null;
+      if (gcalConnected) {
+        await loadGcalCalendars();
+      }
     } catch {
       gcalConnected = false;
+    }
+  }
+
+  async function loadGcalCalendars() {
+    try {
+      const { calendars } = await api.get('/api/google-calendar/calendars');
+      gcalCalendars = calendars || [];
+    } catch { gcalCalendars = []; }
+  }
+
+  function toggleCalendar(calId) {
+    if (gcalEnabledCalendars.has(calId)) {
+      gcalEnabledCalendars.delete(calId);
+    } else {
+      gcalEnabledCalendars.add(calId);
+    }
+    gcalEnabledCalendars = gcalEnabledCalendars; // trigger reactivity
+    fetchGcalExternalEvents();
+  }
+
+  async function fetchGcalExternalEvents() {
+    if (gcalEnabledCalendars.size === 0) {
+      gcalExternalEvents = [];
+      updateCalendarEvents();
+      return;
+    }
+    if (!calendar) return;
+    const view = calendar.view;
+    const start = toDateStr(view.activeStart);
+    const end = toDateStr(view.activeEnd);
+    const ids = [...gcalEnabledCalendars].join(',');
+    try {
+      const { events: evts } = await api.get(`/api/google-calendar/events?calendar_ids=${encodeURIComponent(ids)}&start=${start}&end=${end}`);
+      gcalExternalEvents = evts || [];
+      updateCalendarEvents();
+    } catch {
+      gcalExternalEvents = [];
     }
   }
 
@@ -297,6 +363,7 @@
       // Callbacks
       datesSet: () => {
         fetchEvents();
+        if (gcalEnabledCalendars.size > 0) fetchGcalExternalEvents();
       },
 
       dateClick: (info) => {
@@ -454,6 +521,25 @@
                 <p class="gcal-last-sync">Dernier sync : {new Date(gcalLastSync).toLocaleString('fr-FR')}</p>
               {/if}
             </div>
+
+            <!-- Calendriers Google (cochables) -->
+            {#if gcalCalendars.length > 0}
+              <div class="gcal-calendars">
+                <h5 class="gcal-calendars__title">Mes agendas</h5>
+                {#each gcalCalendars as cal}
+                  <label class="gcal-calendar-item">
+                    <input
+                      type="checkbox"
+                      checked={gcalEnabledCalendars.has(cal.id)}
+                      on:change={() => toggleCalendar(cal.id)}
+                      style="accent-color:{cal.backgroundColor}"
+                    />
+                    <span class="gcal-calendar-dot" style="background:{cal.backgroundColor}"></span>
+                    <span class="gcal-calendar-name" title={cal.summary}>{cal.summary}</span>
+                  </label>
+                {/each}
+              </div>
+            {/if}
           {/if}
         </div>
       </div>
@@ -809,5 +895,51 @@
     color: var(--text-muted);
     text-align: center;
     margin: 0.375rem 0 0;
+  }
+
+  /* ── Google Calendar list (sidebar) ── */
+  .gcal-calendars {
+    margin-top: 1.25rem;
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 0.75rem;
+  }
+
+  .gcal-calendars__title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin: 0 0 0.5rem;
+  }
+
+  .gcal-calendar-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--text-heading);
+  }
+
+  .gcal-calendar-item input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .gcal-calendar-dot {
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .gcal-calendar-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 </style>
