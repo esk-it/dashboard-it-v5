@@ -486,12 +486,13 @@
 
 <div class="planning-page">
   <div class="planning-layout">
-    <!-- ═══ Left sidebar — event types (YashAdmin style) ═══ -->
+    <!-- ═══ Left sidebar ═══ -->
     <div class="planning-sidebar">
-      <div class="ya-page-card">
+      <!-- ── Partie haute : drag-drop + boutons (fixe) ── -->
+      <div class="ya-page-card sidebar-top">
         <div class="ya-page-card__body">
           <h4 class="sidebar-title">Calendrier</h4>
-          <p class="sidebar-desc">Glissez-deposez un type dans le calendrier ou cliquez pour creer</p>
+          <p class="sidebar-desc">Glissez-deposez un type ou cliquez pour creer</p>
 
           <div class="external-events" bind:this={externalEventsEl}>
             {#each Object.entries(EVENT_TYPES) as [key, t]}
@@ -502,47 +503,53 @@
             {/each}
           </div>
 
-          <button class="ya-btn ya-btn--primary" style="width:100%;margin-top:1.5rem" on:click={() => openNewEvent(toDateStr(new Date()))}>
+          <button class="ya-btn ya-btn--primary" style="width:100%;margin-top:1rem" on:click={() => openNewEvent(toDateStr(new Date()))}>
             + Creer un evenement
           </button>
 
           {#if gcalConnected}
-            <div class="gcal-sync" style="margin-top:1rem">
-              <button
-                class="ya-btn ya-btn--ghost gcal-sync-btn"
-                style="width:100%;display:flex;align-items:center;justify-content:center;gap:0.5rem"
-                on:click={syncGcal}
-                disabled={gcalSyncing}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
-                {gcalSyncing ? 'Synchronisation...' : 'Sync Google Calendar'}
-              </button>
-              {#if gcalLastSync}
-                <p class="gcal-last-sync">Dernier sync : {new Date(gcalLastSync).toLocaleString('fr-FR')}</p>
-              {/if}
-            </div>
-
-            <!-- Calendriers Google (cochables) -->
-            {#if gcalCalendars.length > 0}
-              <div class="gcal-calendars">
-                <h5 class="gcal-calendars__title">Mes agendas</h5>
-                {#each gcalCalendars as cal}
-                  <label class="gcal-calendar-item">
-                    <input
-                      type="checkbox"
-                      checked={gcalEnabledCalendars.has(cal.id)}
-                      on:change={() => toggleCalendar(cal.id)}
-                      style="accent-color:{cal.backgroundColor}"
-                    />
-                    <span class="gcal-calendar-dot" style="background:{cal.backgroundColor}"></span>
-                    <span class="gcal-calendar-name" title={cal.summary}>{cal.summary}</span>
-                  </label>
-                {/each}
-              </div>
-            {/if}
+            <button
+              class="ya-btn ya-btn--ghost gcal-sync-btn"
+              style="width:100%;margin-top:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.5rem"
+              on:click={syncGcal}
+              disabled={gcalSyncing}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
+              {gcalSyncing ? 'Sync...' : 'Synchroniser'}
+            </button>
           {/if}
         </div>
       </div>
+
+      <!-- ── Partie basse : calendriers Google (scrollable) ── -->
+      {#if gcalConnected && gcalCalendars.length > 0}
+        <div class="ya-page-card sidebar-calendars">
+          <div class="ya-page-card__body">
+            <div class="gcal-section-header">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="opacity:0.5"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span>Mes agendas</span>
+            </div>
+            <div class="gcal-calendar-list">
+              {#each gcalCalendars as cal}
+                <label class="gcal-cal" class:gcal-cal--checked={gcalEnabledCalendars.has(cal.id)}>
+                  <span class="gcal-cal__check" style="--cal-color:{cal.backgroundColor}">
+                    {#if gcalEnabledCalendars.has(cal.id)}
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    {/if}
+                  </span>
+                  <span class="gcal-cal__name" title={cal.summary}>{cal.summary}</span>
+                  <input
+                    type="checkbox"
+                    checked={gcalEnabledCalendars.has(cal.id)}
+                    on:change={() => toggleCalendar(cal.id)}
+                    class="gcal-cal__input"
+                  />
+                </label>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
     </div>
 
     <!-- ═══ Right — FullCalendar ═══ -->
@@ -884,62 +891,113 @@
     font-weight: 500;
   }
 
-  /* ── Google Calendar sync ── */
+  /* ── Sidebar layout: two cards stacked ── */
+  .planning-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    max-height: calc(100vh - 140px);
+  }
+
+  .sidebar-top {
+    flex-shrink: 0;
+  }
+
+  .sidebar-calendars {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-calendars > .ya-page-card__body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+  }
+
+  /* ── Sync button ── */
   .gcal-sync-btn:disabled {
     opacity: 0.6;
     cursor: wait;
   }
 
-  .gcal-last-sync {
+  /* ── Calendar list — Google Calendar style ── */
+  .gcal-section-header {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
     font-size: 0.6875rem;
-    color: var(--text-muted);
-    text-align: center;
-    margin: 0.375rem 0 0;
-  }
-
-  /* ── Google Calendar list (sidebar) ── */
-  .gcal-calendars {
-    margin-top: 1.25rem;
-    border-top: 1px solid var(--border-subtle);
-    padding-top: 0.75rem;
-  }
-
-  .gcal-calendars__title {
-    font-size: 0.75rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     color: var(--text-muted);
-    margin: 0 0 0.5rem;
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
   }
 
-  .gcal-calendar-item {
+  .gcal-calendar-list {
+    overflow-y: auto;
+    flex: 1;
+    margin: 0 -0.375rem;
+    padding: 0 0.375rem;
+  }
+
+  /* Scrollbar style */
+  .gcal-calendar-list::-webkit-scrollbar {
+    width: 4px;
+  }
+  .gcal-calendar-list::-webkit-scrollbar-thumb {
+    background: var(--border-subtle);
+    border-radius: 4px;
+  }
+
+  /* Individual calendar item — Google style */
+  .gcal-cal {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.25rem 0;
+    padding: 0.25rem 0.375rem;
+    border-radius: 0.25rem;
     cursor: pointer;
-    font-size: 0.8125rem;
-    color: var(--text-heading);
+    transition: background 0.1s;
+    user-select: none;
   }
 
-  .gcal-calendar-item input[type="checkbox"] {
+  .gcal-cal:hover {
+    background: rgba(255,255,255,0.04);
+  }
+
+  .gcal-cal__input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .gcal-cal__check {
     width: 1rem;
     height: 1rem;
-    cursor: pointer;
+    border-radius: 0.1875rem;
+    border: 2px solid var(--cal-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    transition: background 0.1s;
   }
 
-  .gcal-calendar-dot {
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 2px;
-    flex-shrink: 0;
+  .gcal-cal--checked .gcal-cal__check {
+    background: var(--cal-color);
   }
 
-  .gcal-calendar-name {
+  .gcal-cal__name {
+    font-size: 0.8125rem;
+    color: var(--text-heading);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    line-height: 1.3;
   }
 </style>
