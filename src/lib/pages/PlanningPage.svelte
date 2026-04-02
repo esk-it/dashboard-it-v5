@@ -944,6 +944,7 @@
     cursor: pointer;
     transition: background 0.1s;
     user-select: none;
+    position: relative; /* contain the absolute-positioned hidden input */
   }
 
   .gcal-cal:hover {
