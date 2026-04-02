@@ -348,7 +348,7 @@
         day: 'Jour',
         list: 'Liste',
       },
-      height: 'calc(100vh - 180px)',
+      height: '100%',
       dayMaxEvents: 4,
       weekNumbers: true,
       navLinks: true,
@@ -668,7 +668,9 @@
 <style>
   .planning-page {
     animation: fadeIn 0.35s ease-out;
-    height: calc(100vh - 140px);
+    /* Exact fit: viewport - header(70px) - content-body padding(30px*2) */
+    height: calc(100vh - 70px - 3.75rem);
+    max-height: calc(100vh - 70px - 3.75rem);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -906,7 +908,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-height: calc(100vh - 140px);
+    overflow: hidden;
   }
 
   .sidebar-top {
