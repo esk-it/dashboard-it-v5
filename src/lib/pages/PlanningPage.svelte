@@ -668,9 +668,7 @@
 <style>
   .planning-page {
     animation: fadeIn 0.35s ease-out;
-    /* Exact fit: viewport - header(70px) - content-body padding(30px*2) */
-    height: calc(100vh - 70px - 3.75rem);
-    max-height: calc(100vh - 70px - 3.75rem);
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow: hidden;
