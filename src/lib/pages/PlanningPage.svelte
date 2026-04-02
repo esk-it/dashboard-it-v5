@@ -884,6 +884,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    max-height: 700px;
     overflow: hidden;
   }
 
