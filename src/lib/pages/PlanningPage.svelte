@@ -348,8 +348,7 @@
         day: 'Jour',
         list: 'Liste',
       },
-      height: 'auto',
-      contentHeight: 'auto',
+      height: 'calc(100vh - 180px)',
       dayMaxEvents: 4,
       weekNumbers: true,
       navLinks: true,
@@ -669,10 +668,10 @@
 <style>
   .planning-page {
     animation: fadeIn 0.35s ease-out;
-    /* Fill available viewport height */
-    min-height: calc(100vh - 140px);
+    height: calc(100vh - 140px);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   /* ── 2-column layout (YashAdmin calendar style) ── */
@@ -682,6 +681,7 @@
     gap: 1.5rem;
     align-items: stretch;
     flex: 1;
+    overflow: hidden;
   }
 
   .planning-main {
@@ -695,11 +695,13 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    min-height: 0;
   }
 
   .planning-main > .ya-page-card > .ya-page-card__body {
     flex: 1;
-    overflow-y: auto;
+    overflow: hidden;
+    min-height: 0;
   }
 
   @media (max-width: 1024px) {
