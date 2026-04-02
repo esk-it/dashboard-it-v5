@@ -892,8 +892,7 @@
   }
 
   .sidebar-calendars {
-    flex: 1;
-    min-height: 0;
+    max-height: 300px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -904,6 +903,7 @@
     flex-direction: column;
     overflow: hidden;
     flex: 1;
+    min-height: 0;
   }
 
   /* ── Sync button ── */
