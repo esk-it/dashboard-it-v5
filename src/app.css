@@ -888,14 +888,13 @@ input[type="datetime-local"] {
 }
 
 /* ── FullCalendar YashAdmin theme ── */
+/* FullCalendar height is set dynamically via JS — just ensure overflow is contained */
 .app-fullcalendar {
-  max-height: 700px;
   overflow: hidden;
 }
 
 .app-fullcalendar .fc {
   font-family: 'Poppins', sans-serif;
-  max-height: 700px !important;
 }
 
 .app-fullcalendar .fc-toolbar-title {

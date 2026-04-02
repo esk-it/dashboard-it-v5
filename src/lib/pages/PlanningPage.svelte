@@ -327,10 +327,25 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Dynamic height
+  // ---------------------------------------------------------------------------
+  function calcFcHeight() {
+    // header=70px, content-body padding=30px*2, card padding ~20px, toolbar ~10px
+    return Math.max(500, window.innerHeight - 70 - 60 - 30);
+  }
+
+  function onResize() {
+    if (calendar) {
+      calendar.setOption('height', calcFcHeight());
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Lifecycle
   // ---------------------------------------------------------------------------
   onMount(() => {
     checkGcalConnection();
+    window.addEventListener('resize', onResize);
     calendar = new Calendar(calendarEl, {
       plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
       initialView: 'dayGridMonth',
@@ -348,7 +363,7 @@
         day: 'Jour',
         list: 'Liste',
       },
-      height: 700,
+      height: calcFcHeight(),
       dayMaxEvents: 4,
       weekNumbers: true,
       navLinks: true,
@@ -483,6 +498,7 @@
   });
 
   onDestroy(() => {
+    window.removeEventListener('resize', onResize);
     if (draggable) draggable.destroy();
     if (calendar) calendar.destroy();
   });
@@ -884,8 +900,6 @@
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-    max-height: 700px;
-    overflow: hidden;
   }
 
   .sidebar-top {
