@@ -893,18 +893,9 @@
   }
 
   .sidebar-calendars {
-    max-height: 300px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
   }
 
   .sidebar-calendars > .ya-page-card__body {
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    flex: 1;
-    min-height: 0;
   }
 
   /* ── Sync button ── */
@@ -928,8 +919,8 @@
   }
 
   .gcal-calendar-list {
+    height: 200px;
     overflow-y: auto;
-    flex: 1;
     margin: 0 -0.375rem;
     padding: 0 0.375rem;
   }
