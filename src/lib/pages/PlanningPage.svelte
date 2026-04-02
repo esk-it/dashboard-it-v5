@@ -303,10 +303,11 @@
     try {
       const { events: evts } = await api.get(`/api/google-calendar/events?calendar_ids=${encodeURIComponent(ids)}&start=${start}&end=${end}`);
       gcalExternalEvents = evts || [];
-      updateCalendarEvents();
-    } catch {
-      gcalExternalEvents = [];
+    } catch (e) {
+      console.error('Failed to fetch Google Calendar events', e);
+      // Keep existing gcalExternalEvents — don't clear on error
     }
+    updateCalendarEvents();
   }
 
   async function syncGcal() {
