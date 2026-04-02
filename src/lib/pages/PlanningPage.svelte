@@ -145,27 +145,31 @@
     }));
 
     // Add external Google Calendar events (read-only)
-    const fcGcal = gcalExternalEvents.map((evt, i) => {
-      const start = evt.all_day
-        ? evt.date_start
-        : `${evt.date_start}T${evt.time_start || '00:00'}`;
-      const end = evt.all_day
-        ? addOneDay(evt.date_end)
-        : (evt.time_end ? `${evt.date_end}T${evt.time_end}` : null);
-      const color = evt._calendar_color || '#888';
-      return {
-        id: `gcal-${i}`,
-        title: evt.title,
-        start,
-        end,
-        allDay: evt.all_day,
-        backgroundColor: color,
-        borderColor: color,
-        textColor: '#fff',
-        editable: false,
-        extendedProps: { ...evt, _type: 'gcal-external' },
-      };
-    });
+    // Filter out events already synced locally (avoid duplicates)
+    const localGoogleIds = new Set(events.filter(e => e.google_event_id).map(e => e.google_event_id));
+    const fcGcal = gcalExternalEvents
+      .filter(evt => !localGoogleIds.has(evt.google_event_id))
+      .map((evt, i) => {
+        const start = evt.all_day
+          ? evt.date_start
+          : `${evt.date_start}T${evt.time_start || '00:00'}`;
+        const end = evt.all_day
+          ? addOneDay(evt.date_end)
+          : (evt.time_end ? `${evt.date_end}T${evt.time_end}` : null);
+        const color = evt._calendar_color || '#888';
+        return {
+          id: `gcal-${i}`,
+          title: evt.title,
+          start,
+          end,
+          allDay: evt.all_day,
+          backgroundColor: color,
+          borderColor: color,
+          textColor: '#fff',
+          editable: false,
+          extendedProps: { ...evt, _type: 'gcal-external' },
+        };
+      });
 
     calendar.addEventSource([...fcEvents, ...fcTasks, ...fcGcal]);
   }
@@ -344,9 +348,9 @@
         day: 'Jour',
         list: 'Liste',
       },
-      height: '100%',
-      expandRows: true,
-      dayMaxEvents: 3,
+      height: 'auto',
+      contentHeight: 'auto',
+      dayMaxEvents: 4,
       weekNumbers: true,
       navLinks: true,
       editable: true,
@@ -683,16 +687,19 @@
   .planning-main {
     display: flex;
     flex-direction: column;
+    min-width: 0;
   }
 
   .planning-main > .ya-page-card {
     flex: 1;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
   }
 
   .planning-main > .ya-page-card > .ya-page-card__body {
     flex: 1;
+    overflow-y: auto;
   }
 
   @media (max-width: 1024px) {
