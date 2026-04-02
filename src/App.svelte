@@ -77,7 +77,7 @@
   <Sidebar />
   <Navbar on:search={() => showSearch = !showSearch} on:lock={() => currentPage.set('/lock')} />
 
-  <div class="content-body" class:sidebar-collapsed={!$sidebarOpen} class:no-scroll={$currentPage === '/planning'}>
+  <div class="content-body" class:sidebar-collapsed={!$sidebarOpen}>
     {#key $currentPage}
     <div class="page-transition">
     {#if $currentPage === '/'}
@@ -149,17 +149,11 @@
     left: var(--sidebar-width-collapsed);
   }
 
-  .content-body.no-scroll {
-    overflow: hidden !important;
-  }
 
   .page-transition {
     animation: pageIn 0.25s ease-out;
   }
 
-  .no-scroll .page-transition {
-    height: 100%;
-  }
 
   @keyframes pageIn {
     from { opacity: 0; transform: translateY(8px); }
