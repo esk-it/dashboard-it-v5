@@ -255,6 +255,28 @@
     } catch (_) {}
   }
 
+  // Inline status change from table dropdown
+  async function changeTaskStatus(task, newDone) {
+    const wasDone = task.done;
+    if (newDone === wasDone) return;
+    try {
+      const updated = await api.patch(`/api/tasks/${task.id}/done`);
+      tasks = tasks.map(t => t.id === updated.id ? updated : t);
+    } catch {}
+  }
+
+  // Inline priority change from table dropdown
+  async function changeTaskPriority(task, newPriority) {
+    if (task.priority === newPriority) return;
+    try {
+      const updated = await api.put(`/api/tasks/${task.id}`, {
+        title: task.title, site: task.site || '', category: task.category || '',
+        priority: newPriority, due_date: task.due_date || '', recurrence: task.recurrence || '', notes: task.notes || '',
+      });
+      tasks = tasks.map(t => t.id === updated.id ? updated : t);
+    } catch {}
+  }
+
   async function toggleDone(task) {
     try {
       const updated = await api.patch(`/api/tasks/${task.id}/done`);
@@ -647,17 +669,18 @@
                       {/if}
                     </div>
                   </td>
-                  <!-- Status badge — YashAdmin exact colors via CSS classes -->
-                  <td>
-                    {#if true}
-                      {@const status = getDueStatus(task)}
-                      {@const labels = { done: 'Terminee', overdue: 'En retard', today: "Aujourd'hui", week: 'Cette sem.', future: 'A venir', nodate: 'Non planif.' }}
-                      <span class="dt-badge dt-badge--{status}">
-                        {labels[status] || ''}
-                      </span>
-                    {/if}
+                  <!-- Status dropdown — YashAdmin style -->
+                  <td on:click|stopPropagation>
+                    <select
+                      class="status-select status-select--{task.done ? 'done' : getDueStatus(task)}"
+                      value={task.done ? 'done' : 'open'}
+                      on:change={(e) => changeTaskStatus(task, e.target.value === 'done')}
+                    >
+                      <option value="open">En cours</option>
+                      <option value="done">Terminee</option>
+                    </select>
                   </td>
-                  <!-- Due date -->
+                  <!-- Start/Due date -->
                   <td>
                     <span class="dt-date">{task.due_date || '—'}</span>
                   </td>
@@ -667,20 +690,26 @@
                       <span class="dt-site">{task.site}</span>
                     {/if}
                   </td>
-                  <!-- Tags (category) -->
+                  <!-- Tags (category + recurrence) -->
                   <td>
                     {#if task.category}
                       <span class="dt-tag dt-tag--primary">{task.category}</span>
                     {/if}
-                    {#if task.recurrence}
-                      <span class="dt-tag dt-tag--secondary">↻</span>
+                    {#if task.site}
+                      <span class="dt-tag dt-tag--secondary">{task.site}</span>
                     {/if}
                   </td>
-                  <!-- Priority — YashAdmin exact colors via CSS classes -->
-                  <td style="text-align:right">
-                    <span class="dt-badge dt-badge--prio{task.priority}">
-                      {task.priority === 1 ? 'Basse' : task.priority === 3 ? 'Urgente' : 'Normale'}
-                    </span>
+                  <!-- Priority dropdown — YashAdmin style -->
+                  <td style="text-align:right" on:click|stopPropagation>
+                    <select
+                      class="status-select status-select--prio{task.priority}"
+                      value={task.priority}
+                      on:change={(e) => changeTaskPriority(task, Number(e.target.value))}
+                    >
+                      <option value={1}>Basse</option>
+                      <option value={2}>Normale</option>
+                      <option value={3}>Urgente</option>
+                    </select>
                   </td>
                 </tr>
                 <!-- Expanded row -->
@@ -1308,6 +1337,36 @@
   .dt-badge--prio1      { background: #bbe6e3 !important; color: #3A9B94 !important; }
   .dt-badge--prio2      { background: rgba(44,44,44,0.1) !important; color: #888888 !important; }
   .dt-badge--prio3      { background: #ffdede !important; color: #FF5E5E !important; }
+
+  /* ── Status/Priority select dropdowns — YashAdmin exact ── */
+  .status-select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0 !important;
+    border-radius: 0.25rem;
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
+    min-width: 5rem;
+    text-align: center;
+  }
+
+  /* Status colors */
+  .status-select--done     { background: #bbe6e3 !important; color: #3A9B94 !important; }
+  .status-select--overdue  { background: #ffdede !important; color: #FF5E5E !important; }
+  .status-select--today    { background: #ffeccc !important; color: #FF9F00 !important; }
+  .status-select--week     { background: #d3edf5 !important; color: #58bad7 !important; }
+  .status-select--future   { background: #eeeeee !important; color: #6e6e6e !important; }
+  .status-select--nodate   { background: rgba(187,107,217,0.15) !important; color: #BB6BD9 !important; }
+  .status-select--open     { background: rgba(187,107,217,0.15) !important; color: #BB6BD9 !important; }
+
+  /* Priority colors */
+  .status-select--prio1    { background: #bbe6e3 !important; color: #3A9B94 !important; }
+  .status-select--prio2    { background: rgba(44,44,44,0.1) !important; color: #888888 !important; }
+  .status-select--prio3    { background: #ffdede !important; color: #FF5E5E !important; }
 
   .dt-date {
     font-size: 0.75rem;
