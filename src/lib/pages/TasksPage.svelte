@@ -507,42 +507,42 @@
   <div class="task-kpi-row">
     <div class="task-kpi">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:var(--primary)">{totalCount}</h2>
+        <h2 class="task-kpi__count kpi-color-primary">{totalCount}</h2>
         <span class="task-kpi__status">Total</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
     </div>
     <div class="task-kpi">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:#BB6BD9">{openCount}</h2>
+        <h2 class="task-kpi__count kpi-color-purple">{openCount}</h2>
         <span class="task-kpi__status">En cours</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
     </div>
     <div class="task-kpi">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:var(--warning)">{weekCount}</h2>
+        <h2 class="task-kpi__count kpi-color-warning">{weekCount}</h2>
         <span class="task-kpi__status">Cette semaine</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
     </div>
     <div class="task-kpi">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:var(--danger)">{overdueCount}</h2>
+        <h2 class="task-kpi__count kpi-color-danger">{overdueCount}</h2>
         <span class="task-kpi__status">En retard</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
     </div>
     <div class="task-kpi">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:var(--success)">{doneCount}</h2>
+        <h2 class="task-kpi__count kpi-color-success">{doneCount}</h2>
         <span class="task-kpi__status">Terminees</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
     </div>
     <div class="task-kpi task-kpi--last">
       <div class="task-kpi__inline">
-        <h2 class="task-kpi__count" style="color:var(--danger)">{totalCount - doneCount - openCount}</h2>
+        <h2 class="task-kpi__count kpi-color-danger">{totalCount - doneCount - openCount}</h2>
         <span class="task-kpi__status">En attente</span>
       </div>
       <p class="task-kpi__sub">Taches assignees</p>
@@ -647,13 +647,12 @@
                       {/if}
                     </div>
                   </td>
-                  <!-- Status badge -->
+                  <!-- Status badge — YashAdmin exact colors via CSS classes -->
                   <td>
                     {#if true}
                       {@const status = getDueStatus(task)}
-                      {@const colors = { done: '#22C55E', overdue: '#EF4444', today: '#F59E0B', week: '#3B82F6', future: '#94A3B8', nodate: '#BB6BD9' }}
                       {@const labels = { done: 'Terminee', overdue: 'En retard', today: "Aujourd'hui", week: 'Cette sem.', future: 'A venir', nodate: 'Non planif.' }}
-                      <span class="dt-status-badge" style="background:{colors[status] || '#94A3B8'}20;color:{colors[status] || '#94A3B8'}">
+                      <span class="dt-badge dt-badge--{status}">
                         {labels[status] || ''}
                       </span>
                     {/if}
@@ -677,14 +676,11 @@
                       <span class="dt-tag dt-tag--secondary">↻</span>
                     {/if}
                   </td>
-                  <!-- Priority -->
+                  <!-- Priority — YashAdmin exact colors via CSS classes -->
                   <td style="text-align:right">
-                    {#if true}
-                      {@const p = getPriority(task.priority)}
-                      <span class="dt-priority-badge" style="background:{p.color}20;color:{p.color}">
-                        {p.label}
-                      </span>
-                    {/if}
+                    <span class="dt-badge dt-badge--prio{task.priority}">
+                      {task.priority === 1 ? 'Basse' : task.priority === 3 ? 'Urgente' : 'Normale'}
+                    </span>
                   </td>
                 </tr>
                 <!-- Expanded row -->
@@ -1102,10 +1098,17 @@
     line-height: 1.2;
   }
 
+  /* KPI count colors — !important to survive light theme global override */
+  .kpi-color-primary { color: var(--primary) !important; }
+  .kpi-color-purple  { color: #BB6BD9 !important; }
+  .kpi-color-warning { color: #FF9F00 !important; }
+  .kpi-color-danger  { color: #FF5E5E !important; }
+  .kpi-color-success { color: #3A9B94 !important; }
+
   .task-kpi__status {
     font-size: 0.875rem;
     font-weight: 500;
-    color: var(--text-heading);
+    color: #374557 !important;
   }
 
   .task-kpi__sub {
@@ -1285,14 +1288,26 @@
     color: var(--text-muted);
   }
 
-  .dt-status-badge {
+  /* ── Badges — YashAdmin exact colors, immune to light theme override ── */
+  .dt-badge {
     display: inline-block;
-    padding: 0.1875rem 0.625rem;
+    padding: 0.25rem 0.625rem;
     border-radius: 0.25rem;
-    font-size: 0.6875rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 500;
     white-space: nowrap;
+    line-height: 1.5;
   }
+
+  .dt-badge--done       { background: #bbe6e3 !important; color: #3A9B94 !important; }
+  .dt-badge--overdue    { background: #ffdede !important; color: #FF5E5E !important; }
+  .dt-badge--today      { background: #ffeccc !important; color: #FF9F00 !important; }
+  .dt-badge--week       { background: #d3edf5 !important; color: #58bad7 !important; }
+  .dt-badge--future     { background: #eeeeee !important; color: #6e6e6e !important; }
+  .dt-badge--nodate     { background: rgba(187,107,217,0.15) !important; color: #BB6BD9 !important; }
+  .dt-badge--prio1      { background: #bbe6e3 !important; color: #3A9B94 !important; }
+  .dt-badge--prio2      { background: rgba(44,44,44,0.1) !important; color: #888888 !important; }
+  .dt-badge--prio3      { background: #ffdede !important; color: #FF5E5E !important; }
 
   .dt-date {
     font-size: 0.75rem;
@@ -1314,13 +1329,13 @@
   }
 
   .dt-tag--primary {
-    background: rgba(var(--primary-rgb), 0.15);
-    color: var(--primary);
+    background: #beafe7 !important;
+    color: #fff !important;
   }
 
   .dt-tag--secondary {
-    background: rgba(248, 185, 64, 0.15);
-    color: #F8B940;
+    background: #fdefd4 !important;
+    color: #F8B940 !important;
   }
 
   .dt-priority-badge {

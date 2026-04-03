@@ -154,18 +154,19 @@
   color: var(--text-heading) !important;
 }
 
-/* Light text — only for content-body area, NOT sidebar */
-[data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *) {
+/* Light text — only for content-body area, NOT sidebar.
+   Excludes elements with inline style (badges, KPI colors, etc.) and specific components */
+[data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count):not(.fc-event):not(.fc-event *):not(.gcal-cal__check):not(.gcal-cal__check *) {
   color: var(--text-primary);
 }
 
-[data-theme="glass-light"] .content-body p,
-[data-theme="glass-light"] .content-body span:not(.tab.active span),
+[data-theme="glass-light"] .content-body p:not([style*="color"]),
+[data-theme="glass-light"] .content-body span:not(.tab.active span):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count),
 [data-theme="glass-light"] .content-body label,
 [data-theme="glass-light"] .content-body li,
-[data-theme="glass-light"] .content-body td,
+[data-theme="glass-light"] .content-body td:not([style*="color"]),
 [data-theme="glass-light"] .content-body th,
-[data-theme="glass-light"] .content-body div:not(.tab.active),
+[data-theme="glass-light"] .content-body div:not(.tab.active):not([style*="color"]),
 [data-theme="glass-light"] .content-body a:not(.tab.active) {
   color: var(--text-primary);
 }
