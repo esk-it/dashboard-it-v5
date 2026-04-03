@@ -109,7 +109,13 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
         resp = await client.get(
             f"{GMAIL_API}/messages/{message_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"format": "metadata", "metadataHeaders": "From,To,Subject,Date"},
+            params=[
+                ("format", "metadata"),
+                ("metadataHeaders", "From"),
+                ("metadataHeaders", "To"),
+                ("metadataHeaders", "Subject"),
+                ("metadataHeaders", "Date"),
+            ],
         )
         resp.raise_for_status()
         data = resp.json()

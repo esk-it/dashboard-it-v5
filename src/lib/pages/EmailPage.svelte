@@ -35,8 +35,13 @@
   // ── Helpers ──
   function parseFromName(from) {
     if (!from) return 'Inconnu';
-    const match = from.match(/^"?([^"<]+)"?\s*</);
-    return match ? match[1].trim() : from.split('@')[0];
+    // Format: "Name" <email> or Name <email> or just email@domain
+    const match = from.match(/^"?([^"<]+?)"?\s*</) || from.match(/^([^<@]+)/);
+    if (match) {
+      const name = match[1].trim();
+      return name || from.split('@')[0] || 'Inconnu';
+    }
+    return from.split('@')[0] || 'Inconnu';
   }
 
   function parseFromEmail(from) {
@@ -127,12 +132,12 @@
   }
 
   async function openMessage(msg) {
-    loading = true;
+    // Don't set loading=true to avoid flickering — keep inbox visible until ready
     try {
       selectedMessage = await api.get(`/api/gmail/messages/${msg.id}`);
       currentView = 'read';
       if (msg.unread) {
-        await api.post(`/api/gmail/messages/${msg.id}/read`);
+        api.post(`/api/gmail/messages/${msg.id}/read`).catch(() => {}); // fire & forget
         msg.unread = false;
         messages = messages;
         fetchUnreadCount();
@@ -140,7 +145,6 @@
     } catch (e) {
       console.error('Failed to open message', e);
     }
-    loading = false;
   }
 
   async function toggleStar(msg, e) {
@@ -202,6 +206,7 @@
   function backToInbox() {
     currentView = 'inbox';
     selectedMessage = null;
+    // Don't re-fetch — messages are already in memory
   }
 
   // ── Lifecycle ──
@@ -309,10 +314,13 @@
       {/if}
 
     {:else if currentView === 'compose'}
-      <!-- ── Compose view ── -->
+      <!-- ── Compose view — YashAdmin style ── -->
       <div class="compose-view">
         <div class="compose-field">
           <input type="text" placeholder="To:" bind:value={composeForm.to} />
+        </div>
+        <div class="compose-field">
+          <input type="text" placeholder="Cc:" bind:value={composeForm.cc} />
         </div>
         <div class="compose-field">
           <input type="text" placeholder="Subject:" bind:value={composeForm.subject} />
@@ -320,11 +328,22 @@
         <div class="compose-field compose-body">
           <textarea placeholder="Ecrivez votre message..." bind:value={composeForm.body} rows="12"></textarea>
         </div>
+
+        <div class="compose-attachment-section">
+          <h5 class="compose-attachment-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+            Pieces jointes
+          </h5>
+          <p class="compose-attachment-hint">Les pieces jointes ne sont pas encore supportees (bientot disponible)</p>
+        </div>
+
         <div class="compose-actions">
-          <button class="ya-btn ya-btn--primary" on:click={sendEmail} disabled={sending || !composeForm.to || !composeForm.subject}>
+          <button class="ya-btn ya-btn--primary compose-send-btn" on:click={sendEmail} disabled={sending || !composeForm.to || !composeForm.subject}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             {sending ? 'Envoi...' : 'Envoyer'}
           </button>
           <button class="ya-btn discard-btn" on:click={backToInbox}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Annuler
           </button>
         </div>
@@ -661,6 +680,33 @@
     background: rgba(255,94,94,0.1) !important;
     color: #FF5E5E !important;
     border: none !important;
+  }
+
+  .compose-send-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+
+  .compose-attachment-section {
+    padding: 1rem 1rem 0;
+  }
+
+  .compose-attachment-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-secondary) !important;
+    margin: 0 0 0.5rem;
+  }
+
+  .compose-attachment-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted) !important;
+    margin: 0;
+    font-style: italic;
   }
 
   /* ── Read view ── */
