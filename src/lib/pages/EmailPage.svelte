@@ -22,15 +22,53 @@
   let replyToId = null;
   let sending = false;
 
+  // Selection
+  let selectedIds = new Set();
+  let selectAll = false;
+
   // ── Folders ──
   const FOLDERS = [
-    { key: 'inbox', label: 'Inbox', icon: 'mail' },
-    { key: 'sent', label: 'Envoyes', icon: 'send' },
-    { key: 'starred', label: 'Favoris', icon: 'star' },
-    { key: 'draft', label: 'Brouillons', icon: 'file' },
-    { key: 'important', label: 'Important', icon: 'tag' },
-    { key: 'trash', label: 'Corbeille', icon: 'trash' },
+    { key: 'inbox', label: 'Inbox', svg: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' },
+    { key: 'sent', label: 'Envoyes', svg: '<line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>' },
+    { key: 'starred', label: 'Favoris', svg: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>' },
+    { key: 'draft', label: 'Brouillons', svg: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>' },
+    { key: 'important', label: 'Important', svg: '<path d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><circle cx="6" cy="6" r="1"/>' },
+    { key: 'trash', label: 'Corbeille', svg: '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>' },
   ];
+
+  const CATEGORIES = [
+    { label: 'Travail', color: '#3B82F6' },
+    { label: 'Personnel', color: '#22C55E' },
+    { label: 'Support', color: '#F59E0B' },
+    { label: 'Social', color: '#EC4899' },
+  ];
+
+  function toggleSelectAll() {
+    if (selectAll) {
+      selectedIds = new Set();
+    } else {
+      selectedIds = new Set(messages.map(m => m.id));
+    }
+    selectAll = !selectAll;
+    selectedIds = selectedIds;
+  }
+
+  function toggleSelect(msgId, e) {
+    e.stopPropagation();
+    if (selectedIds.has(msgId)) selectedIds.delete(msgId);
+    else selectedIds.add(msgId);
+    selectedIds = selectedIds;
+    selectAll = selectedIds.size === messages.length;
+  }
+
+  async function trashSelected() {
+    for (const id of selectedIds) {
+      try { await api.post(`/api/gmail/messages/${id}/trash`); } catch {}
+    }
+    messages = messages.filter(m => !selectedIds.has(m.id));
+    selectedIds = new Set();
+    selectAll = false;
+  }
 
   // ── Helpers ──
   function parseFromName(from) {
@@ -221,10 +259,11 @@
 </script>
 
 <div class="email-page">
-  <!-- ═══ Sidebar ═══ -->
+  <!-- ═══ Sidebar — YashAdmin style ═══ -->
   <div class="email-sidebar">
     <button class="compose-btn" on:click={() => openCompose()}>
-      + Nouveau message
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Compose Email
     </button>
 
     <div class="email-folders">
@@ -234,10 +273,24 @@
           class:folder-item--active={currentFolder === f.key && currentView !== 'compose'}
           on:click={() => switchFolder(f.key)}
         >
+          <span class="folder-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">{@html f.svg}</svg>
+          </span>
           <span class="folder-label">{f.label}</span>
           {#if f.key === 'inbox' && unreadCount > 0}
             <span class="folder-badge">{unreadCount}</span>
           {/if}
+        </button>
+      {/each}
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-categories">
+      <h6 class="categories-title">Categories</h6>
+      {#each CATEGORIES as cat}
+        <button class="cat-item" on:click={() => { searchQuery = `category:${cat.label.toLowerCase()}`; fetchMessages(); }}>
+          <span class="cat-dot" style="background:{cat.color}"></span>
+          {cat.label}
         </button>
       {/each}
     </div>
@@ -253,12 +306,46 @@
       </div>
 
     {:else if currentView === 'inbox'}
-      <!-- ── Inbox / Folder view ── -->
+      <!-- ── Inbox — YashAdmin toolbar with icons ── -->
       <div class="email-toolbar">
         <div class="toolbar-left">
-          <span class="toolbar-title">{FOLDERS.find(f => f.key === currentFolder)?.label || 'Inbox'}</span>
+          <!-- Select all checkbox -->
+          <button class="toolbar-checkbox" on:click={toggleSelectAll}>
+            {#if selectAll}
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" fill="var(--primary)" stroke="var(--primary)" stroke-width="1.5"/><path d="M5 9l2.5 2.5L13 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            {:else}
+              <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" stroke="var(--border-subtle)" stroke-width="1.5"/></svg>
+            {/if}
+          </button>
+
+          <!-- Tabs — YashAdmin style -->
+          <div class="toolbar-tabs">
+            <button class="toolbar-tab" class:toolbar-tab--active={currentFolder === 'inbox'} on:click={() => switchFolder('inbox')}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/></svg>
+              Important
+            </button>
+            <button class="toolbar-tab" on:click={() => { searchQuery = 'category:social'; fetchMessages(); }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              Socials
+            </button>
+            <button class="toolbar-tab" on:click={() => { searchQuery = 'category:promotions'; fetchMessages(); }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              Promotion
+            </button>
+          </div>
         </div>
+
         <div class="toolbar-right">
+          <!-- Action icons — YashAdmin style -->
+          {#if selectedIds.size > 0}
+            <button class="toolbar-icon" on:click={trashSelected} title="Supprimer la selection">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+            </button>
+          {/if}
+          <button class="toolbar-icon" on:click={() => fetchMessages()} title="Rafraichir">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
+          </button>
+          <div class="toolbar-separator"></div>
           <input
             type="text"
             class="email-search"
@@ -266,24 +353,38 @@
             bind:value={searchQuery}
             on:keydown={(e) => e.key === 'Enter' && fetchMessages()}
           />
-          <button class="toolbar-btn" on:click={fetchMessages} title="Rafraichir">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
-          </button>
         </div>
       </div>
 
       {#if loading}
-        <div class="email-loading">Chargement...</div>
+        <div class="email-loading">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" class="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+          Chargement...
+        </div>
       {:else if messages.length === 0}
-        <div class="email-empty"><p>Aucun message</p></div>
+        <div class="email-empty">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1" style="opacity:0.4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          <p style="margin-top:1rem">Aucun message dans ce dossier</p>
+        </div>
       {:else}
         <div class="email-list">
           {#each messages as msg (msg.id)}
             <div
               class="msg-row"
               class:msg-row--unread={msg.unread}
+              class:msg-row--selected={selectedIds.has(msg.id)}
               on:click={() => openMessage(msg)}
             >
+              <!-- Checkbox -->
+              <button class="msg-check" on:click={(e) => toggleSelect(msg.id, e)}>
+                {#if selectedIds.has(msg.id)}
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" fill="var(--primary)" stroke="var(--primary)" stroke-width="1.5"/><path d="M5 9l2.5 2.5L13 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                {:else}
+                  <svg width="16" height="16" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" stroke="var(--border-subtle)" stroke-width="1.5"/></svg>
+                {/if}
+              </button>
+
+              <!-- Star -->
               <button class="msg-star" on:click={(e) => toggleStar(msg, e)}>
                 {#if msg.starred}
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="#F8B940" stroke="#F8B940" stroke-width="1"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -292,16 +393,26 @@
                 {/if}
               </button>
 
+              <!-- Sender -->
               <div class="msg-sender" class:msg-sender--bold={msg.unread}>
                 {parseFromName(msg.from)}
               </div>
 
+              <!-- Subject + snippet -->
               <div class="msg-content">
                 <span class="msg-subject" class:msg-subject--bold={msg.unread}>{msg.subject}</span>
-                <span class="msg-snippet">{msg.snippet}</span>
+                <span class="msg-snippet"> — {msg.snippet}</span>
               </div>
 
+              <!-- Date -->
               <div class="msg-date">{formatDate(msg.internalDate)}</div>
+
+              <!-- Hover actions -->
+              <div class="msg-hover-actions">
+                <button class="msg-hover-btn" on:click={(e) => trashMessage(msg, e)} title="Supprimer">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>
+              </div>
             </div>
           {/each}
 
@@ -454,7 +565,7 @@
   .folder-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 0.75rem;
     padding: 0.625rem 1rem;
     background: none;
     border: none;
@@ -466,6 +577,7 @@
     font-family: inherit;
     text-align: left;
     transition: all 0.1s;
+    width: 100%;
   }
 
   .folder-item:hover {
@@ -478,6 +590,16 @@
     font-weight: 600;
   }
 
+  .folder-icon {
+    display: flex;
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
+
+  .folder-item--active .folder-icon { opacity: 1; }
+
+  .folder-label { flex: 1; }
+
   .folder-badge {
     background: var(--primary);
     color: #fff;
@@ -485,6 +607,47 @@
     font-weight: 600;
     padding: 0.125rem 0.5rem;
     border-radius: 1rem;
+    margin-left: auto;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 0.5rem 0;
+  }
+
+  .categories-title {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-heading) !important;
+    margin: 0.5rem 0;
+    padding: 0 0.25rem;
+  }
+
+  .cat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.375rem 1rem;
+    background: none;
+    border: none;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    width: 100%;
+    text-align: left;
+    border-radius: 0.25rem;
+    transition: background 0.1s;
+  }
+
+  .cat-item:hover { background: rgba(var(--primary-rgb), 0.06); }
+
+  .cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 
   /* ── Content area ── */
@@ -500,21 +663,86 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.75rem 1.25rem;
+    padding: 0 1.25rem;
+    height: 3.5rem;
     border-bottom: 1px solid var(--border-subtle);
     background: var(--bg-card);
   }
 
-  .toolbar-title {
-    font-size: 1rem;
+  .toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .toolbar-checkbox {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+  }
+
+  .toolbar-tabs {
+    display: flex;
+    gap: 0;
+  }
+
+  .toolbar-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s;
+    height: 3.5rem;
+  }
+
+  .toolbar-tab:hover { color: var(--primary); }
+
+  .toolbar-tab--active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary);
     font-weight: 600;
-    color: var(--text-heading);
   }
 
   .toolbar-right {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.375rem;
+  }
+
+  .toolbar-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: none;
+    border: none;
+    border-radius: 0.375rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .toolbar-icon:hover {
+    background: rgba(var(--primary-rgb), 0.08);
+    color: var(--primary);
+  }
+
+  .toolbar-separator {
+    width: 1px;
+    height: 1.5rem;
+    background: var(--border-subtle);
+    margin: 0 0.25rem;
   }
 
   .email-search {
@@ -565,17 +793,20 @@
   .msg-row {
     display: flex;
     align-items: center;
-    padding: 0.625rem 1.25rem;
+    padding: 0 1.25rem;
+    height: 3.375rem;
     border-bottom: 1px solid var(--border-subtle);
     cursor: pointer;
     transition: background 0.1s;
-    gap: 0.75rem;
+    gap: 0.625rem;
+    position: relative;
   }
 
   .msg-row:hover { background: rgba(var(--primary-rgb), 0.04); }
-  .msg-row--unread { background: rgba(var(--primary-rgb), 0.03); }
+  .msg-row--unread { background: rgba(var(--primary-rgb), 0.03); border-left: 3px solid var(--primary); }
+  .msg-row--selected { background: rgba(var(--primary-rgb), 0.08); }
 
-  .msg-star {
+  .msg-check, .msg-star {
     background: none;
     border: none;
     cursor: pointer;
@@ -599,16 +830,14 @@
   .msg-content {
     flex: 1;
     min-width: 0;
-    display: flex;
-    gap: 0.375rem;
     overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
 
   .msg-subject {
     font-size: 0.8125rem;
     color: var(--text-heading);
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   .msg-subject--bold { font-weight: 600 !important; }
@@ -616,9 +845,6 @@
   .msg-snippet {
     font-size: 0.8125rem;
     color: var(--text-muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .msg-date {
@@ -628,6 +854,43 @@
     text-align: right;
     min-width: 60px;
   }
+
+  /* Hover actions (delete icon on hover) */
+  .msg-hover-actions {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    gap: 0.25rem;
+    background: var(--bg-card);
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+
+  .msg-row:hover .msg-hover-actions { display: flex; }
+  .msg-row:hover .msg-date { display: none; }
+
+  .msg-hover-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    background: none;
+    border: none;
+    border-radius: 0.25rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+  }
+
+  .msg-hover-btn:hover { background: rgba(var(--primary-rgb), 0.1); color: var(--danger); }
+
+  /* Loading spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin 1s linear infinite; }
 
   .load-more-btn {
     width: 100%;
