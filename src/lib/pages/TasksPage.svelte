@@ -598,116 +598,152 @@
   {#if loading}
     <div class="loading-msg">Chargement...</div>
   {:else if viewMode === 'list'}
-    <!-- List view -->
-    {#if filteredTasks.length === 0}
-      <div class="empty-msg">Aucune tâche trouvée</div>
-    {:else}
-      {#each sections as [key, section]}
-        <div class="section">
-          <div class="section-header" style="--section-color: {section.color}">
-            <span class="section-title">{section.label}</span>
-            <span class="section-count">{section.tasks.length}</span>
-          </div>
-
-          {#each section.tasks as task (task.id)}
-            <div class="task-row" class:task-done={task.done}>
-              <!-- Main row -->
-              <div class="task-main" on:click={() => toggleExpand(task.id)}>
-                <button class="task-check" on:click|stopPropagation={() => toggleDone(task)}>
-                  {#if task.done}
-                    <span class="check-done">☑</span>
-                  {:else}
-                    <span class="check-open">☐</span>
-                  {/if}
-                </button>
-
-                <span
-                  class="priority-badge"
-                  style="background: {getPriority(task.priority).color}20; color: {getPriority(task.priority).color}; border: 1px solid {getPriority(task.priority).color}40"
-                >
-                  {getPriority(task.priority).icon} P{task.priority}
-                </span>
-
-                <span class="task-title" class:struck={task.done}>{task.title}</span>
-
-                {#if task.category}
-                  <span class="task-category">{task.category}</span>
-                {/if}
-
-                {#if task.due_date || task.done}
-                  <span class="due-chip" style="background: {getDueColor(getDueStatus(task))}20; color: {getDueColor(getDueStatus(task))}">
-                    📅 {getDueLabel(getDueStatus(task))}
-                  </span>
-                {/if}
-
-                {#if task.recurrence}
-                  <span class="recurrence-badge">↻</span>
-                {/if}
-
-                {#if checklistsCache[task.id] && checklistsCache[task.id].length > 0}
-                  {@const prog = getChecklistProgress(task.id)}
-                  {#if prog}
-                    <span class="checklist-progress">☑ {prog.done}/{prog.total}</span>
-                  {/if}
-                {/if}
-
-                <div class="task-actions">
-                  <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(task)} title="Modifier">✏️</button>
-                  <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => deleteTask(task)} title="Supprimer">🗑️</button>
-                </div>
-              </div>
-
-              <!-- Expanded area -->
-              {#if expandedTaskId === task.id}
-                <div class="task-expanded">
-                  <!-- Notes -->
-                  <div class="expanded-section">
-                    <div class="expanded-label">Notes</div>
-                    {#if editingNotesId === task.id}
-                      <textarea class="notes-textarea" bind:value={editingNotesText} rows="3"></textarea>
-                      <div class="notes-actions">
-                        <button class="btn-small btn-save" on:click={() => saveNotes(task)}>Sauvegarder</button>
-                        <button class="btn-small btn-cancel" on:click={cancelEditNotes}>Annuler</button>
-                      </div>
-                    {:else}
-                      <div class="notes-display" on:click={() => startEditNotes(task)}>
-                        {task.notes || 'Cliquer pour ajouter des notes...'}
-                      </div>
-                    {/if}
-                  </div>
-
-                  <!-- Checklist -->
-                  <div class="expanded-section">
-                    <div class="expanded-label">Checklist</div>
-                    {#if checklistsCache[task.id]}
-                      {#each checklistsCache[task.id] as item (item.id)}
-                        <div class="checklist-item">
-                          <button class="cl-check" on:click={() => toggleChecklistItem(task.id, item)}>
-                            {item.done ? '☑' : '☐'}
-                          </button>
-                          <span class="cl-text" class:struck={item.done}>{item.text}</span>
-                          <button class="btn-icon-sm" on:click={() => deleteChecklistItem(task.id, item.id)}>✕</button>
-                        </div>
-                      {/each}
-                    {/if}
-                    <div class="cl-add-row">
-                      <input
-                        type="text"
-                        class="cl-add-input"
-                        placeholder="Nouvel élément..."
-                        bind:value={newChecklistText[task.id]}
-                        on:keydown={(e) => e.key === 'Enter' && addChecklistItem(task.id)}
-                      />
-                      <button class="btn-small btn-save" on:click={() => addChecklistItem(task.id)}>+</button>
-                    </div>
-                  </div>
-                </div>
-              {/if}
-            </div>
-          {/each}
+    <!-- DataTable view — YashAdmin task.html style -->
+    <div class="ya-page-card" style="margin-bottom:1rem">
+      <div class="ya-page-card__body" style="padding:0">
+        <!-- Table header caption -->
+        <div class="dt-caption">
+          <h4 class="dt-caption__title">Task</h4>
         </div>
-      {/each}
-    {/if}
+
+        <div class="table-responsive">
+          <table class="dt-table">
+            <thead>
+              <tr>
+                <th style="width:2.5rem"></th>
+                <th style="width:2.5rem">#</th>
+                <th>Nom</th>
+                <th style="width:8rem">Statut</th>
+                <th style="width:7rem">Echeance</th>
+                <th style="width:6rem">Site</th>
+                <th style="width:7rem">Tags</th>
+                <th style="width:6rem;text-align:right">Priorite</th>
+              </tr>
+            </thead>
+            <tbody>
+              {#if filteredTasks.length === 0}
+                <tr><td colspan="8" class="dt-empty">Aucune tache trouvee</td></tr>
+              {/if}
+              {#each filteredTasks as task, i (task.id)}
+                <tr class="dt-row" class:dt-row--done={task.done} on:click={() => toggleExpand(task.id)}>
+                  <!-- Checkbox -->
+                  <td>
+                    <button class="dt-check" on:click|stopPropagation={() => toggleDone(task)}>
+                      {#if task.done}
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" fill="var(--success)" stroke="var(--success)" stroke-width="1.5"/><path d="M5 9l2.5 2.5L13 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      {:else}
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="1" y="1" width="16" height="16" rx="3" stroke="var(--border-subtle)" stroke-width="1.5"/></svg>
+                      {/if}
+                    </button>
+                  </td>
+                  <!-- # -->
+                  <td><span class="dt-id">{String(task.id).padStart(2, '0')}</span></td>
+                  <!-- Name -->
+                  <td>
+                    <div class="dt-name">
+                      <h6 class="dt-name__title" class:struck={task.done}>{task.title}</h6>
+                      {#if task.notes}
+                        <span class="dt-name__sub">{task.notes.slice(0, 40)}{task.notes.length > 40 ? '...' : ''}</span>
+                      {/if}
+                    </div>
+                  </td>
+                  <!-- Status badge -->
+                  <td>
+                    {#if true}
+                      {@const status = getDueStatus(task)}
+                      {@const colors = { done: '#22C55E', overdue: '#EF4444', today: '#F59E0B', week: '#3B82F6', future: '#94A3B8', nodate: '#BB6BD9' }}
+                      {@const labels = { done: 'Terminee', overdue: 'En retard', today: "Aujourd'hui", week: 'Cette sem.', future: 'A venir', nodate: 'Non planif.' }}
+                      <span class="dt-status-badge" style="background:{colors[status] || '#94A3B8'}20;color:{colors[status] || '#94A3B8'}">
+                        {labels[status] || ''}
+                      </span>
+                    {/if}
+                  </td>
+                  <!-- Due date -->
+                  <td>
+                    <span class="dt-date">{task.due_date || '—'}</span>
+                  </td>
+                  <!-- Site -->
+                  <td>
+                    {#if task.site}
+                      <span class="dt-site">{task.site}</span>
+                    {/if}
+                  </td>
+                  <!-- Tags (category) -->
+                  <td>
+                    {#if task.category}
+                      <span class="dt-tag dt-tag--primary">{task.category}</span>
+                    {/if}
+                    {#if task.recurrence}
+                      <span class="dt-tag dt-tag--secondary">↻</span>
+                    {/if}
+                  </td>
+                  <!-- Priority -->
+                  <td style="text-align:right">
+                    {#if true}
+                      {@const p = getPriority(task.priority)}
+                      <span class="dt-priority-badge" style="background:{p.color}20;color:{p.color}">
+                        {p.label}
+                      </span>
+                    {/if}
+                  </td>
+                </tr>
+                <!-- Expanded row -->
+                {#if expandedTaskId === task.id}
+                  <tr class="dt-expand-row">
+                    <td colspan="8">
+                      <div class="task-expanded">
+                        <div class="expanded-actions" style="margin-bottom:0.75rem">
+                          <button class="ya-btn ya-btn--ghost" on:click|stopPropagation={() => openEditDialog(task)}>✏️ Modifier</button>
+                          <button class="ya-btn" style="background:var(--danger);color:#fff" on:click|stopPropagation={() => deleteTask(task)}>🗑️ Supprimer</button>
+                        </div>
+                        <div class="expanded-section">
+                          <div class="expanded-label">Notes</div>
+                          {#if editingNotesId === task.id}
+                            <textarea class="notes-textarea" bind:value={editingNotesText} rows="3"></textarea>
+                            <div class="notes-actions">
+                              <button class="btn-small btn-save" on:click={() => saveNotes(task)}>Sauvegarder</button>
+                              <button class="btn-small btn-cancel" on:click={cancelEditNotes}>Annuler</button>
+                            </div>
+                          {:else}
+                            <div class="notes-display" on:click={() => startEditNotes(task)}>
+                              {task.notes || 'Cliquer pour ajouter des notes...'}
+                            </div>
+                          {/if}
+                        </div>
+                        <div class="expanded-section">
+                          <div class="expanded-label">Checklist</div>
+                          {#if checklistsCache[task.id]}
+                            {#each checklistsCache[task.id] as item (item.id)}
+                              <div class="checklist-item">
+                                <button class="cl-check" on:click={() => toggleChecklistItem(task.id, item)}>
+                                  {item.done ? '☑' : '☐'}
+                                </button>
+                                <span class="cl-text" class:struck={item.done}>{item.text}</span>
+                                <button class="btn-icon-sm" on:click={() => deleteChecklistItem(task.id, item.id)}>✕</button>
+                              </div>
+                            {/each}
+                          {/if}
+                          <div class="cl-add-row">
+                            <input
+                              type="text"
+                              class="cl-add-input"
+                              placeholder="Nouvel élément..."
+                              bind:value={newChecklistText[task.id]}
+                              on:keydown={(e) => e.key === 'Enter' && addChecklistItem(task.id)}
+                            />
+                            <button class="btn-small btn-save" on:click={() => addChecklistItem(task.id)}>+</button>
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                {/if}
+              {/each}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   {:else}
     <!-- Kanban view -->
     <div class="kanban-board">
@@ -1152,6 +1188,165 @@
   /* chips now use global ya-pills / ya-pill classes */
 
   /* ── Sections ──────────────────────────────────────────── */
+  /* ── DataTable — YashAdmin task.html style ── */
+  .dt-caption {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .dt-caption__title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    margin: 0;
+  }
+
+  .table-responsive {
+    overflow-x: auto;
+  }
+
+  .dt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8125rem;
+  }
+
+  .dt-table thead th {
+    padding: 0.75rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-secondary);
+    border-bottom: 2px solid var(--border-subtle);
+    white-space: nowrap;
+    text-align: left;
+  }
+
+  .dt-table tbody td {
+    padding: 0.625rem 0.75rem;
+    border-bottom: 1px solid var(--border-subtle);
+    vertical-align: middle;
+    color: var(--text-primary);
+  }
+
+  .dt-row {
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .dt-row:hover {
+    background: rgba(var(--primary-rgb), 0.04);
+  }
+
+  .dt-row--done {
+    opacity: 0.5;
+  }
+
+  .dt-empty {
+    text-align: center;
+    padding: 2rem !important;
+    color: var(--text-muted);
+  }
+
+  .dt-check {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .dt-id {
+    font-weight: 500;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+  }
+
+  .dt-name {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+
+  .dt-name__title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-heading);
+    margin: 0;
+  }
+
+  .dt-name__sub {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+  }
+
+  .dt-status-badge {
+    display: inline-block;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .dt-date {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .dt-site {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+
+  .dt-tag {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    margin-right: 0.25rem;
+  }
+
+  .dt-tag--primary {
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--primary);
+  }
+
+  .dt-tag--secondary {
+    background: rgba(248, 185, 64, 0.15);
+    color: #F8B940;
+  }
+
+  .dt-priority-badge {
+    display: inline-block;
+    padding: 0.1875rem 0.625rem;
+    border-radius: 0.25rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .dt-expand-row td {
+    padding: 0 !important;
+    border-bottom: 2px solid var(--primary);
+  }
+
+  .dt-expand-row .task-expanded {
+    padding: 1rem 1.25rem;
+    background: var(--bg-input);
+  }
+
+  .expanded-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
   .section {
     margin-bottom: 16px;
   }
