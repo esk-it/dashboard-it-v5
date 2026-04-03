@@ -9,6 +9,7 @@ export const navItems = [
   { key: 'tasks', path: '/tasks', icon: 'CheckSquare', label: 'Tâches', emoji: '✅' },
   { key: 'planning', path: '/planning', icon: 'Calendar', label: 'Planning', emoji: '\u{1F4C5}' },
   { key: 'documents', path: '/documents', icon: 'FileText', label: 'Documents', emoji: '\u{1F4C1}' },
+  { key: 'email', path: '/email', icon: 'Mail', label: 'Email', emoji: '\u{1F4E7}' },
   { key: 'news', path: '/news', icon: 'Globe', label: 'Actualités', emoji: '\u{1F310}' },
   { type: 'section', label: 'NOS OUTILS' },
   { key: 'parc', path: '/parc', icon: 'Monitor', label: 'Parc', emoji: '\u{1F5A5}\uFE0F' },

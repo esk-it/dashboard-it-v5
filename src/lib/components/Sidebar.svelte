@@ -3,12 +3,12 @@
   import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
-  import { Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
   import logoUrl from '../../assets/logo.png';
 
   const dispatch = createEventDispatcher();
 
-  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings };
+  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings };
 
   let appVersion = '';
   let overdueCount = 0;

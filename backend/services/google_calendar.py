@@ -30,7 +30,7 @@ GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 GOOGLE_CALENDAR_API = "https://www.googleapis.com/calendar/v3"
-SCOPES = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events"
+SCOPES = "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/gmail.modify"
 REDIRECT_URI = "http://localhost:8010/api/google-calendar/oauth/callback"
 
 # Temporary storage for PKCE code_verifier (in-memory, per-session)
