@@ -632,14 +632,14 @@
           <table class="dt-table">
             <thead>
               <tr>
-                <th style="width:2.5rem"></th>
-                <th style="width:2.5rem">#</th>
-                <th>Nom</th>
-                <th style="width:8rem">Statut</th>
-                <th style="width:7rem">Echeance</th>
-                <th style="width:6rem">Site</th>
-                <th style="width:7rem">Tags</th>
-                <th style="width:6rem;text-align:right">Priorite</th>
+                <th style="width:3%"></th>
+                <th style="width:4%">#</th>
+                <th style="width:28%">Nom</th>
+                <th style="width:12%">Statut</th>
+                <th style="width:12%">Echeance</th>
+                <th style="width:10%">Site</th>
+                <th style="width:16%">Tags</th>
+                <th style="width:15%;text-align:right">Priorite</th>
               </tr>
             </thead>
             <tbody>
@@ -660,13 +660,11 @@
                   </td>
                   <!-- # -->
                   <td><span class="dt-id">{String(task.id).padStart(2, '0')}</span></td>
-                  <!-- Name -->
+                  <!-- Name + reference -->
                   <td>
                     <div class="dt-name">
                       <h6 class="dt-name__title" class:struck={task.done}>{task.title}</h6>
-                      {#if task.notes}
-                        <span class="dt-name__sub">{task.notes.slice(0, 40)}{task.notes.length > 40 ? '...' : ''}</span>
-                      {/if}
+                      <span class="dt-name__ref">TSK-{String(100000 + task.id).slice(1)}</span>
                     </div>
                   </td>
                   <!-- Status dropdown — YashAdmin style -->
@@ -1312,9 +1310,9 @@
     margin: 0;
   }
 
-  .dt-name__sub {
+  .dt-name__ref {
     font-size: 0.6875rem;
-    color: var(--text-muted);
+    color: var(--text-muted) !important;
   }
 
   /* ── Badges — YashAdmin exact colors, immune to light theme override ── */
