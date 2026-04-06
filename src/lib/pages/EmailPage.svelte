@@ -380,14 +380,28 @@
       const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
       if (!resp.ok) throw new Error('Download failed');
       const blob = await resp.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const arrayBuf = await blob.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuf);
+
+      // Try Tauri save dialog
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const path = await save({ defaultPath: filename });
+        if (path) {
+          await writeFile(path, bytes);
+        }
+      } catch {
+        // Fallback: browser download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
     } catch (e) {
       console.error('Failed to download attachment', e);
     }
@@ -550,15 +564,33 @@
                 {parseFromName(msg.from)}
               </div>
 
-              <!-- Subject + snippet + PJ indicator -->
-              <div class="msg-content">
-                {#if msg.hasAttachments}
-                  <span class="msg-pj" title="Pieces jointes">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
-                  </span>
+              <!-- Subject + snippet + PJ chips -->
+              <div class="msg-content-col">
+                <div class="msg-content">
+                  {#if msg.hasAttachments}
+                    <span class="msg-pj" title="Pieces jointes">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                    </span>
+                  {/if}
+                  <span class="msg-subject" class:msg-subject--bold={msg.unread}>{msg.subject}</span>
+                  <span class="msg-snippet"> — {msg.snippet}</span>
+                </div>
+                {#if msg.attachmentNames?.length > 0}
+                  <div class="msg-att-chips">
+                    {#each msg.attachmentNames.slice(0, 3) as name}
+                      <span class="msg-att-chip">
+                        {#if name.match(/\.(pdf)$/i)}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        {:else if name.match(/\.(jpg|jpeg|png|gif|webp)$/i)}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        {:else}
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        {/if}
+                        {name.length > 20 ? name.slice(0, 17) + '...' : name}
+                      </span>
+                    {/each}
+                  </div>
                 {/if}
-                <span class="msg-subject" class:msg-subject--bold={msg.unread}>{msg.subject}</span>
-                <span class="msg-snippet"> — {msg.snippet}</span>
               </div>
 
               <!-- Date -->
@@ -1025,8 +1057,8 @@
   .msg-row {
     display: flex;
     align-items: center;
-    padding: 0 1.25rem;
-    height: 3.375rem;
+    padding: 0.375rem 1.25rem;
+    min-height: 3.375rem;
     border-bottom: 1px solid var(--border-subtle);
     cursor: pointer;
     transition: background 0.1s;
@@ -1059,12 +1091,46 @@
 
   .msg-sender--bold { font-weight: 700 !important; color: var(--text-heading) !important; }
 
-  .msg-content {
+  .msg-content-col {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1875rem;
+    overflow: hidden;
+  }
+
+  .msg-content {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .msg-att-chips {
+    display: flex;
+    gap: 0.375rem;
+    overflow: hidden;
+  }
+
+  .msg-att-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 1rem;
+    font-size: 0.6875rem;
+    color: var(--text-secondary) !important;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .msg-att-chip:hover {
+    border-color: var(--primary);
+    color: var(--primary) !important;
   }
 
   .msg-pj {

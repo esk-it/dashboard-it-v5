@@ -104,18 +104,13 @@ async def _fetch_messages_metadata(token: str, ids: list[str]) -> list[dict]:
 
 
 async def _get_message_metadata(token: str, message_id: str) -> dict:
-    """Get message metadata (headers, snippet, labels)."""
-    async with httpx.AsyncClient() as client:
+    """Get message with enough detail to detect attachments."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        # Use format=full to get payload.parts for attachment detection
         resp = await client.get(
             f"{GMAIL_API}/messages/{message_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params=[
-                ("format", "metadata"),
-                ("metadataHeaders", "From"),
-                ("metadataHeaders", "To"),
-                ("metadataHeaders", "Subject"),
-                ("metadataHeaders", "Date"),
-            ],
+            params={"format": "full"},
         )
         resp.raise_for_status()
         data = resp.json()
@@ -123,18 +118,17 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
     headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
     labels = data.get("labelIds", [])
 
-    # Check for real attachments (not inline images)
-    def _has_real_attachments(part):
-        headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
+    # Detect real attachments + collect filenames
+    att_names = []
+    def _find_attachments(part):
+        hdrs = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
         filename = part.get("filename", "")
         if filename and part.get("body", {}).get("attachmentId"):
-            if not headers.get("content-id") and not headers.get("content-disposition", "").startswith("inline"):
-                return True
+            if not hdrs.get("content-id") and not hdrs.get("content-disposition", "").startswith("inline"):
+                att_names.append(filename)
         for sub in part.get("parts", []):
-            if _has_real_attachments(sub):
-                return True
-        return False
-    has_attachments = _has_real_attachments(data.get("payload", {}))
+            _find_attachments(sub)
+    _find_attachments(data.get("payload", {}))
 
     return {
         "id": data["id"],
@@ -148,7 +142,8 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
         "unread": "UNREAD" in labels,
         "starred": "STARRED" in labels,
         "labels": labels,
-        "hasAttachments": has_attachments,
+        "hasAttachments": len(att_names) > 0,
+        "attachmentNames": att_names,
     }
 
 
