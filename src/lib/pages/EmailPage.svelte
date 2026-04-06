@@ -536,8 +536,13 @@
                 {parseFromName(msg.from)}
               </div>
 
-              <!-- Subject + snippet -->
+              <!-- Subject + snippet + PJ indicator -->
               <div class="msg-content">
+                {#if msg.hasAttachments}
+                  <span class="msg-pj" title="Pieces jointes">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                  </span>
+                {/if}
                 <span class="msg-subject" class:msg-subject--bold={msg.unread}>{msg.subject}</span>
                 <span class="msg-snippet"> — {msg.snippet}</span>
               </div>
@@ -676,13 +681,15 @@
                     <span class="att-card__name">{att.filename}</span>
                     <span class="att-card__size">{Math.round(att.size / 1024)} Ko</span>
                   </div>
-                  <button
-                    class="att-card__download"
-                    on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
-                    title="Telecharger"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  </button>
+                  {#if att.attachmentId}
+                    <button
+                      class="att-card__download"
+                      on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
+                      title="Telecharger"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    </button>
+                  {/if}
                 </div>
               {/each}
             </div>
@@ -1044,6 +1051,13 @@
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  .msg-pj {
+    flex-shrink: 0;
+    display: flex;
+    color: var(--text-muted);
+    margin-right: 0.25rem;
   }
 
   .msg-subject {

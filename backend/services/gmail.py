@@ -123,6 +123,17 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
     headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
     labels = data.get("labelIds", [])
 
+    # Check for attachments in the payload
+    parts = data.get("payload", {}).get("parts", [])
+    has_attachments = any(p.get("filename") for p in parts) if parts else False
+    # Also check nested parts
+    if not has_attachments and parts:
+        for p in parts:
+            sub_parts = p.get("parts", [])
+            if any(sp.get("filename") for sp in sub_parts):
+                has_attachments = True
+                break
+
     return {
         "id": data["id"],
         "threadId": data.get("threadId", ""),
@@ -135,6 +146,7 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
         "unread": "UNREAD" in labels,
         "starred": "STARRED" in labels,
         "labels": labels,
+        "hasAttachments": has_attachments,
     }
 
 
@@ -207,23 +219,35 @@ def _parse_body(payload: dict) -> tuple[str, str]:
 
 
 def _parse_attachments(payload: dict) -> list[dict]:
-    """Extract attachment info from MIME parts."""
+    """Extract attachment info from MIME parts (recursive, skips inline without attachmentId)."""
     attachments = []
-    mime = payload.get("mimeType", "")
 
-    if "multipart" in mime:
-        for part in payload.get("parts", []):
-            filename = part.get("filename", "")
-            if filename:
-                attachments.append({
-                    "filename": filename,
-                    "mimeType": part.get("mimeType", ""),
-                    "size": part.get("body", {}).get("size", 0),
-                    "attachmentId": part.get("body", {}).get("attachmentId", ""),
-                })
-            # Recurse
-            attachments.extend(_parse_attachments(part))
+    def _walk(part):
+        mime = part.get("mimeType", "")
+        filename = part.get("filename", "")
+        body = part.get("body", {})
+        att_id = body.get("attachmentId", "")
 
+        if filename and att_id:
+            attachments.append({
+                "filename": filename,
+                "mimeType": mime,
+                "size": body.get("size", 0),
+                "attachmentId": att_id,
+            })
+        elif filename and not att_id and body.get("size", 0) > 0:
+            # Inline attachment with data in body — still list it but no download
+            attachments.append({
+                "filename": filename,
+                "mimeType": mime,
+                "size": body.get("size", 0),
+                "attachmentId": "",
+            })
+
+        for sub in part.get("parts", []):
+            _walk(sub)
+
+    _walk(payload)
     return attachments
 
 
@@ -232,8 +256,10 @@ def _parse_attachments(payload: dict) -> list[dict]:
 
 async def get_attachment(message_id: str, attachment_id: str) -> bytes:
     """Download an attachment by ID."""
+    if not attachment_id:
+        raise ValueError("No attachment ID — inline attachment cannot be downloaded separately")
     token = await gcal._ensure_valid_token()
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.get(
             f"{GMAIL_API}/messages/{message_id}/attachments/{attachment_id}",
             headers={"Authorization": f"Bearer {token}"},
