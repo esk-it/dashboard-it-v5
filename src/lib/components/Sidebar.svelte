@@ -178,28 +178,26 @@
     letter-spacing: -0.3px;
   }
 
-  /* ── YashAdmin collapse toggle — exact match ── */
+  /* ── YashAdmin collapse toggle — square with rounded corners at sidebar edge ── */
   .nav-control {
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 50%;
-    background: var(--bg-base);
-    border: 0.1875rem solid var(--secondary);
-    color: var(--secondary);
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    background: var(--primary);
+    color: #fff;
     transition: all 0.2s ease;
     flex-shrink: 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    border: none;
   }
 
   .nav-control:hover {
-    background: var(--secondary);
-    border-color: var(--secondary);
-    color: #fff;
-    transform: scale(1.1);
+    background: var(--primary-hover);
+    transform: scale(1.05);
   }
 
   /* ═══════════════════════════════════════

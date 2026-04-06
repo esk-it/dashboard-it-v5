@@ -375,8 +375,22 @@
     showInlineReply = false;
   }
 
-  function downloadAttachment(msgId, attId, filename) {
-    window.open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`, '_blank');
+  async function downloadAttachment(msgId, attId, filename) {
+    try {
+      const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
+      if (!resp.ok) throw new Error('Download failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Failed to download attachment', e);
+    }
   }
 
   // ── Lifecycle ──

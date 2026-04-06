@@ -123,16 +123,18 @@ async def _get_message_metadata(token: str, message_id: str) -> dict:
     headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
     labels = data.get("labelIds", [])
 
-    # Check for attachments in the payload
-    parts = data.get("payload", {}).get("parts", [])
-    has_attachments = any(p.get("filename") for p in parts) if parts else False
-    # Also check nested parts
-    if not has_attachments and parts:
-        for p in parts:
-            sub_parts = p.get("parts", [])
-            if any(sp.get("filename") for sp in sub_parts):
-                has_attachments = True
-                break
+    # Check for real attachments (not inline images)
+    def _has_real_attachments(part):
+        headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
+        filename = part.get("filename", "")
+        if filename and part.get("body", {}).get("attachmentId"):
+            if not headers.get("content-id") and not headers.get("content-disposition", "").startswith("inline"):
+                return True
+        for sub in part.get("parts", []):
+            if _has_real_attachments(sub):
+                return True
+        return False
+    has_attachments = _has_real_attachments(data.get("payload", {}))
 
     return {
         "id": data["id"],
@@ -219,8 +221,20 @@ def _parse_body(payload: dict) -> tuple[str, str]:
 
 
 def _parse_attachments(payload: dict) -> list[dict]:
-    """Extract attachment info from MIME parts (recursive, skips inline without attachmentId)."""
+    """Extract real attachments only (excludes inline images like signature logos)."""
     attachments = []
+
+    def _is_inline(part) -> bool:
+        """Check if a part is an inline image (signature logo, etc.)."""
+        headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
+        # Has Content-ID = inline image referenced in HTML
+        if headers.get("content-id"):
+            return True
+        # Content-Disposition starts with "inline"
+        disp = headers.get("content-disposition", "")
+        if disp.startswith("inline"):
+            return True
+        return False
 
     def _walk(part):
         mime = part.get("mimeType", "")
@@ -228,20 +242,12 @@ def _parse_attachments(payload: dict) -> list[dict]:
         body = part.get("body", {})
         att_id = body.get("attachmentId", "")
 
-        if filename and att_id:
+        if filename and att_id and not _is_inline(part):
             attachments.append({
                 "filename": filename,
                 "mimeType": mime,
                 "size": body.get("size", 0),
                 "attachmentId": att_id,
-            })
-        elif filename and not att_id and body.get("size", 0) > 0:
-            # Inline attachment with data in body — still list it but no download
-            attachments.append({
-                "filename": filename,
-                "mimeType": mime,
-                "size": body.get("size", 0),
-                "attachmentId": "",
             })
 
         for sub in part.get("parts", []):
