@@ -425,6 +425,28 @@ async def list_labels() -> list[dict]:
     ]
 
 
+async def get_signature() -> str:
+    """Get the user's Gmail signature from the primary sendAs alias."""
+    token = await gcal._ensure_valid_token()
+    cfg = gcal.load_config()
+    email = cfg.get("connected_email", "me")
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                f"{GMAIL_API}/settings/sendAs/{email}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if resp.status_code == 200:
+                html_sig = resp.json().get("signature", "")
+                # Strip HTML tags for plain text version
+                import re
+                text_sig = re.sub(r'<[^>]+>', '', html_sig).strip()
+                return text_sig
+    except Exception as e:
+        logger.warning(f"Failed to fetch Gmail signature: {e}")
+    return ""
+
+
 async def get_unread_count() -> int:
     """Get inbox unread count."""
     token = await gcal._ensure_valid_token()

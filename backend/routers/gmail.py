@@ -172,6 +172,17 @@ async def send_with_attachments(
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@router.get("/signature")
+async def get_signature():
+    """Get Gmail signature."""
+    _check_connected()
+    try:
+        sig = await gmail.get_signature()
+        return {"signature": sig}
+    except Exception:
+        return {"signature": ""}
+
+
 @router.get("/labels")
 async def labels():
     """List all Gmail labels."""

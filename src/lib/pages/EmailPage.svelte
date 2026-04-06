@@ -33,6 +33,10 @@
   // Inline reply
   let showInlineReply = false;
   let inlineReplyText = '';
+  let inlineReplyFiles = [];
+
+  // Gmail signature
+  let gmailSignature = '';
 
   // Selection
   let selectedIds = new Set();
@@ -190,6 +194,13 @@
     loadingMore = false;
   }
 
+  async function fetchSignature() {
+    try {
+      const { signature } = await api.get('/api/gmail/signature');
+      gmailSignature = signature || '';
+    } catch { gmailSignature = ''; }
+  }
+
   // Auto-refresh inbox every 60s (silent, no loading indicator)
   async function silentRefreshInbox() {
     try {
@@ -254,19 +265,23 @@
   async function sendEmail() {
     sending = true;
     try {
+      const bodyWithSig = gmailSignature
+        ? `${composeForm.body}\n\n${gmailSignature}`
+        : composeForm.body;
+
       if (composeFiles.length > 0) {
         // Send with attachments via multipart form
         const fd = new FormData();
         fd.append('to', composeForm.to);
         fd.append('subject', composeForm.subject);
-        fd.append('body', composeForm.body);
+        fd.append('body', bodyWithSig);
         fd.append('cc', composeForm.cc || '');
         fd.append('bcc', '');
         fd.append('reply_to_message_id', replyToId || '');
         for (const f of composeFiles) fd.append('files', f);
         await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
       } else {
-        const payload = { ...composeForm };
+        const payload = { ...composeForm, body: bodyWithSig };
         if (replyToId) payload.reply_to_message_id = replyToId;
         await api.post('/api/gmail/send', payload);
       }
@@ -286,18 +301,43 @@
     if (!inlineReplyText.trim() || !selectedMessage) return;
     sending = true;
     try {
-      await api.post('/api/gmail/send', {
-        to: parseFromEmail(selectedMessage.from),
-        subject: `Re: ${selectedMessage.subject}`,
-        body: inlineReplyText,
-        reply_to_message_id: selectedMessage.id,
-      });
+      const bodyWithSig = gmailSignature
+        ? `${inlineReplyText}\n\n${gmailSignature}`
+        : inlineReplyText;
+
+      if (inlineReplyFiles.length > 0) {
+        const fd = new FormData();
+        fd.append('to', parseFromEmail(selectedMessage.from));
+        fd.append('subject', `Re: ${selectedMessage.subject}`);
+        fd.append('body', bodyWithSig);
+        fd.append('cc', '');
+        fd.append('bcc', '');
+        fd.append('reply_to_message_id', selectedMessage.id);
+        for (const f of inlineReplyFiles) fd.append('files', f);
+        await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+      } else {
+        await api.post('/api/gmail/send', {
+          to: parseFromEmail(selectedMessage.from),
+          subject: `Re: ${selectedMessage.subject}`,
+          body: bodyWithSig,
+          reply_to_message_id: selectedMessage.id,
+        });
+      }
       inlineReplyText = '';
+      inlineReplyFiles = [];
       showInlineReply = false;
     } catch (e) {
       console.error('Failed to send reply', e);
     }
     sending = false;
+  }
+
+  function handleInlineReplyFiles(e) {
+    inlineReplyFiles = [...inlineReplyFiles, ...Array.from(e.target.files)];
+  }
+
+  function removeInlineReplyFile(index) {
+    inlineReplyFiles = inlineReplyFiles.filter((_, i) => i !== index);
   }
 
   function openCompose(replyMsg = null) {
@@ -343,7 +383,7 @@
   onMount(async () => {
     await checkStatus();
     if (gmailConnected && hasScope) {
-      await Promise.all([fetchMessages(true), fetchUnreadCount()]);
+      await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature()]);
       // Auto-refresh inbox every 60 seconds
       refreshInterval = setInterval(silentRefreshInbox, 60000);
     } else {
@@ -622,12 +662,28 @@
             </h5>
             <div class="att-list">
               {#each selectedMessage.attachments as att}
-                <button
-                  class="att-item att-item--clickable"
-                  on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
-                >
-                  {att.filename}
-                </button>
+                <div class="att-card">
+                  <div class="att-card__icon">
+                    {#if att.mimeType?.startsWith('image/')}
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                    {:else if att.mimeType === 'application/pdf'}
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    {:else}
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    {/if}
+                  </div>
+                  <div class="att-card__info">
+                    <span class="att-card__name">{att.filename}</span>
+                    <span class="att-card__size">{Math.round(att.size / 1024)} Ko</span>
+                  </div>
+                  <button
+                    class="att-card__download"
+                    on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
+                    title="Telecharger"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  </button>
+                </div>
               {/each}
             </div>
           </div>
@@ -645,7 +701,23 @@
             rows={showInlineReply ? 5 : 2}
           ></textarea>
           {#if showInlineReply}
+            <!-- Inline reply files -->
+            {#if inlineReplyFiles.length > 0}
+              <div class="compose-file-list" style="margin-top:0.5rem">
+                {#each inlineReplyFiles as f, i}
+                  <div class="compose-file-item">
+                    <span class="compose-file-name">{f.name}</span>
+                    <span class="compose-file-size">({Math.round(f.size / 1024)}Ko)</span>
+                    <button class="compose-file-remove" on:click={() => removeInlineReplyFile(i)}>&times;</button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
             <div class="inline-reply-actions">
+              <label class="inline-reply-attach" title="Ajouter une piece jointe">
+                <input type="file" multiple on:change={handleInlineReplyFiles} style="display:none" />
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+              </label>
               <button class="ya-btn ya-btn--primary" on:click={sendInlineReply} disabled={sending || !inlineReplyText.trim()}>
                 {sending ? 'Envoi...' : 'Envoyer'}
               </button>
@@ -740,8 +812,8 @@
   .folder-label { flex: 1; }
 
   .folder-badge {
-    background: var(--primary);
-    color: #fff;
+    background: var(--primary) !important;
+    color: #fff !important;
     font-size: 0.6875rem;
     font-weight: 600;
     padding: 0.125rem 0.5rem;
@@ -1211,32 +1283,68 @@
   .att-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
 
-  .att-item {
-    display: inline-block;
-    padding: 0.375rem 0.75rem;
-    background: rgba(var(--primary-rgb), 0.08);
-    border-radius: 0.25rem;
-    font-size: 0.8125rem;
-    color: var(--primary) !important;
-  }
-
-  .att-item--clickable {
-    border: 1px solid rgba(var(--primary-rgb), 0.2);
-    cursor: pointer;
-    font-family: inherit;
+  /* Attachment card — Gmail style */
+  .att-card {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.5rem;
+    background: var(--bg-card);
+    min-width: 180px;
     transition: all 0.1s;
   }
 
-  .att-item--clickable:hover {
-    background: rgba(var(--primary-rgb), 0.15);
+  .att-card:hover {
     border-color: var(--primary);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
 
-  .att-list .att-item:not(:last-child) {
-    border-right: none;
+  .att-card__icon {
+    flex-shrink: 0;
+    display: flex;
+  }
+
+  .att-card__info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .att-card__name {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-heading) !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .att-card__size {
+    font-size: 0.6875rem;
+    color: var(--text-muted) !important;
+  }
+
+  .att-card__download {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    display: flex;
+    transition: all 0.1s;
+  }
+
+  .att-card__download:hover {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.08);
   }
 
   /* Inline reply — YashAdmin style */
@@ -1265,7 +1373,27 @@
   .inline-reply-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
     margin-top: 0.75rem;
+  }
+
+  .inline-reply-attach {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.1s;
+    margin-right: auto;
+  }
+
+  .inline-reply-attach:hover {
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.08);
   }
 
   /* Compose file upload */
