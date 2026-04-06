@@ -1,9 +1,12 @@
 """Gmail API endpoints."""
 from __future__ import annotations
 
+import base64
 import logging
+from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from ..services import gmail
@@ -122,6 +125,50 @@ async def mark_as_read(message_id: str):
         await gmail.mark_read(message_id)
         return {"ok": True}
     except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/messages/{message_id}/attachments/{attachment_id}")
+async def download_attachment(message_id: str, attachment_id: str, filename: str = "attachment"):
+    """Download an attachment."""
+    _check_connected()
+    try:
+        data = await gmail.get_attachment(message_id, attachment_id)
+        return Response(
+            content=data,
+            media_type="application/octet-stream",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.post("/send-with-attachments")
+async def send_with_attachments(
+    to: str = Form(...),
+    subject: str = Form(...),
+    body: str = Form(...),
+    cc: str = Form(""),
+    bcc: str = Form(""),
+    reply_to_message_id: str = Form(""),
+    files: List[UploadFile] = File(default=[]),
+):
+    """Send an email with file attachments."""
+    _check_connected()
+    try:
+        attachments = []
+        for f in files:
+            content = await f.read()
+            attachments.append((f.filename, f.content_type or "application/octet-stream", content))
+
+        result = await gmail.send_message_with_attachments(
+            to=to, subject=subject, body=body, cc=cc, bcc=bcc,
+            reply_to_message_id=reply_to_message_id or None,
+            attachments=attachments if attachments else None,
+        )
+        return {"sent": True, "id": result.get("id", "")}
+    except Exception as e:
+        logger.error(f"Gmail send with attachments error: {e}")
         raise HTTPException(status_code=502, detail=str(e))
 
 

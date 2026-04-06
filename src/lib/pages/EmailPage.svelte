@@ -1,5 +1,5 @@
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { api } from '../api/client.js';
   import DOMPurify from 'dompurify';
 
@@ -17,10 +17,22 @@
   let nextPageToken = null;
   let loadingMore = false;
 
+  // Folder cache — keep messages per folder in memory
+  let folderCache = {};
+  let folderPageTokens = {};
+
+  // Auto-refresh
+  let refreshInterval;
+
   // Compose form
   let composeForm = { to: '', cc: '', subject: '', body: '' };
+  let composeFiles = [];
   let replyToId = null;
   let sending = false;
+
+  // Inline reply
+  let showInlineReply = false;
+  let inlineReplyText = '';
 
   // Selection
   let selectedIds = new Set();
@@ -136,13 +148,25 @@
     }
   }
 
-  async function fetchMessages(reset = true) {
+  async function fetchMessages(force = false) {
+    // Use cache if available and not forced
+    if (!force && folderCache[currentFolder] && !searchQuery) {
+      messages = folderCache[currentFolder];
+      nextPageToken = folderPageTokens[currentFolder] || null;
+      loading = false;
+      return;
+    }
     loading = true;
     try {
       const params = `folder=${currentFolder}&max_results=50${searchQuery ? `&q=${encodeURIComponent(searchQuery)}` : ''}`;
       const data = await api.get(`/api/gmail/messages?${params}`);
       messages = data.messages || [];
       nextPageToken = data.nextPageToken;
+      // Cache results (not search queries)
+      if (!searchQuery) {
+        folderCache[currentFolder] = messages;
+        folderPageTokens[currentFolder] = nextPageToken;
+      }
     } catch (e) {
       console.error('Failed to fetch messages', e);
       messages = [];
@@ -158,8 +182,28 @@
       const data = await api.get(`/api/gmail/messages?${params}`);
       messages = [...messages, ...(data.messages || [])];
       nextPageToken = data.nextPageToken;
+      if (!searchQuery) {
+        folderCache[currentFolder] = messages;
+        folderPageTokens[currentFolder] = nextPageToken;
+      }
     } catch {}
     loadingMore = false;
+  }
+
+  // Auto-refresh inbox every 60s (silent, no loading indicator)
+  async function silentRefreshInbox() {
+    try {
+      const data = await api.get('/api/gmail/messages?folder=inbox&max_results=50');
+      const newMsgs = data.messages || [];
+      folderCache['inbox'] = newMsgs;
+      folderPageTokens['inbox'] = data.nextPageToken;
+      // If currently viewing inbox, update visible messages
+      if (currentFolder === 'inbox' && currentView === 'inbox' && !searchQuery) {
+        messages = newMsgs;
+        nextPageToken = data.nextPageToken;
+      }
+      fetchUnreadCount();
+    } catch {}
   }
 
   async function fetchUnreadCount() {
@@ -210,21 +254,55 @@
   async function sendEmail() {
     sending = true;
     try {
-      const payload = { ...composeForm };
-      if (replyToId) payload.reply_to_message_id = replyToId;
-      await api.post('/api/gmail/send', payload);
+      if (composeFiles.length > 0) {
+        // Send with attachments via multipart form
+        const fd = new FormData();
+        fd.append('to', composeForm.to);
+        fd.append('subject', composeForm.subject);
+        fd.append('body', composeForm.body);
+        fd.append('cc', composeForm.cc || '');
+        fd.append('bcc', '');
+        fd.append('reply_to_message_id', replyToId || '');
+        for (const f of composeFiles) fd.append('files', f);
+        await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+      } else {
+        const payload = { ...composeForm };
+        if (replyToId) payload.reply_to_message_id = replyToId;
+        await api.post('/api/gmail/send', payload);
+      }
       composeForm = { to: '', cc: '', subject: '', body: '' };
+      composeFiles = [];
       replyToId = null;
       currentView = 'inbox';
-      await fetchMessages();
+      folderCache = {}; // Clear cache to force refresh
+      await fetchMessages(true);
     } catch (e) {
       console.error('Failed to send', e);
     }
     sending = false;
   }
 
+  async function sendInlineReply() {
+    if (!inlineReplyText.trim() || !selectedMessage) return;
+    sending = true;
+    try {
+      await api.post('/api/gmail/send', {
+        to: parseFromEmail(selectedMessage.from),
+        subject: `Re: ${selectedMessage.subject}`,
+        body: inlineReplyText,
+        reply_to_message_id: selectedMessage.id,
+      });
+      inlineReplyText = '';
+      showInlineReply = false;
+    } catch (e) {
+      console.error('Failed to send reply', e);
+    }
+    sending = false;
+  }
+
   function openCompose(replyMsg = null) {
     composeForm = { to: '', cc: '', subject: '', body: '' };
+    composeFiles = [];
     replyToId = null;
     if (replyMsg) {
       composeForm.to = parseFromEmail(replyMsg.from);
@@ -234,27 +312,47 @@
     currentView = 'compose';
   }
 
+  function handleFileSelect(e) {
+    composeFiles = [...composeFiles, ...Array.from(e.target.files)];
+  }
+
+  function removeFile(index) {
+    composeFiles = composeFiles.filter((_, i) => i !== index);
+  }
+
   function switchFolder(folder) {
     currentFolder = folder;
     currentView = 'inbox';
     selectedMessage = null;
-    fetchMessages();
+    showInlineReply = false;
+    searchQuery = '';
+    fetchMessages(); // Will use cache if available
   }
 
   function backToInbox() {
     currentView = 'inbox';
     selectedMessage = null;
-    // Don't re-fetch — messages are already in memory
+    showInlineReply = false;
+  }
+
+  function downloadAttachment(msgId, attId, filename) {
+    window.open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`, '_blank');
   }
 
   // ── Lifecycle ──
   onMount(async () => {
     await checkStatus();
     if (gmailConnected && hasScope) {
-      await Promise.all([fetchMessages(), fetchUnreadCount()]);
+      await Promise.all([fetchMessages(true), fetchUnreadCount()]);
+      // Auto-refresh inbox every 60 seconds
+      refreshInterval = setInterval(silentRefreshInbox, 60000);
     } else {
       loading = false;
     }
+  });
+
+  onDestroy(() => {
+    if (refreshInterval) clearInterval(refreshInterval);
   });
 </script>
 
@@ -445,7 +543,24 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
             Pieces jointes
           </h5>
-          <p class="compose-attachment-hint">Les pieces jointes ne sont pas encore supportees (bientot disponible)</p>
+
+          {#if composeFiles.length > 0}
+            <div class="compose-file-list">
+              {#each composeFiles as f, i}
+                <div class="compose-file-item">
+                  <span class="compose-file-name">{f.name}</span>
+                  <span class="compose-file-size">({Math.round(f.size / 1024)}Ko)</span>
+                  <button class="compose-file-remove" on:click={() => removeFile(i)}>&times;</button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <label class="compose-file-drop">
+            <input type="file" multiple on:change={handleFileSelect} style="display:none" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Ajouter des fichiers
+          </label>
         </div>
 
         <div class="compose-actions">
@@ -501,17 +616,41 @@
 
         {#if selectedMessage.attachments?.length > 0}
           <div class="read-attachments">
-            <h5>Pieces jointes ({selectedMessage.attachments.length})</h5>
-            {#each selectedMessage.attachments as att}
-              <span class="att-item">{att.filename} ({Math.round(att.size / 1024)}Ko)</span>
-            {/each}
+            <h5>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Pieces jointes ({selectedMessage.attachments.length})
+            </h5>
+            <div class="att-list">
+              {#each selectedMessage.attachments as att}
+                <button
+                  class="att-item att-item--clickable"
+                  on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
+                >
+                  {att.filename}
+                </button>
+              {/each}
+            </div>
           </div>
         {/if}
 
-        <div class="reply-area">
-          <button class="ya-btn ya-btn--primary" on:click={() => openCompose(selectedMessage)}>
-            Repondre
-          </button>
+        <hr style="border-color:var(--border-subtle);margin:1.5rem 0" />
+
+        <!-- Inline reply — YashAdmin style -->
+        <div class="inline-reply">
+          <textarea
+            class="inline-reply-textarea"
+            placeholder="Ecrire une reponse..."
+            bind:value={inlineReplyText}
+            on:focus={() => showInlineReply = true}
+            rows={showInlineReply ? 5 : 2}
+          ></textarea>
+          {#if showInlineReply}
+            <div class="inline-reply-actions">
+              <button class="ya-btn ya-btn--primary" on:click={sendInlineReply} disabled={sending || !inlineReplyText.trim()}>
+                {sending ? 'Envoi...' : 'Envoyer'}
+              </button>
+            </div>
+          {/if}
         </div>
       </div>
     {/if}
@@ -1069,20 +1208,121 @@
     margin: 0 0 0.5rem;
   }
 
+  .att-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
   .att-item {
     display: inline-block;
-    padding: 0.25rem 0.75rem;
+    padding: 0.375rem 0.75rem;
+    background: rgba(var(--primary-rgb), 0.08);
+    border-radius: 0.25rem;
+    font-size: 0.8125rem;
+    color: var(--primary) !important;
+  }
+
+  .att-item--clickable {
+    border: 1px solid rgba(var(--primary-rgb), 0.2);
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.1s;
+  }
+
+  .att-item--clickable:hover {
+    background: rgba(var(--primary-rgb), 0.15);
+    border-color: var(--primary);
+  }
+
+  .att-list .att-item:not(:last-child) {
+    border-right: none;
+  }
+
+  /* Inline reply — YashAdmin style */
+  .inline-reply {
+    margin-top: 0.5rem;
+  }
+
+  .inline-reply-textarea {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.625rem;
+    font-size: 0.875rem;
+    font-family: inherit;
+    background: var(--bg-input);
+    color: var(--text-primary);
+    resize: vertical;
+    transition: border-color 0.15s;
+  }
+
+  .inline-reply-textarea:focus {
+    border-color: var(--primary);
+    outline: none;
+  }
+
+  .inline-reply-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 0.75rem;
+  }
+
+  /* Compose file upload */
+  .compose-file-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .compose-file-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.5rem;
     background: rgba(var(--primary-rgb), 0.08);
     border-radius: 0.25rem;
     font-size: 0.75rem;
-    color: var(--primary) !important;
-    margin-right: 0.5rem;
-    margin-bottom: 0.25rem;
   }
 
-  .reply-area {
-    padding-top: 1rem;
-    border-top: 1px solid var(--border-subtle);
+  .compose-file-name {
+    color: var(--text-heading) !important;
+    font-weight: 500;
+  }
+
+  .compose-file-size {
+    color: var(--text-muted) !important;
+  }
+
+  .compose-file-remove {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0 0.25rem;
+    line-height: 1;
+  }
+
+  .compose-file-drop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 1px dashed var(--border-subtle);
+    border-radius: 0.625rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    transition: all 0.15s;
+  }
+
+  .compose-file-drop:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: rgba(var(--primary-rgb), 0.03);
   }
 
   @media (max-width: 768px) {

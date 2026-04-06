@@ -230,6 +230,81 @@ def _parse_attachments(payload: dict) -> list[dict]:
 # ── Send message ─────────────────────────────────────────────
 
 
+async def get_attachment(message_id: str, attachment_id: str) -> bytes:
+    """Download an attachment by ID."""
+    token = await gcal._ensure_valid_token()
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{GMAIL_API}/messages/{message_id}/attachments/{attachment_id}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        resp.raise_for_status()
+    data = resp.json().get("data", "")
+    return base64.urlsafe_b64decode(data + "==")
+
+
+async def send_message_with_attachments(
+    to: str,
+    subject: str,
+    body: str,
+    cc: str = "",
+    bcc: str = "",
+    reply_to_message_id: str | None = None,
+    attachments: list[tuple[str, str, bytes]] | None = None,
+) -> dict:
+    """Send an email with optional attachments. attachments = [(filename, mime, data), ...]"""
+    token = await gcal._ensure_valid_token()
+    cfg = gcal.load_config()
+    sender = cfg.get("connected_email", "")
+
+    from email.mime.base import MIMEBase
+    from email import encoders
+
+    msg = MIMEMultipart("mixed")
+    msg["To"] = to
+    msg["From"] = sender
+    msg["Subject"] = subject
+    if cc:
+        msg["Cc"] = cc
+    if bcc:
+        msg["Bcc"] = bcc
+
+    # Body
+    body_part = MIMEMultipart("alternative")
+    body_part.attach(MIMEText(body, "plain"))
+    body_part.attach(MIMEText(f"<div style='white-space:pre-wrap'>{body}</div>", "html"))
+    msg.attach(body_part)
+
+    # Attachments
+    if attachments:
+        for filename, mime_type, data in attachments:
+            maintype, subtype = mime_type.split("/", 1) if "/" in mime_type else ("application", "octet-stream")
+            part = MIMEBase(maintype, subtype)
+            part.set_payload(data)
+            encoders.encode_base64(part)
+            part.add_header("Content-Disposition", "attachment", filename=filename)
+            msg.attach(part)
+
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
+    payload: dict = {"raw": raw}
+
+    if reply_to_message_id:
+        try:
+            orig = await get_message(reply_to_message_id)
+            payload["threadId"] = orig.get("threadId", "")
+        except Exception:
+            pass
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{GMAIL_API}/messages/send",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+        )
+        resp.raise_for_status()
+    return resp.json()
+
+
 async def send_message(
     to: str,
     subject: str,
