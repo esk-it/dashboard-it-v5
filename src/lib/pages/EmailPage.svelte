@@ -360,60 +360,20 @@
   }
 
   async function downloadAttachment(msgId, attId, filename) {
+    const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
+    // Open the download URL in the system browser — this always works
     try {
-      const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
-      if (!resp.ok) throw new Error('Download failed: ' + resp.status);
-      const arrayBuf = await resp.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuf);
-
-      // Try Tauri save dialog
-      try {
-        const { save } = await import('@tauri-apps/plugin-dialog');
-        const fs = await import('@tauri-apps/plugin-fs');
-        const writeFn = fs.writeBinaryFile || fs.writeFile;
-        const path = await save({ defaultPath: filename });
-        if (path && writeFn) {
-          await writeFn(path, bytes);
-          return;
-        }
-      } catch (e) {
-        console.warn('Tauri save unavailable:', e.message);
-      }
-
+      const { open } = await import('@tauri-apps/plugin-shell');
+      await open(url);
+    } catch {
       // Browser fallback
-      const blob = new Blob([bytes]);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
-    } catch (e) {
-      console.error('Download failed:', e);
+      window.open(url, '_blank');
     }
   }
 
   async function previewAttachment(msgId, attId, filename, mimeType) {
-    try {
-      const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
-      if (!resp.ok) throw new Error('Preview failed');
-      const blob = await resp.blob();
-      const typedBlob = new Blob([blob], { type: mimeType || 'application/octet-stream' });
-      const url = URL.createObjectURL(typedBlob);
-
-      // Try Tauri shell.open for native preview
-      try {
-        const { open } = await import('@tauri-apps/plugin-shell');
-        await open(url);
-      } catch {
-        window.open(url, '_blank');
-      }
-    } catch (e) {
-      console.error('Preview failed:', e);
-      await downloadAttachment(msgId, attId, filename);
-    }
+    // Same as download — open in system browser which can preview PDFs/images
+    await downloadAttachment(msgId, attId, filename);
   }
 
   let syncing = false;
@@ -726,14 +686,7 @@
 
         <h3 class="read-subject">{selectedMessage.subject}</h3>
 
-        <div class="read-body">
-          {#if selectedMessage.body_html}
-            {@html DOMPurify.sanitize(selectedMessage.body_html)}
-          {:else}
-            <pre class="read-body-text">{selectedMessage.body_text || ''}</pre>
-          {/if}
-        </div>
-
+        <!-- PJ en haut, avant le contenu (toujours visible) -->
         {#if selectedMessage.attachments?.length > 0}
           <div class="read-attachments">
             <h5>
@@ -781,6 +734,14 @@
             </div>
           </div>
         {/if}
+
+        <div class="read-body">
+          {#if selectedMessage.body_html}
+            {@html DOMPurify.sanitize(selectedMessage.body_html)}
+          {:else}
+            <pre class="read-body-text">{selectedMessage.body_text || ''}</pre>
+          {/if}
+        </div>
 
         <hr style="border-color:var(--border-subtle);margin:1.5rem 0" />
 
