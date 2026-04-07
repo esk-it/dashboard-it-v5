@@ -111,6 +111,25 @@ def _parse_attachments(payload: dict) -> list[dict]:
     return attachments
 
 
+def _parse_inline_images(payload: dict) -> dict[str, dict]:
+    """Collect inline images (cid: referenced) — returns {cid: {attachmentId, mimeType}}."""
+    inline_map = {}
+    def _walk(part):
+        headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
+        content_id = headers.get("content-id", "")
+        body = part.get("body", {})
+        att_id = body.get("attachmentId", "")
+        mime = part.get("mimeType", "")
+        if content_id and att_id and mime.startswith("image/"):
+            # Strip < > from Content-ID
+            cid = content_id.strip("<>")
+            inline_map[cid] = {"attachmentId": att_id, "mimeType": mime}
+        for sub in part.get("parts", []):
+            _walk(sub)
+    _walk(payload)
+    return inline_map
+
+
 def _parse_full_message(data: dict) -> dict:
     """Parse a full Gmail message into a flat dict for the cache."""
     headers = {h["name"].lower(): h["value"] for h in data.get("payload", {}).get("headers", [])}
@@ -118,6 +137,15 @@ def _parse_full_message(data: dict) -> dict:
     body_text, body_html = _parse_body(data.get("payload", {}))
     attachments = _parse_attachments(data.get("payload", {}))
     att_names = [a["filename"] for a in attachments]
+
+    # Resolve cid: references in HTML body → replace with API URLs
+    if body_html:
+        inline_images = _parse_inline_images(data.get("payload", {}))
+        msg_id = data["id"]
+        for cid, info in inline_images.items():
+            att_id = info["attachmentId"]
+            api_url = f"http://localhost:8010/api/gmail/messages/{msg_id}/attachments/{att_id}?filename={cid}&preview=true"
+            body_html = body_html.replace(f"cid:{cid}", api_url)
 
     # Determine folder
     folder = "inbox"
@@ -309,12 +337,16 @@ async def _sync_incremental_inner(db) -> dict:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         while True:
-            params = {
-                "startHistoryId": history_id,
-                "historyTypes": "messageAdded,messageDeleted,labelAdded,labelRemoved",
-            }
+            # historyTypes must be repeated query params, not comma-separated
+            params = [
+                ("startHistoryId", history_id),
+                ("historyTypes", "messageAdded"),
+                ("historyTypes", "messageDeleted"),
+                ("historyTypes", "labelAdded"),
+                ("historyTypes", "labelRemoved"),
+            ]
             if next_page:
-                params["pageToken"] = next_page
+                params.append(("pageToken", next_page))
             resp = await client.get(
                 f"{GMAIL_API}/history",
                 headers={"Authorization": f"Bearer {token}"},
@@ -322,10 +354,12 @@ async def _sync_incremental_inner(db) -> dict:
             )
             if resp.status_code == 404:
                 # History expired — reset historyId, next sync will do full
+                logger.info("History expired (404) — clearing historyId for next full sync")
                 await _set_sync_state(db, "historyId", "")
                 await db.commit()
                 return {"added": 0, "updated": 0, "deleted": 0, "error": "history expired, will full sync next time"}
             if resp.status_code != 200:
+                logger.warning(f"History API returned {resp.status_code}: {resp.text[:200]}")
                 break
             data = resp.json()
 
@@ -360,6 +394,9 @@ async def _sync_incremental_inner(db) -> dict:
     now = datetime.now(timezone.utc).isoformat()
     await _set_sync_state(db, "lastSync", now)
     await db.commit()
+
+    if stats["added"] or stats["deleted"]:
+        logger.info(f"Incremental sync: +{stats['added']} added, -{stats['deleted']} deleted (historyId: {history_id} → {new_history})")
 
     return stats
 

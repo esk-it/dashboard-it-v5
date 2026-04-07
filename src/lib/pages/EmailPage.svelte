@@ -360,7 +360,7 @@
   }
 
   // Attachment preview modal state
-  let previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
+  let previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false, msgId: '', attId: '' };
 
   async function downloadAttachment(msgId, attId, filename) {
     try {
@@ -395,24 +395,24 @@
   }
 
   async function previewAttachment(msgId, attId, filename, mimeType) {
-    previewModal = { open: true, url: '', filename, mimeType, loading: true };
+    previewModal = { open: true, url: '', filename, mimeType, loading: true, msgId, attId };
     try {
       const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}&preview=true`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('Preview failed');
       const blob = await resp.blob();
       const blobUrl = URL.createObjectURL(blob);
-      previewModal = { open: true, url: blobUrl, filename, mimeType, loading: false };
+      previewModal = { ...previewModal, url: blobUrl, loading: false };
     } catch (e) {
       console.error('Preview failed', e);
-      previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
+      previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false, msgId: '', attId: '' };
       await downloadAttachment(msgId, attId, filename);
     }
   }
 
   function closePreviewModal() {
     if (previewModal.url) URL.revokeObjectURL(previewModal.url);
-    previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
+    previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false, msgId: '', attId: '' };
   }
 
   let syncing = false;
@@ -846,7 +846,7 @@
       <div class="preview-modal__header">
         <span class="preview-modal__filename">{previewModal.filename}</span>
         <div class="preview-modal__actions">
-          <button class="preview-modal__btn" on:click={() => { closePreviewModal(); downloadAttachment(selectedMessage.id, selectedMessage.attachments.find(a => a.filename === previewModal.filename)?.attachmentId, previewModal.filename); }} title="Telecharger">
+          <button class="preview-modal__btn" on:click={async () => { const { msgId, attId, filename } = previewModal; closePreviewModal(); await downloadAttachment(msgId, attId, filename); }} title="Telecharger">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </button>
           <button class="preview-modal__btn preview-modal__close" on:click={closePreviewModal} title="Fermer">
