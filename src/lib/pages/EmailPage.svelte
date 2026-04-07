@@ -368,9 +368,25 @@
     try {
       const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
       if (!resp.ok) throw new Error('Download failed: ' + resp.status);
-      const blob = await resp.blob();
+      const arrayBuf = await resp.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuf);
 
-      // Use browser download (works in both Tauri webview and browser)
+      // Try Tauri save dialog
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const fs = await import('@tauri-apps/plugin-fs');
+        const writeFn = fs.writeBinaryFile || fs.writeFile;
+        const path = await save({ defaultPath: filename });
+        if (path && writeFn) {
+          await writeFn(path, bytes);
+          return;
+        }
+      } catch (e) {
+        console.warn('Tauri save unavailable:', e.message);
+      }
+
+      // Browser fallback
+      const blob = new Blob([bytes]);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -378,13 +394,9 @@
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
-      // Cleanup after a short delay
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 1000);
+      setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
     } catch (e) {
-      console.error('Failed to download attachment', e);
+      console.error('Download failed:', e);
     }
   }
 
@@ -393,21 +405,18 @@
       const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
       if (!resp.ok) throw new Error('Preview failed');
       const blob = await resp.blob();
-
-      // Create blob with correct MIME type for preview
       const typedBlob = new Blob([blob], { type: mimeType || 'application/octet-stream' });
       const url = URL.createObjectURL(typedBlob);
 
-      // For Tauri: use shell.open, for browser: window.open
+      // Try Tauri shell.open for native preview
       try {
         const { open } = await import('@tauri-apps/plugin-shell');
-        // Save temp file and open
-        await downloadAttachment(msgId, attId, filename);
+        await open(url);
       } catch {
         window.open(url, '_blank');
       }
     } catch (e) {
-      console.error('Preview failed, falling back to download', e);
+      console.error('Preview failed:', e);
       await downloadAttachment(msgId, attId, filename);
     }
   }

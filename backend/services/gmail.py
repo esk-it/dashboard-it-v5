@@ -285,6 +285,7 @@ async def sync_incremental(db) -> dict:
         changed_ids = set()
         deleted_ids = set()
         next_page = None
+        new_history = history_id  # Default to current if no changes
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             while True:
@@ -300,7 +301,6 @@ async def sync_incremental(db) -> dict:
                     params=params,
                 )
                 if resp.status_code == 404:
-                    # History expired — full sync needed
                     return await sync_full(db)
                 if resp.status_code != 200:
                     break
@@ -316,7 +316,7 @@ async def sync_incremental(db) -> dict:
                     for m in h.get("labelsRemoved", []):
                         changed_ids.add(m["message"]["id"])
 
-                new_history = data.get("historyId", history_id)
+                new_history = data.get("historyId", new_history)
                 next_page = data.get("nextPageToken")
                 if not next_page:
                     break
@@ -326,15 +326,12 @@ async def sync_incremental(db) -> dict:
             await db.execute("DELETE FROM emails_cache WHERE id=?", (mid,))
             stats["deleted"] += 1
 
-        # Fetch changed messages
+        # Fetch changed messages one at a time (avoid db lock from parallel writes)
         changed_ids -= deleted_ids
-        batch_size = 10
-        id_list = list(changed_ids)
-        for i in range(0, len(id_list), batch_size):
-            batch = id_list[i:i + batch_size]
-            tasks = [_fetch_and_store(token, mid, db) for mid in batch]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            stats["added"] += sum(1 for r in results if r is True)
+        for mid in changed_ids:
+            ok = await _fetch_and_store(token, mid, db)
+            if ok:
+                stats["added"] += 1
 
         await _set_sync_state(db, "historyId", str(new_history))
         now = datetime.now(timezone.utc).isoformat()
@@ -592,25 +589,27 @@ async def get_signature() -> str:
 
     try:
         async with httpx.AsyncClient() as client:
-            # Try sendAs endpoint
-            resp = await client.get(
-                f"{GMAIL_API}/settings/sendAs/{email}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if resp.status_code == 200:
-                html_sig = resp.json().get("signature", "")
-                return re.sub(r'<[^>]+>', '', html_sig).strip()
-
-            # If sendAs fails, try listing all sendAs to find the primary
+            # Try listing all sendAs to find the primary (works with gmail.modify scope)
             resp = await client.get(
                 f"{GMAIL_API}/settings/sendAs",
                 headers={"Authorization": f"Bearer {token}"},
             )
             if resp.status_code == 200:
                 for sa in resp.json().get("sendAs", []):
-                    if sa.get("isPrimary"):
+                    if sa.get("isPrimary") or sa.get("sendAsEmail") == email:
                         html_sig = sa.get("signature", "")
-                        return re.sub(r'<[^>]+>', '', html_sig).strip()
+                        if html_sig:
+                            return re.sub(r'<[^>]+>', '', html_sig).strip()
+
+            # Fallback: try direct sendAs endpoint
+            resp = await client.get(
+                f"{GMAIL_API}/settings/sendAs/{email}",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if resp.status_code == 200:
+                html_sig = resp.json().get("signature", "")
+                if html_sig:
+                    return re.sub(r'<[^>]+>', '', html_sig).strip()
     except Exception as e:
         logger.warning(f"Failed to fetch signature: {e}")
     return ""
