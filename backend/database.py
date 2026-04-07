@@ -97,6 +97,33 @@ async def init_db():
             task_id     INTEGER NULL,
             created_at  TEXT NOT NULL
         )""",
+        # --- Email cache (offline Outlook-style) ---
+        """CREATE TABLE IF NOT EXISTS emails_cache (
+            id              TEXT PRIMARY KEY,
+            thread_id       TEXT NOT NULL DEFAULT '',
+            folder          TEXT NOT NULL DEFAULT 'inbox',
+            sender          TEXT NOT NULL DEFAULT '',
+            recipient       TEXT NOT NULL DEFAULT '',
+            cc              TEXT NOT NULL DEFAULT '',
+            subject         TEXT NOT NULL DEFAULT '',
+            snippet         TEXT NOT NULL DEFAULT '',
+            body_text       TEXT NOT NULL DEFAULT '',
+            body_html       TEXT NOT NULL DEFAULT '',
+            date_header     TEXT NOT NULL DEFAULT '',
+            internal_date   TEXT NOT NULL DEFAULT '',
+            is_unread       INTEGER NOT NULL DEFAULT 1,
+            is_starred      INTEGER NOT NULL DEFAULT 0,
+            labels          TEXT NOT NULL DEFAULT '[]',
+            has_attachments INTEGER NOT NULL DEFAULT 0,
+            attachment_names TEXT NOT NULL DEFAULT '[]',
+            attachments_json TEXT NOT NULL DEFAULT '[]',
+            fetched_full    INTEGER NOT NULL DEFAULT 0,
+            synced_at       TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS email_sync_state (
+            key   TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT ''
+        )""",
         # --- Documents ---
         """CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

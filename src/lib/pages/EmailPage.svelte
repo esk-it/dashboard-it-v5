@@ -201,21 +201,7 @@
     } catch { gmailSignature = ''; }
   }
 
-  // Auto-refresh inbox every 60s (silent, no loading indicator)
-  async function silentRefreshInbox() {
-    try {
-      const data = await api.get('/api/gmail/messages?folder=inbox&max_results=50');
-      const newMsgs = data.messages || [];
-      folderCache['inbox'] = newMsgs;
-      folderPageTokens['inbox'] = data.nextPageToken;
-      // If currently viewing inbox, update visible messages
-      if (currentFolder === 'inbox' && currentView === 'inbox' && !searchQuery) {
-        messages = newMsgs;
-        nextPageToken = data.nextPageToken;
-      }
-      fetchUnreadCount();
-    } catch {}
-  }
+  // Silent refresh is now handled by triggerSync() in the interval
 
   async function fetchUnreadCount() {
     try {
@@ -407,13 +393,33 @@
     }
   }
 
+  let syncing = false;
+  let syncStatus = null;
+
+  async function triggerSync(full = false) {
+    syncing = true;
+    try {
+      const endpoint = full ? '/api/gmail/sync/full' : '/api/gmail/sync';
+      await api.post(endpoint);
+    } catch (e) {
+      console.error('Sync failed', e);
+    }
+    syncing = false;
+    // Refresh current view from cache
+    await fetchMessages(true);
+    await fetchUnreadCount();
+  }
+
   // ── Lifecycle ──
   onMount(async () => {
     await checkStatus();
     if (gmailConnected && hasScope) {
+      // Load from cache first (instant)
       await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature()]);
-      // Auto-refresh inbox every 60 seconds
-      refreshInterval = setInterval(silentRefreshInbox, 60000);
+      // Then sync in background (non-blocking)
+      triggerSync();
+      // Auto-sync every 2 minutes
+      refreshInterval = setInterval(() => triggerSync(), 120000);
     } else {
       loading = false;
     }
