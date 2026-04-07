@@ -137,10 +137,25 @@ async def send_with_attachments(
 
 
 @router.get("/messages/{message_id}/attachments/{attachment_id}")
-async def download_attachment(message_id: str, attachment_id: str, filename: str = "attachment"):
+async def download_attachment(
+    message_id: str,
+    attachment_id: str,
+    filename: str = "attachment",
+    preview: bool = False,
+):
     _check_connected()
     try:
         data = await gmail.get_attachment(message_id, attachment_id)
+        if preview:
+            # Serve inline with correct MIME type for in-app preview
+            import mimetypes
+            mime, _ = mimetypes.guess_type(filename)
+            mime = mime or "application/octet-stream"
+            return Response(
+                content=data,
+                media_type=mime,
+                headers={"Content-Disposition": f'inline; filename="{filename}"'},
+            )
         return Response(
             content=data,
             media_type="application/octet-stream",
@@ -185,8 +200,11 @@ async def get_signature():
     _check_connected()
     try:
         sig = await gmail.get_signature()
+        if not sig:
+            logger.warning("Gmail signature is empty — check sendAs settings or OAuth scopes")
         return {"signature": sig}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to fetch Gmail signature: {e}")
         return {"signature": ""}
 
 

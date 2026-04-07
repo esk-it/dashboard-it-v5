@@ -359,21 +359,54 @@
     showInlineReply = false;
   }
 
+  // Attachment preview modal state
+  let previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
+
   async function downloadAttachment(msgId, attId, filename) {
-    const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
-    // Open the download URL in the system browser — this always works
     try {
-      const { open } = await import('@tauri-apps/plugin-shell');
-      await open(url);
-    } catch {
-      // Browser fallback
-      window.open(url, '_blank');
+      const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Download failed');
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+    } catch (e) {
+      console.error('Download failed', e);
+      // Fallback: open in system browser
+      try {
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
+      } catch {
+        window.open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`, '_blank');
+      }
     }
   }
 
   async function previewAttachment(msgId, attId, filename, mimeType) {
-    // Same as download — open in system browser which can preview PDFs/images
-    await downloadAttachment(msgId, attId, filename);
+    previewModal = { open: true, url: '', filename, mimeType, loading: true };
+    try {
+      const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}&preview=true`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('Preview failed');
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      previewModal = { open: true, url: blobUrl, filename, mimeType, loading: false };
+    } catch (e) {
+      console.error('Preview failed', e);
+      previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
+      await downloadAttachment(msgId, attId, filename);
+    }
+  }
+
+  function closePreviewModal() {
+    if (previewModal.url) URL.revokeObjectURL(previewModal.url);
+    previewModal = { open: false, url: '', filename: '', mimeType: '', loading: false };
   }
 
   let syncing = false;
@@ -618,6 +651,15 @@
           <textarea placeholder="Ecrivez votre message..." bind:value={composeForm.body} rows="12"></textarea>
         </div>
 
+        {#if gmailSignature}
+          <div class="compose-signature-preview">
+            <div class="compose-signature-label">Signature</div>
+            <div class="compose-signature-html">
+              {@html DOMPurify.sanitize(gmailSignature)}
+            </div>
+          </div>
+        {/if}
+
         <div class="compose-attachment-section">
           <h5 class="compose-attachment-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
@@ -755,6 +797,14 @@
             rows={showInlineReply ? 5 : 2}
           ></textarea>
           {#if showInlineReply}
+            {#if gmailSignature}
+              <div class="compose-signature-preview" style="margin-top:0.5rem">
+                <div class="compose-signature-label">Signature</div>
+                <div class="compose-signature-html">
+                  {@html DOMPurify.sanitize(gmailSignature)}
+                </div>
+              </div>
+            {/if}
             <!-- Inline reply files -->
             {#if inlineReplyFiles.length > 0}
               <div class="compose-file-list" style="margin-top:0.5rem">
@@ -782,6 +832,42 @@
     {/if}
   </div>
 </div>
+
+<!-- ═══ Attachment Preview Modal ═══ -->
+{#if previewModal.open}
+  <div class="preview-overlay" on:click={closePreviewModal}>
+    <div class="preview-modal" on:click|stopPropagation>
+      <div class="preview-modal__header">
+        <span class="preview-modal__filename">{previewModal.filename}</span>
+        <div class="preview-modal__actions">
+          <button class="preview-modal__btn" on:click={() => { closePreviewModal(); downloadAttachment(selectedMessage.id, selectedMessage.attachments.find(a => a.filename === previewModal.filename)?.attachmentId, previewModal.filename); }} title="Telecharger">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+          <button class="preview-modal__btn preview-modal__close" on:click={closePreviewModal} title="Fermer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="preview-modal__body">
+        {#if previewModal.loading}
+          <div class="preview-modal__loading">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" class="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
+            Chargement...
+          </div>
+        {:else if previewModal.mimeType?.startsWith('image/')}
+          <img src={previewModal.url} alt={previewModal.filename} class="preview-modal__image" />
+        {:else if previewModal.mimeType === 'application/pdf'}
+          <iframe src={previewModal.url} class="preview-modal__pdf" title={previewModal.filename}></iframe>
+        {:else}
+          <div class="preview-modal__unsupported">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <p>Apercu non disponible pour ce type de fichier</p>
+          </div>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* ── Email page layout ── */
@@ -1577,10 +1663,138 @@
     background: rgba(var(--primary-rgb), 0.03);
   }
 
+  /* ── Compose signature preview ── */
+  .compose-signature-preview {
+    border-top: 1px solid var(--border-subtle);
+    padding: 0.75rem 1rem;
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.03);
+    border-radius: 0 0 0.5rem 0.5rem;
+  }
+  .compose-signature-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+  .compose-signature-html {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    line-height: 1.5;
+  }
+  .compose-signature-html :global(img) {
+    max-width: 200px;
+    height: auto;
+  }
+
+  /* ── Attachment preview modal ── */
+  .preview-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+  }
+  .preview-modal {
+    background: var(--bg-card);
+    border-radius: 0.75rem;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+    width: 90vw;
+    max-width: 900px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .preview-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
+  }
+  .preview-modal__filename {
+    font-weight: 600;
+    font-size: 0.9375rem;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .preview-modal__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .preview-modal__btn {
+    background: none;
+    border: none;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.15s;
+  }
+  .preview-modal__btn:hover {
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.1);
+    color: var(--primary);
+  }
+  .preview-modal__close:hover {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+  }
+  .preview-modal__body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+  }
+  .preview-modal__loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+  }
+  .preview-modal__image {
+    max-width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+  }
+  .preview-modal__pdf {
+    width: 100%;
+    height: 80vh;
+    border: none;
+  }
+  .preview-modal__unsupported {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    color: var(--text-muted);
+    padding: 2rem;
+    text-align: center;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  :global(.spin) {
+    animation: spin 1s linear infinite;
+  }
+
   @media (max-width: 768px) {
     .email-page { flex-direction: column; }
     .email-sidebar { width: 100%; flex-direction: row; overflow-x: auto; }
     .email-folders { flex-direction: row; }
     .msg-sender { width: 100px; }
+    .preview-modal { width: 95vw; }
   }
 </style>

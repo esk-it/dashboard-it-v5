@@ -33,9 +33,8 @@ FOLDER_QUERIES = {
     "draft": "in:drafts",
 }
 
-# Sync lock to prevent concurrent syncs
-_sync_lock = False
-_sync_fail_count = 0
+# Sync lock to prevent concurrent syncs (proper async lock)
+_sync_lock = asyncio.Lock()
 
 FOLDER_LABELS = {
     "inbox": "INBOX",
@@ -176,15 +175,10 @@ async def _set_sync_state(db, key: str, value: str):
 
 async def sync_full(db, max_messages: int = 200) -> dict:
     """Full sync: fetch all recent messages from Gmail and store in local DB."""
-    global _sync_lock, _sync_fail_count
-    if _sync_lock:
+    if _sync_lock.locked():
         return {"fetched": 0, "stored": 0, "skipped": "sync already in progress"}
-    _sync_lock = True
-    try:
+    async with _sync_lock:
         return await _sync_full_inner(db, max_messages)
-    finally:
-        _sync_lock = False
-        _sync_fail_count = 0
 
 
 async def _sync_full_inner(db, max_messages: int = 200) -> dict:
@@ -290,17 +284,14 @@ async def _fetch_and_store(token: str, message_id: str, db) -> bool:
 
 async def sync_incremental(db) -> dict:
     """Incremental sync using Gmail history API."""
-    global _sync_lock
-    if _sync_lock:
+    if _sync_lock.locked():
         return {"added": 0, "updated": 0, "deleted": 0, "skipped": "sync already in progress"}
-    _sync_lock = True
-    try:
-        return await _sync_incremental_inner(db)
-    except Exception as e:
-        logger.error(f"Incremental sync failed: {e}")
-        return {"added": 0, "updated": 0, "deleted": 0, "error": str(e)}
-    finally:
-        _sync_lock = False
+    async with _sync_lock:
+        try:
+            return await _sync_incremental_inner(db)
+        except Exception as e:
+            logger.error(f"Incremental sync failed: {e}")
+            return {"added": 0, "updated": 0, "deleted": 0, "error": str(e)}
 
 
 async def _sync_incremental_inner(db) -> dict:
@@ -381,15 +372,20 @@ async def _sync_incremental_inner(db) -> dict:
 async def list_messages_local(db, folder: str = "inbox", query: str = "", limit: int = 50, offset: int = 0) -> list[dict]:
     """List messages from local cache — instant."""
     label = FOLDER_LABELS.get(folder, "INBOX")
+    params: list = []
     if folder == "starred":
         where = "is_starred = 1"
     elif folder == "trash":
         where = "labels LIKE '%TRASH%'"
     elif query:
-        where = f"(subject LIKE '%{query}%' OR sender LIKE '%{query}%' OR snippet LIKE '%{query}%')"
+        where = "(subject LIKE ? OR sender LIKE ? OR snippet LIKE ?)"
+        q = f"%{query}%"
+        params = [q, q, q]
     else:
-        where = f"labels LIKE '%{label}%'"
+        where = "labels LIKE ?"
+        params = [f"%{label}%"]
 
+    params.extend([limit, offset])
     rows = await db.execute_fetchall(
         f"""SELECT id, thread_id, sender, recipient, subject, snippet,
                    date_header, internal_date, is_unread, is_starred,
@@ -398,7 +394,7 @@ async def list_messages_local(db, folder: str = "inbox", query: str = "", limit:
             WHERE {where}
             ORDER BY CAST(internal_date AS INTEGER) DESC
             LIMIT ? OFFSET ?""",
-        (limit, offset),
+        tuple(params),
     )
 
     return [
