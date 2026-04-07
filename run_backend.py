@@ -13,8 +13,22 @@ if getattr(sys, "frozen", False):
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     os.environ["ITMANAGER_DATA_DIR"] = str(DATA_DIR)
 
+import signal
 import uvicorn
 from backend.main import app  # noqa: E402
+
+# Global server reference for graceful shutdown
+_server = None
+
+
+@app.post("/api/shutdown")
+async def shutdown():
+    """Graceful shutdown endpoint — called by Tauri before closing."""
+    import asyncio
+    if _server:
+        _server.should_exit = True
+    return {"ok": True}
+
 
 if __name__ == "__main__":
     port = 8010
@@ -25,4 +39,6 @@ if __name__ == "__main__":
         elif arg.startswith("--port="):
             port = int(arg.split("=", 1)[1])
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
+    _server = uvicorn.Server(config)
+    _server.run()

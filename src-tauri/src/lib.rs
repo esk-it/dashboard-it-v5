@@ -55,37 +55,22 @@ pub fn run() {
         .run(|app_handle, event| {
             match event {
                 tauri::RunEvent::WindowEvent {
-                    event: tauri::WindowEvent::CloseRequested { api, .. },
+                    event: tauri::WindowEvent::CloseRequested { .. },
                     ..
                 } => {
-                    // Kill backend, then exit the app completely
+                    // Step 1: Ask backend to shutdown gracefully (closes sockets properly)
+                    graceful_shutdown_backend();
+                    // Step 2: Kill child process handle
                     kill_backend(app_handle);
-                    // Force kill via taskkill as a safety net
-                    #[cfg(target_os = "windows")]
-                    {
-                        use std::os::windows::process::CommandExt;
-                        for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
-                            let _ = std::process::Command::new("taskkill")
-                                .args(["/F", "/IM", name])
-                                .creation_flags(0x08000000)
-                                .output();
-                        }
-                    }
-                    // Exit the entire app (don't just hide the window)
+                    // Step 3: Force kill as safety net
+                    force_kill_backend();
+                    // Step 4: Exit the entire app
                     app_handle.exit(0);
                 }
                 tauri::RunEvent::Exit => {
+                    graceful_shutdown_backend();
                     kill_backend(app_handle);
-                    #[cfg(target_os = "windows")]
-                    {
-                        use std::os::windows::process::CommandExt;
-                        for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
-                            let _ = std::process::Command::new("taskkill")
-                                .args(["/F", "/IM", name])
-                                .creation_flags(0x08000000)
-                                .output();
-                        }
-                    }
+                    force_kill_backend();
                 }
                 _ => {}
             }
@@ -109,6 +94,34 @@ fn kill_backend(handle: &tauri::AppHandle) {
         // but NSIS installs it as backend.exe too
         for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
             log::info!("taskkill /F /IM {}", name);
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/IM", name])
+                .creation_flags(0x08000000)
+                .output();
+        }
+    }
+}
+
+/// Ask the backend to shutdown gracefully via HTTP (closes sockets properly, no ghost)
+fn graceful_shutdown_backend() {
+    log::info!("Sending graceful shutdown to backend...");
+    // Use a blocking HTTP request (we're in a sync context)
+    let _ = std::thread::spawn(|| {
+        // Try to POST /api/shutdown — backend will close sockets and exit
+        if let Ok(client) = reqwest::blocking::Client::builder().timeout(std::time::Duration::from_secs(2)).build() {
+            let _ = client.post("http://127.0.0.1:8010/api/shutdown").send();
+        }
+    }).join();
+    // Give it a moment to close sockets
+    std::thread::sleep(std::time::Duration::from_millis(500));
+}
+
+/// Force kill backend processes via taskkill (safety net)
+fn force_kill_backend() {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
             let _ = std::process::Command::new("taskkill")
                 .args(["/F", "/IM", name])
                 .creation_flags(0x08000000)
