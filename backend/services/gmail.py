@@ -290,19 +290,14 @@ async def _fetch_and_store(token: str, message_id: str, db) -> bool:
 
 async def sync_incremental(db) -> dict:
     """Incremental sync using Gmail history API."""
-    global _sync_lock, _sync_fail_count
+    global _sync_lock
     if _sync_lock:
         return {"added": 0, "updated": 0, "deleted": 0, "skipped": "sync already in progress"}
     _sync_lock = True
     try:
         return await _sync_incremental_inner(db)
     except Exception as e:
-        _sync_fail_count += 1
-        logger.error(f"Incremental sync failed ({_sync_fail_count}x): {e}")
-        if _sync_fail_count >= 3:
-            logger.info("Falling back to full sync after 3 failures")
-            _sync_fail_count = 0
-            return await _sync_full_inner(db)
+        logger.error(f"Incremental sync failed: {e}")
         return {"added": 0, "updated": 0, "deleted": 0, "error": str(e)}
     finally:
         _sync_lock = False
@@ -316,67 +311,64 @@ async def _sync_incremental_inner(db) -> dict:
 
     stats = {"added": 0, "updated": 0, "deleted": 0}
 
-    try:
-        changed_ids = set()
-        deleted_ids = set()
-        next_page = None
-        new_history = history_id  # Default to current if no changes
+    changed_ids = set()
+    deleted_ids = set()
+    next_page = None
+    new_history = history_id
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            while True:
-                params = {
-                    "startHistoryId": history_id,
-                    "historyTypes": "messageAdded,messageDeleted,labelAdded,labelRemoved",
-                }
-                if next_page:
-                    params["pageToken"] = next_page
-                resp = await client.get(
-                    f"{GMAIL_API}/history",
-                    headers={"Authorization": f"Bearer {token}"},
-                    params=params,
-                )
-                if resp.status_code == 404:
-                    return await _sync_full_inner(db)
-                if resp.status_code != 200:
-                    break
-                data = resp.json()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while True:
+            params = {
+                "startHistoryId": history_id,
+                "historyTypes": "messageAdded,messageDeleted,labelAdded,labelRemoved",
+            }
+            if next_page:
+                params["pageToken"] = next_page
+            resp = await client.get(
+                f"{GMAIL_API}/history",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+            )
+            if resp.status_code == 404:
+                # History expired — reset historyId, next sync will do full
+                await _set_sync_state(db, "historyId", "")
+                await db.commit()
+                return {"added": 0, "updated": 0, "deleted": 0, "error": "history expired, will full sync next time"}
+            if resp.status_code != 200:
+                break
+            data = resp.json()
 
-                for h in data.get("history", []):
-                    for m in h.get("messagesAdded", []):
-                        changed_ids.add(m["message"]["id"])
-                    for m in h.get("messagesDeleted", []):
-                        deleted_ids.add(m["message"]["id"])
-                    for m in h.get("labelsAdded", []):
-                        changed_ids.add(m["message"]["id"])
-                    for m in h.get("labelsRemoved", []):
-                        changed_ids.add(m["message"]["id"])
+            for h in data.get("history", []):
+                for m in h.get("messagesAdded", []):
+                    changed_ids.add(m["message"]["id"])
+                for m in h.get("messagesDeleted", []):
+                    deleted_ids.add(m["message"]["id"])
+                for m in h.get("labelsAdded", []):
+                    changed_ids.add(m["message"]["id"])
+                for m in h.get("labelsRemoved", []):
+                    changed_ids.add(m["message"]["id"])
 
-                new_history = data.get("historyId", new_history)
-                next_page = data.get("nextPageToken")
-                if not next_page:
-                    break
+            new_history = data.get("historyId", new_history)
+            next_page = data.get("nextPageToken")
+            if not next_page:
+                break
 
-        # Delete removed messages
-        for mid in deleted_ids:
-            await db.execute("DELETE FROM emails_cache WHERE id=?", (mid,))
-            stats["deleted"] += 1
+    # Delete removed messages
+    for mid in deleted_ids:
+        await db.execute("DELETE FROM emails_cache WHERE id=?", (mid,))
+        stats["deleted"] += 1
 
-        # Fetch changed messages one at a time (avoid db lock from parallel writes)
-        changed_ids -= deleted_ids
-        for mid in changed_ids:
-            ok = await _fetch_and_store(token, mid, db)
-            if ok:
-                stats["added"] += 1
+    # Fetch changed messages one at a time
+    changed_ids -= deleted_ids
+    for mid in changed_ids:
+        ok = await _fetch_and_store(token, mid, db)
+        if ok:
+            stats["added"] += 1
 
-        await _set_sync_state(db, "historyId", str(new_history))
-        now = datetime.now(timezone.utc).isoformat()
-        await _set_sync_state(db, "lastSync", now)
-        await db.commit()
-
-    except Exception as e:
-        logger.error(f"Incremental sync failed: {e}")
-        # Fall back to full sync
-        return await sync_full(db)
+    await _set_sync_state(db, "historyId", str(new_history))
+    now = datetime.now(timezone.utc).isoformat()
+    await _set_sync_state(db, "lastSync", now)
+    await db.commit()
 
     return stats
 
