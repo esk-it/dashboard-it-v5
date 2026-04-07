@@ -364,7 +364,7 @@
   async function downloadAttachment(msgId, attId, filename) {
     try {
       const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
-      if (!resp.ok) throw new Error('Download failed');
+      if (!resp.ok) throw new Error('Download failed: ' + resp.status);
       const blob = await resp.blob();
       const arrayBuf = await blob.arrayBuffer();
       const bytes = new Uint8Array(arrayBuf);
@@ -373,11 +373,15 @@
       try {
         const { save } = await import('@tauri-apps/plugin-dialog');
         const { writeFile } = await import('@tauri-apps/plugin-fs');
-        const path = await save({ defaultPath: filename });
+        const path = await save({
+          defaultPath: filename,
+          filters: [{ name: 'Fichier', extensions: [filename.split('.').pop() || '*'] }],
+        });
         if (path) {
           await writeFile(path, bytes);
         }
-      } catch {
+      } catch (tauriErr) {
+        console.warn('Tauri save failed, using browser fallback:', tauriErr);
         // Fallback: browser download
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -390,6 +394,25 @@
       }
     } catch (e) {
       console.error('Failed to download attachment', e);
+    }
+  }
+
+  async function previewAttachment(msgId, attId, filename, mimeType) {
+    try {
+      const resp = await fetch(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
+      if (!resp.ok) throw new Error('Preview failed');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+
+      // Open in new window for preview
+      if (mimeType?.startsWith('image/') || mimeType === 'application/pdf') {
+        window.open(url, '_blank');
+      } else {
+        // For non-previewable files, trigger download
+        await downloadAttachment(msgId, attId, filename);
+      }
+    } catch (e) {
+      console.error('Preview failed', e);
     }
   }
 
@@ -734,13 +757,24 @@
                     <span class="att-card__size">{Math.round(att.size / 1024)} Ko</span>
                   </div>
                   {#if att.attachmentId}
-                    <button
-                      class="att-card__download"
-                      on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
-                      title="Telecharger"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                    </button>
+                    <div class="att-card__actions">
+                      {#if att.mimeType?.startsWith('image/') || att.mimeType === 'application/pdf'}
+                        <button
+                          class="att-card__btn"
+                          on:click={() => previewAttachment(selectedMessage.id, att.attachmentId, att.filename, att.mimeType)}
+                          title="Visualiser"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      {/if}
+                      <button
+                        class="att-card__btn"
+                        on:click={() => downloadAttachment(selectedMessage.id, att.attachmentId, att.filename)}
+                        title="Telecharger"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      </button>
+                    </div>
                   {/if}
                 </div>
               {/each}
@@ -812,9 +846,9 @@
 
   .compose-btn {
     width: 100%;
-    padding: 0.75rem;
+    padding: 0.75rem 1rem;
     background: var(--primary);
-    color: #fff;
+    color: #fff !important;
     border: none;
     border-radius: 0.625rem;
     font-size: 0.9375rem;
@@ -822,6 +856,10 @@
     font-family: inherit;
     cursor: pointer;
     transition: filter 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
   }
 
   .compose-btn:hover { filter: brightness(1.1); }
@@ -1072,9 +1110,24 @@
     position: relative;
   }
 
-  .msg-row:hover { background: rgba(var(--primary-rgb), 0.04); }
-  .msg-row--unread { background: rgba(var(--primary-rgb), 0.03); border-left: 3px solid var(--primary); }
-  .msg-row--selected { background: rgba(var(--primary-rgb), 0.08); }
+  .msg-row:hover { background: rgba(var(--primary-rgb), 0.06); }
+
+  /* Read messages — dimmed */
+  .msg-row:not(.msg-row--unread) {
+    opacity: 0.65;
+  }
+  .msg-row:not(.msg-row--unread):hover {
+    opacity: 1;
+  }
+
+  /* Unread messages — bold + left accent */
+  .msg-row--unread {
+    opacity: 1;
+    background: rgba(var(--primary-rgb), 0.04);
+    border-left: 3px solid var(--primary);
+  }
+
+  .msg-row--selected { background: rgba(var(--primary-rgb), 0.08) !important; opacity: 1; }
 
   .msg-check, .msg-star {
     background: none;
@@ -1430,8 +1483,13 @@
     color: var(--text-muted) !important;
   }
 
-  .att-card__download {
+  .att-card__actions {
+    display: flex;
+    gap: 0.25rem;
     flex-shrink: 0;
+  }
+
+  .att-card__btn {
     background: none;
     border: none;
     cursor: pointer;
@@ -1442,7 +1500,7 @@
     transition: all 0.1s;
   }
 
-  .att-card__download:hover {
+  .att-card__btn:hover {
     color: var(--primary);
     background: rgba(var(--primary-rgb), 0.08);
   }
