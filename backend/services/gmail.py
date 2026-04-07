@@ -570,9 +570,29 @@ async def send_message_with_attachments(to, subject, body, cc="", bcc="", reply_
 async def get_signature() -> str:
     token = await gcal._ensure_valid_token()
     cfg = gcal.load_config()
-    email = cfg.get("connected_email", "me")
+    email = cfg.get("connected_email", "")
+
+    # If email is empty, fetch from Gmail profile
+    if not email:
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{GMAIL_API}/profile",
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+                if resp.status_code == 200:
+                    email = resp.json().get("emailAddress", "")
+                    if email:
+                        gcal.save_config({"connected_email": email})
+        except Exception:
+            pass
+
+    if not email:
+        return ""
+
     try:
         async with httpx.AsyncClient() as client:
+            # Try sendAs endpoint
             resp = await client.get(
                 f"{GMAIL_API}/settings/sendAs/{email}",
                 headers={"Authorization": f"Bearer {token}"},
@@ -580,6 +600,17 @@ async def get_signature() -> str:
             if resp.status_code == 200:
                 html_sig = resp.json().get("signature", "")
                 return re.sub(r'<[^>]+>', '', html_sig).strip()
-    except Exception:
-        pass
+
+            # If sendAs fails, try listing all sendAs to find the primary
+            resp = await client.get(
+                f"{GMAIL_API}/settings/sendAs",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            if resp.status_code == 200:
+                for sa in resp.json().get("sendAs", []):
+                    if sa.get("isPrimary"):
+                        html_sig = sa.get("signature", "")
+                        return re.sub(r'<[^>]+>', '', html_sig).strip()
+    except Exception as e:
+        logger.warning(f"Failed to fetch signature: {e}")
     return ""
