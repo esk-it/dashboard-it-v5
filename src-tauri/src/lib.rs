@@ -55,13 +55,37 @@ pub fn run() {
         .run(|app_handle, event| {
             match event {
                 tauri::RunEvent::WindowEvent {
-                    event: tauri::WindowEvent::CloseRequested { .. },
+                    event: tauri::WindowEvent::CloseRequested { api, .. },
                     ..
                 } => {
+                    // Kill backend, then exit the app completely
                     kill_backend(app_handle);
+                    // Force kill via taskkill as a safety net
+                    #[cfg(target_os = "windows")]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
+                            let _ = std::process::Command::new("taskkill")
+                                .args(["/F", "/IM", name])
+                                .creation_flags(0x08000000)
+                                .output();
+                        }
+                    }
+                    // Exit the entire app (don't just hide the window)
+                    app_handle.exit(0);
                 }
                 tauri::RunEvent::Exit => {
                     kill_backend(app_handle);
+                    #[cfg(target_os = "windows")]
+                    {
+                        use std::os::windows::process::CommandExt;
+                        for name in ["backend.exe", "backend-x86_64-pc-windows-msvc.exe"] {
+                            let _ = std::process::Command::new("taskkill")
+                                .args(["/F", "/IM", name])
+                                .creation_flags(0x08000000)
+                                .output();
+                        }
+                    }
                 }
                 _ => {}
             }
