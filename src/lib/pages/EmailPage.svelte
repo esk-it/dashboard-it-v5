@@ -211,15 +211,16 @@
   }
 
   async function openMessage(msg) {
-    // Don't set loading=true to avoid flickering — keep inbox visible until ready
     try {
       selectedMessage = await api.get(`/api/gmail/messages/${msg.id}`);
       currentView = 'read';
       if (msg.unread) {
-        api.post(`/api/gmail/messages/${msg.id}/read`).catch(() => {}); // fire & forget
+        // Update UI instantly
         msg.unread = false;
         messages = messages;
-        fetchUnreadCount();
+        unreadCount = Math.max(0, unreadCount - 1);
+        // Then tell backend (fire & forget)
+        api.post(`/api/gmail/messages/${msg.id}/read`).catch(() => {});
       }
     } catch (e) {
       console.error('Failed to open message', e);
@@ -275,7 +276,9 @@
       composeFiles = [];
       replyToId = null;
       currentView = 'inbox';
-      folderCache = {}; // Clear cache to force refresh
+      folderCache = {};
+      // Sync immediately to pickup the sent message
+      await triggerSync();
       await fetchMessages(true);
     } catch (e) {
       console.error('Failed to send', e);
@@ -372,13 +375,13 @@
       // Try Tauri save dialog
       try {
         const { save } = await import('@tauri-apps/plugin-dialog');
-        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const { writeBinaryFile } = await import('@tauri-apps/plugin-fs');
         const path = await save({
           defaultPath: filename,
           filters: [{ name: 'Fichier', extensions: [filename.split('.').pop() || '*'] }],
         });
         if (path) {
-          await writeFile(path, bytes);
+          await writeBinaryFile(path, bytes);
         }
       } catch (tauriErr) {
         console.warn('Tauri save failed, using browser fallback:', tauriErr);
@@ -441,8 +444,8 @@
       await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature()]);
       // Then sync in background (non-blocking)
       triggerSync();
-      // Auto-sync every 2 minutes
-      refreshInterval = setInterval(() => triggerSync(), 120000);
+      // Auto-sync every 30 seconds
+      refreshInterval = setInterval(() => triggerSync(), 30000);
     } else {
       loading = false;
     }
