@@ -252,23 +252,20 @@
   async function sendEmail() {
     sending = true;
     try {
-      const bodyWithSig = gmailSignature
-        ? `${composeForm.body}\n\n${gmailSignature}`
-        : composeForm.body;
-
       if (composeFiles.length > 0) {
         // Send with attachments via multipart form
         const fd = new FormData();
         fd.append('to', composeForm.to);
         fd.append('subject', composeForm.subject);
-        fd.append('body', bodyWithSig);
+        fd.append('body', composeForm.body);
+        fd.append('signature_html', gmailSignature || '');
         fd.append('cc', composeForm.cc || '');
         fd.append('bcc', '');
         fd.append('reply_to_message_id', replyToId || '');
         for (const f of composeFiles) fd.append('files', f);
         await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
       } else {
-        const payload = { ...composeForm, body: bodyWithSig };
+        const payload = { ...composeForm, signature_html: gmailSignature || '' };
         if (replyToId) payload.reply_to_message_id = replyToId;
         await api.post('/api/gmail/send', payload);
       }
@@ -290,15 +287,12 @@
     if (!inlineReplyText.trim() || !selectedMessage) return;
     sending = true;
     try {
-      const bodyWithSig = gmailSignature
-        ? `${inlineReplyText}\n\n${gmailSignature}`
-        : inlineReplyText;
-
       if (inlineReplyFiles.length > 0) {
         const fd = new FormData();
         fd.append('to', parseFromEmail(selectedMessage.from));
         fd.append('subject', `Re: ${selectedMessage.subject}`);
-        fd.append('body', bodyWithSig);
+        fd.append('body', inlineReplyText);
+        fd.append('signature_html', gmailSignature || '');
         fd.append('cc', '');
         fd.append('bcc', '');
         fd.append('reply_to_message_id', selectedMessage.id);
@@ -308,7 +302,8 @@
         await api.post('/api/gmail/send', {
           to: parseFromEmail(selectedMessage.from),
           subject: `Re: ${selectedMessage.subject}`,
-          body: bodyWithSig,
+          body: inlineReplyText,
+          signature_html: gmailSignature || '',
           reply_to_message_id: selectedMessage.id,
         });
       }

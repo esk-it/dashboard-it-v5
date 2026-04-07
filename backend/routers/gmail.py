@@ -23,6 +23,7 @@ class SendEmailRequest(BaseModel):
     cc: str = ""
     bcc: str = ""
     reply_to_message_id: str | None = None
+    signature_html: str = ""
 
 
 def _check_connected():
@@ -100,6 +101,7 @@ async def send_email(body: SendEmailRequest):
             to=body.to, subject=body.subject, body=body.body,
             cc=body.cc, bcc=body.bcc,
             reply_to_message_id=body.reply_to_message_id,
+            signature_html=body.signature_html,
         )
         return {"sent": True, "id": result.get("id", "")}
     except Exception as e:
@@ -114,6 +116,7 @@ async def send_with_attachments(
     cc: str = Form(""),
     bcc: str = Form(""),
     reply_to_message_id: str = Form(""),
+    signature_html: str = Form(""),
     files: List[UploadFile] = File(default=[]),
 ):
     _check_connected()
@@ -126,6 +129,7 @@ async def send_with_attachments(
             to=to, subject=subject, body=body, cc=cc, bcc=bcc,
             reply_to_message_id=reply_to_message_id or None,
             attachments=attachments if attachments else None,
+            signature_html=signature_html,
         )
         return {"sent": True, "id": result.get("id", "")}
     except Exception as e:

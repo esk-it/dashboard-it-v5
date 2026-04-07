@@ -500,7 +500,7 @@ async def get_attachment(message_id: str, attachment_id: str) -> bytes:
     return base64.urlsafe_b64decode(data + "==")
 
 
-async def send_message(to, subject, body, cc="", bcc="", reply_to_message_id=None):
+async def send_message(to, subject, body, cc="", bcc="", reply_to_message_id=None, signature_html=""):
     token = await gcal._ensure_valid_token()
     cfg = gcal.load_config()
     sender = cfg.get("connected_email", "")
@@ -510,8 +510,12 @@ async def send_message(to, subject, body, cc="", bcc="", reply_to_message_id=Non
     msg["Subject"] = subject
     if cc: msg["Cc"] = cc
     if bcc: msg["Bcc"] = bcc
+    # Build HTML body with signature
+    html_body = f"<div style='white-space:pre-wrap'>{body}</div>"
+    if signature_html:
+        html_body += f"<br><br>{signature_html}"
     msg.attach(MIMEText(body, "plain"))
-    msg.attach(MIMEText(f"<div style='white-space:pre-wrap'>{body}</div>", "html"))
+    msg.attach(MIMEText(html_body, "html"))
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("ascii")
     payload = {"raw": raw}
     if reply_to_message_id:
@@ -526,7 +530,7 @@ async def send_message(to, subject, body, cc="", bcc="", reply_to_message_id=Non
     return resp.json()
 
 
-async def send_message_with_attachments(to, subject, body, cc="", bcc="", reply_to_message_id=None, attachments=None):
+async def send_message_with_attachments(to, subject, body, cc="", bcc="", reply_to_message_id=None, attachments=None, signature_html=""):
     token = await gcal._ensure_valid_token()
     cfg = gcal.load_config()
     sender = cfg.get("connected_email", "")
@@ -538,9 +542,12 @@ async def send_message_with_attachments(to, subject, body, cc="", bcc="", reply_
     msg["Subject"] = subject
     if cc: msg["Cc"] = cc
     if bcc: msg["Bcc"] = bcc
+    html_body = f"<div style='white-space:pre-wrap'>{body}</div>"
+    if signature_html:
+        html_body += f"<br><br>{signature_html}"
     body_part = MIMEMultipart("alternative")
     body_part.attach(MIMEText(body, "plain"))
-    body_part.attach(MIMEText(f"<div style='white-space:pre-wrap'>{body}</div>", "html"))
+    body_part.attach(MIMEText(html_body, "html"))
     msg.attach(body_part)
     if attachments:
         for filename, mime_type, data in attachments:
