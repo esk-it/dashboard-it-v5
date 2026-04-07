@@ -599,17 +599,7 @@ async def get_signature() -> str:
                     if sa.get("isPrimary") or sa.get("sendAsEmail") == email:
                         html_sig = sa.get("signature", "")
                         if html_sig:
-                            return re.sub(r'<[^>]+>', '', html_sig).strip()
-
-            # Fallback: try direct sendAs endpoint
-            resp = await client.get(
-                f"{GMAIL_API}/settings/sendAs/{email}",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            if resp.status_code == 200:
-                html_sig = resp.json().get("signature", "")
-                if html_sig:
-                    return re.sub(r'<[^>]+>', '', html_sig).strip()
+                            return html_sig  # Return raw HTML (may contain images)
     except Exception as e:
         logger.warning(f"Failed to fetch signature: {e}")
     return ""

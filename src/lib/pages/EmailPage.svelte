@@ -1350,6 +1350,7 @@
     padding: 1.25rem;
     flex: 1;
     overflow-y: auto;
+    max-height: calc(100vh - 70px);
   }
 
   .read-toolbar {
