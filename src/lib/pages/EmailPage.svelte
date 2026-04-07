@@ -364,18 +364,24 @@
 
   async function downloadAttachment(msgId, attId, filename) {
     try {
+      // Fetch binary data from backend
       const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('Download failed');
-      const blob = await resp.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+      const arrayBuffer = await resp.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+
+      // Use Tauri save dialog + fs plugin to write to disk
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+
+      const savePath = await save({
+        defaultPath: filename,
+        title: 'Enregistrer la piece jointe',
+      });
+      if (savePath) {
+        await writeFile(savePath, bytes);
+      }
     } catch (e) {
       console.error('Download failed', e);
       // Fallback: open in system browser
@@ -655,7 +661,7 @@
           <div class="compose-signature-preview">
             <div class="compose-signature-label">Signature</div>
             <div class="compose-signature-html">
-              {@html DOMPurify.sanitize(gmailSignature)}
+              {@html DOMPurify.sanitize(gmailSignature, { ADD_ATTR: ['target', 'style', 'width', 'height', 'border', 'cellpadding', 'cellspacing'], ADD_TAGS: ['table', 'tbody', 'tr', 'td', 'th'] })}
             </div>
           </div>
         {/if}
@@ -801,7 +807,7 @@
               <div class="compose-signature-preview" style="margin-top:0.5rem">
                 <div class="compose-signature-label">Signature</div>
                 <div class="compose-signature-html">
-                  {@html DOMPurify.sanitize(gmailSignature)}
+                  {@html DOMPurify.sanitize(gmailSignature, { ADD_ATTR: ['target', 'style', 'width', 'height', 'border', 'cellpadding', 'cellspacing'], ADD_TAGS: ['table', 'tbody', 'tr', 'td', 'th'] })}
                 </div>
               </div>
             {/if}
