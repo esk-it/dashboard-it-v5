@@ -100,6 +100,15 @@ a = Analysis(
         'httpx._transports.default',
         # Multipart
         'multipart',
+        # Email modules (for Gmail)
+        'email',
+        'email.mime',
+        'email.mime.text',
+        'email.mime.multipart',
+        'email.mime.base',
+        'email.encoders',
+        'email.message',
+        'email.policy',
     ],
     hookspath=[],
     hooksconfig={},

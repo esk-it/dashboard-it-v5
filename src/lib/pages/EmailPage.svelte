@@ -1115,12 +1115,16 @@
 
   .msg-row:hover { background: rgba(var(--primary-rgb), 0.06); }
 
-  /* Read messages — dimmed */
+  /* Read messages — subtly dimmed (less aggressive in light theme) */
   .msg-row:not(.msg-row--unread) {
-    opacity: 0.65;
+    opacity: 0.75;
   }
   .msg-row:not(.msg-row--unread):hover {
     opacity: 1;
+  }
+
+  :global([data-theme="glass-light"]) .msg-row:not(.msg-row--unread) {
+    opacity: 0.85;
   }
 
   /* Unread messages — bold + left accent */
