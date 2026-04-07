@@ -33,6 +33,10 @@ FOLDER_QUERIES = {
     "draft": "in:drafts",
 }
 
+# Sync lock to prevent concurrent syncs
+_sync_lock = False
+_sync_fail_count = 0
+
 FOLDER_LABELS = {
     "inbox": "INBOX",
     "sent": "SENT",
@@ -172,6 +176,18 @@ async def _set_sync_state(db, key: str, value: str):
 
 async def sync_full(db, max_messages: int = 200) -> dict:
     """Full sync: fetch all recent messages from Gmail and store in local DB."""
+    global _sync_lock, _sync_fail_count
+    if _sync_lock:
+        return {"fetched": 0, "stored": 0, "skipped": "sync already in progress"}
+    _sync_lock = True
+    try:
+        return await _sync_full_inner(db, max_messages)
+    finally:
+        _sync_lock = False
+        _sync_fail_count = 0
+
+
+async def _sync_full_inner(db, max_messages: int = 200) -> dict:
     token = await gcal._ensure_valid_token()
     stats = {"fetched": 0, "stored": 0}
 
@@ -274,10 +290,29 @@ async def _fetch_and_store(token: str, message_id: str, db) -> bool:
 
 async def sync_incremental(db) -> dict:
     """Incremental sync using Gmail history API."""
+    global _sync_lock, _sync_fail_count
+    if _sync_lock:
+        return {"added": 0, "updated": 0, "deleted": 0, "skipped": "sync already in progress"}
+    _sync_lock = True
+    try:
+        return await _sync_incremental_inner(db)
+    except Exception as e:
+        _sync_fail_count += 1
+        logger.error(f"Incremental sync failed ({_sync_fail_count}x): {e}")
+        if _sync_fail_count >= 3:
+            logger.info("Falling back to full sync after 3 failures")
+            _sync_fail_count = 0
+            return await _sync_full_inner(db)
+        return {"added": 0, "updated": 0, "deleted": 0, "error": str(e)}
+    finally:
+        _sync_lock = False
+
+
+async def _sync_incremental_inner(db) -> dict:
     token = await gcal._ensure_valid_token()
     history_id = await _get_sync_state(db, "historyId")
     if not history_id:
-        return await sync_full(db)
+        return await _sync_full_inner(db)
 
     stats = {"added": 0, "updated": 0, "deleted": 0}
 
@@ -301,7 +336,7 @@ async def sync_incremental(db) -> dict:
                     params=params,
                 )
                 if resp.status_code == 404:
-                    return await sync_full(db)
+                    return await _sync_full_inner(db)
                 if resp.status_code != 200:
                     break
                 data = resp.json()
