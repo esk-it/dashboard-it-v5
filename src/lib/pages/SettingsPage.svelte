@@ -619,31 +619,6 @@
           </div>
 
           <div class="setting-section">
-            <h3>Comportement</h3>
-            <label class="setting-row">
-              <span>Rafra{'\u00ee'}chissement auto (minutes)</span>
-              <select bind:value={general.auto_refresh_minutes} on:change={saveGeneral}>
-                <option value={0}>D{'\u00e9'}sactiv{'\u00e9'}</option>
-                <option value={1}>1 min</option>
-                <option value={5}>5 min</option>
-                <option value={15}>15 min</option>
-                <option value={30}>30 min</option>
-              </select>
-            </label>
-            <label class="setting-row">
-              <span>T{'\u00e2'}ches max sur l'accueil</span>
-              <input type="number" bind:value={general.max_home_tasks} on:change={saveGeneral} min="1" max="50" />
-            </label>
-            <label class="setting-row">
-              <span>Langue</span>
-              <select bind:value={general.language} on:change={saveGeneral}>
-                <option value="fr">Fran{'\u00e7'}ais</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="setting-section">
             <h3>Alertes page d'accueil</h3>
             <label class="setting-toggle">
               <input type="checkbox" bind:checked={general.show_alert_ws} on:change={saveGeneral} />
@@ -653,20 +628,6 @@
               <input type="checkbox" bind:checked={general.show_alert_warranty} on:change={saveGeneral} />
               <span>Alertes garantie (parc)</span>
             </label>
-          </div>
-
-          <div class="setting-section">
-            <h3>Modules activ{'\u00e9'}s</h3>
-            <div class="module-grid">
-              {#each moduleList as mod}
-                <label class="module-toggle">
-                  <input type="checkbox" checked={general.enabled_modules[mod.key] !== false}
-                    on:change={() => toggleModule(mod.key)} />
-                  <span class="module-emoji">{mod.emoji}</span>
-                  <span>{mod.label}</span>
-                </label>
-              {/each}
-            </div>
           </div>
 
           <div class="setting-section">

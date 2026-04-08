@@ -549,29 +549,29 @@ input[type="datetime-local"] {
 .ya-kpi-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 0;
+  gap: 0.75rem;
   margin-bottom: 1.5rem;
-  border: 1px solid var(--border-card);
-  border-radius: 0.625rem;
-  overflow: hidden;
 }
 
 .ya-kpi {
   background: var(--bg-card);
-  border-right: 1px solid var(--border-card);
+  border: 1px solid var(--border-card);
+  border-radius: 0.625rem;
   padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  transition: background 0.2s;
-}
-
-.ya-kpi:last-child {
-  border-right: none;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .ya-kpi:hover {
-  background: var(--bg-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* Light theme: make KPI gap invisible by matching page background */
+[data-theme="glass-light"] .ya-kpi-row {
+  background: transparent;
 }
 
 .ya-kpi__value {

@@ -1,5 +1,6 @@
 import { writable } from 'svelte/store';
 import { api } from '../api/client.js';
+import { theme } from './theme.js';
 
 export const settings = writable({
   username: '',
@@ -7,8 +8,6 @@ export const settings = writable({
   max_home_tasks: 10,
   language: 'fr',
   enabled_modules: {},
-  card_order: [],
-  card_layout: [],
 });
 
 export async function loadSettings() {
@@ -29,18 +28,11 @@ export async function loadSettings() {
     }
   }
 
-  // Apply saved theme on startup
+  // Sync theme from backend → theme store (single source of truth)
   try {
-    const theme = await api.get('/api/settings/theme');
-    if (theme?.theme === 'glass-light') {
-      document.documentElement.setAttribute('data-theme', 'glass-light');
-      document.documentElement.style.colorScheme = 'light';
-      document.body.style.background = '#E8ECF2';
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
-    if (theme?.accent) {
-      document.documentElement.style.setProperty('--accent', theme.accent);
+    const backendTheme = await api.get('/api/settings/theme');
+    if (backendTheme?.theme) {
+      theme.set(backendTheme.theme); // This triggers theme.subscribe → applies to DOM + localStorage
     }
   } catch (e) {
     console.warn('Failed to load theme:', e);
