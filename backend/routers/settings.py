@@ -139,7 +139,7 @@ GENERAL_DEFAULTS = {
 }
 
 THEME_DEFAULTS = {
-    "theme": "glass",
+    "theme": "glass-light",
     "accent": "#06A6C9",
     "brand_icon": "\u26a1",
 }

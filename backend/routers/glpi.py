@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..database import get_raw_db
@@ -64,6 +65,14 @@ async def trigger_sync(db=Depends(get_raw_db)):
         return GlpiSyncResponse(**result)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except httpx.ConnectError as e:
+        logger.error(f"GLPI sync failed — cannot reach server: {e}")
+        raise HTTPException(502, f"Impossible de joindre le serveur GLPI. Verifiez l'URL et que le serveur est accessible.")
+    except httpx.HTTPStatusError as e:
+        logger.error(f"GLPI sync failed — HTTP {e.response.status_code}: {e}")
+        if e.response.status_code == 401:
+            raise HTTPException(502, "Authentification GLPI echouee. Verifiez vos tokens (app_token / user_token).")
+        raise HTTPException(502, f"Erreur GLPI (HTTP {e.response.status_code}). Verifiez la configuration.")
     except Exception as e:
         logger.exception("GLPI sync failed")
         raise HTTPException(502, f"Sync failed: {e}")

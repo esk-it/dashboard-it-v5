@@ -146,7 +146,6 @@
   const feedCategories = ['S\u00e9curit\u00e9', 'Tech', 'Infra', 'Autre'];
 
   const panels = [
-    { label: 'Apparence', emoji: '\u{1F3A8}' },
     { label: 'G\u00e9n\u00e9ral', emoji: '\u2699\uFE0F' },
     { label: 'Int\u00e9grations', emoji: '\u{1F50C}' },
     { label: 'S\u00e9curit\u00e9 DB', emoji: '\u{1F512}' },
@@ -547,9 +546,9 @@
   }
 
   // Load DB info & backups when switching to those panels
-  $: if (activePanel === 2) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); }
-  $: if (activePanel === 3) loadDbInfo();
-  $: if (activePanel === 5) loadBackups();
+  $: if (activePanel === 1) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); }
+  $: if (activePanel === 2) loadDbInfo();
+  $: if (activePanel === 4) loadBackups();
 
   // Card layout helpers
   function moveCardUp(idx) {
@@ -602,91 +601,8 @@
     <!-- Panel content -->
     <div class="panel-content">
 
-      <!-- ═══════════════ 0: APPARENCE ═══════════════ -->
+      <!-- ═══════════════ 0: GENERAL ═══════════════ -->
       {#if activePanel === 0}
-        <div class="panel">
-          <h2>{'\u{1F3A8}'} Apparence</h2>
-
-          <div class="setting-section">
-            <h3>Couleur d'accent</h3>
-            <div class="color-presets">
-              {#each accentPresets as preset}
-                <button class="color-btn" class:active={theme.accent === preset.color}
-                  style="background:{preset.color}" on:click={() => setAccent(preset.color)}
-                  title={preset.name}>
-                </button>
-              {/each}
-              <input type="color" bind:value={theme.accent} on:change={saveTheme} class="custom-color" title="Couleur personnalis{'\u00e9'}e" />
-            </div>
-          </div>
-
-          <div class="setting-section">
-            <h3>Th{'\u00e8'}me</h3>
-            <div class="theme-options">
-              <button class="theme-card" class:active={theme.theme === 'glass'} on:click={() => { theme.theme = 'glass'; applyTheme('glass'); }}>
-                <div class="theme-preview glass-preview"></div>
-                <span>Glass Dark</span>
-              </button>
-              <button class="theme-card" class:active={theme.theme === 'glass-light'} on:click={() => { theme.theme = 'glass-light'; applyTheme('glass-light'); }}>
-                <div class="theme-preview glass-light-preview"></div>
-                <span>Glass Light</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="setting-section">
-            <h3>Affichage</h3>
-            <label class="toggle-row">
-              <input type="checkbox" checked={document.documentElement.getAttribute('data-compact') === 'true'}
-                on:change={(e) => {
-                  const on = e.target.checked;
-                  document.documentElement.setAttribute('data-compact', on ? 'true' : 'false');
-                  localStorage.setItem('itm-compact', on ? '1' : '0');
-                }} />
-              <span>Mode compact</span>
-              <span class="setting-desc" style="margin:0;margin-left:8px">R{'\u00e9'}duit l'espacement des tableaux et cartes</span>
-            </label>
-          </div>
-
-          <div class="setting-section">
-            <h3>Ic{'\u00f4'}ne des modules</h3>
-            <p class="setting-desc">Personnalisez les ic{'\u00f4'}nes affich{'\u00e9'}es dans la barre lat{'\u00e9'}rale.</p>
-            <div class="icon-editor-grid">
-              {#each moduleList as mod}
-                <div class="icon-editor-item">
-                  <button class="icon-editor-btn" on:click={() => iconPickerOpen = iconPickerOpen === mod.key ? null : mod.key}>
-                    <span class="icon-editor-current">{general.module_icons?.[mod.key] || mod.emoji}</span>
-                    <span class="icon-editor-edit">{'\u270F\uFE0F'}</span>
-                  </button>
-                  <span class="icon-editor-label">{mod.label}</span>
-
-                  {#if iconPickerOpen === mod.key}
-                    <div class="emoji-picker-popup">
-                      <div class="emoji-picker-arrow"></div>
-                      {#each emojiCategories as cat}
-                        <div class="emoji-cat-label">{cat.label}</div>
-                        <div class="emoji-cat-grid">
-                          {#each cat.emojis as em}
-                            <button class="emoji-option" class:selected={(general.module_icons?.[mod.key] || mod.emoji) === em}
-                              on:click={() => selectModuleIcon(mod.key, em)}>
-                              {em}
-                            </button>
-                          {/each}
-                        </div>
-                      {/each}
-                      <button class="emoji-reset-btn" on:click={() => selectModuleIcon(mod.key, mod.emoji)}>
-                        {'\u21A9\uFE0F'} R{'\u00e9'}initialiser
-                      </button>
-                    </div>
-                  {/if}
-                </div>
-              {/each}
-            </div>
-          </div>
-        </div>
-
-      <!-- ═══════════════ 1: GENERAL ═══════════════ -->
-      {:else if activePanel === 1}
         <div class="panel">
           <h2>{'\u2699\uFE0F'} G{'\u00e9'}n{'\u00e9'}ral</h2>
 
@@ -754,29 +670,6 @@
           </div>
 
           <div class="setting-section">
-            <h3>Disposition cards accueil</h3>
-            <div class="card-layout-editor">
-              {#each cardLayout as card, idx}
-                {@const meta = allCards.find(c => c.key === card.key)}
-                {#if meta}
-                  <div class="card-layout-item" class:disabled={!card.visible}>
-                    <div class="card-layout-arrows">
-                      <button class="arrow-btn" on:click={() => moveCardUp(idx)} disabled={idx === 0}>{'\u25B2'}</button>
-                      <button class="arrow-btn" on:click={() => moveCardDown(idx)} disabled={idx === cardLayout.length - 1}>{'\u25BC'}</button>
-                    </div>
-                    <span class="card-layout-emoji">{meta.emoji}</span>
-                    <span class="card-layout-label">{meta.label}</span>
-                    <label class="card-layout-toggle">
-                      <input type="checkbox" checked={card.visible} on:change={() => toggleCardVisible(idx)} />
-                      <span class="toggle-label">{card.visible ? 'Visible' : 'Masqu\u00e9'}</span>
-                    </label>
-                  </div>
-                {/if}
-              {/each}
-            </div>
-          </div>
-
-          <div class="setting-section">
             <h3>{'\u{1F504}'} Mises {'\u00e0'} jour</h3>
             <p style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-bottom:12px">
               V{'\u00e9'}rifier et installer les mises {'\u00e0'} jour du Dashboard IT.
@@ -832,7 +725,7 @@
         </div>
 
       <!-- ═══════════════ 2: INTEGRATIONS ═══════════════ -->
-      {:else if activePanel === 2}
+      {:else if activePanel === 1}
         <div class="panel">
           <h2>{'\u{1F50C}'} Int{'\u00e9'}grations</h2>
 
@@ -1053,7 +946,7 @@
         </div>
 
       <!-- ═══════════════ 3: SECURITE DB ═══════════════ -->
-      {:else if activePanel === 3}
+      {:else if activePanel === 2}
         <div class="panel">
           <h2>{'\u{1F512}'} S{'\u00e9'}curit{'\u00e9'} Base de donn{'\u00e9'}es</h2>
 
@@ -1110,7 +1003,7 @@
         </div>
 
       <!-- ═══════════════ 4: FLUX RSS ═══════════════ -->
-      {:else if activePanel === 4}
+      {:else if activePanel === 3}
         <div class="panel">
           <h2>{'\u{1F4E1}'} Flux RSS</h2>
 
@@ -1159,7 +1052,7 @@
         </div>
 
       <!-- ═══════════════ 5: SAUVEGARDE ═══════════════ -->
-      {:else if activePanel === 5}
+      {:else if activePanel === 4}
         <div class="panel">
           <h2>{'\u{1F4BE}'} Sauvegarde</h2>
 
