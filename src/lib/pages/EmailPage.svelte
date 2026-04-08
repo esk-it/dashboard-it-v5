@@ -589,7 +589,7 @@
   }
 
   // ── Lifecycle ──
-  const APP_VERSION = '5.9.0';
+  const APP_VERSION = '5.9.1';
 
   onMount(async () => {
     await requestNotificationPermission();

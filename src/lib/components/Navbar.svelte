@@ -1,16 +1,28 @@
 <script>
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
   import { currentUser, logout } from '../stores/auth.js';
+  import { api } from '../api/client.js';
   import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays } from 'lucide-svelte';
 
   const dispatch = createEventDispatcher();
 
   let showUserDropdown = false;
+  let showNotifDropdown = false;
+  let showMailDropdown = false;
+  let showCalDropdown = false;
+
+  // Data for dropdowns
+  let unreadMails = [];
+  let unreadCount = 0;
+  let upcomingEvents = [];
+  let todayEventCount = 0;
+  let refreshTimer;
 
   // Get current page label for breadcrumb
   $: currentLabel = navItems.find(i => i.path === $currentPage)?.label || 'Dashboard';
+  $: totalNotifCount = unreadCount + todayEventCount;
 
   function handleLogout() {
     showUserDropdown = false;
@@ -27,6 +39,102 @@
     const name = user.display_name || user.username || '';
     return name.split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase() || 'AD';
   }
+
+  function closeAllDropdowns() {
+    showUserDropdown = false;
+    showNotifDropdown = false;
+    showMailDropdown = false;
+    showCalDropdown = false;
+  }
+
+  function toggleDropdown(which) {
+    const wasOpen = which === 'notif' ? showNotifDropdown : which === 'mail' ? showMailDropdown : which === 'cal' ? showCalDropdown : showUserDropdown;
+    closeAllDropdowns();
+    if (which === 'notif') showNotifDropdown = !wasOpen;
+    else if (which === 'mail') showMailDropdown = !wasOpen;
+    else if (which === 'cal') showCalDropdown = !wasOpen;
+    else if (which === 'user') showUserDropdown = !wasOpen;
+  }
+
+  // ── Data fetching ──
+  async function fetchMailPreview() {
+    try {
+      const { count } = await api.get('/api/gmail/unread-count');
+      unreadCount = count || 0;
+      if (unreadCount > 0) {
+        const data = await api.get('/api/gmail/messages?folder=inbox&max_results=5');
+        unreadMails = (data.messages || []).filter(m => m.unread).slice(0, 5);
+      } else {
+        unreadMails = [];
+      }
+    } catch {
+      unreadCount = 0;
+      unreadMails = [];
+    }
+  }
+
+  async function fetchCalendarPreview() {
+    try {
+      const now = new Date();
+      const start = now.toISOString().slice(0, 10);
+      const end = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
+      const data = await api.get(`/api/google-calendar/events?start=${start}&end=${end}`);
+      const allEvents = data.events || [];
+      // Sort by date
+      allEvents.sort((a, b) => (a.date_start || '').localeCompare(b.date_start || ''));
+      upcomingEvents = allEvents.slice(0, 5);
+      // Count today's events
+      todayEventCount = allEvents.filter(e => (e.date_start || '').startsWith(start)).length;
+    } catch {
+      upcomingEvents = [];
+      todayEventCount = 0;
+    }
+  }
+
+  async function fetchAll() {
+    await Promise.all([fetchMailPreview(), fetchCalendarPreview()]);
+  }
+
+  // Helpers
+  function parseFromName(from) {
+    if (!from) return 'Inconnu';
+    const match = from.match(/^"?([^"<]+?)"?\s*</) || from.match(/^([^<@]+)/);
+    return match ? match[1].trim() || from.split('@')[0] : from.split('@')[0] || 'Inconnu';
+  }
+
+  function formatRelativeDate(internalDate) {
+    if (!internalDate) return '';
+    const d = new Date(Number(internalDate));
+    const now = new Date();
+    const diffH = (now - d) / 3600000;
+    if (diffH < 1) return `${Math.floor((now - d) / 60000)}min`;
+    if (diffH < 24 && d.getDate() === now.getDate()) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  }
+
+  function formatEventDate(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return "Aujourd'hui";
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+    if (d.toDateString() === tomorrow.toDateString()) return 'Demain';
+    return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  }
+
+  function formatEventTime(timeStr) {
+    if (!timeStr) return 'Journee';
+    return timeStr.slice(0, 5);
+  }
+
+  onMount(() => {
+    fetchAll();
+    refreshTimer = setInterval(fetchAll, 60000);
+  });
+
+  onDestroy(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+  });
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -66,23 +174,139 @@
         {/if}
       </div>
 
-      <!-- Notifications -->
-      <div class="header-icon">
-        <Bell size={20} />
+      <!-- ═══ Notifications (Bell) ═══ -->
+      <div class="header-icon-wrapper">
+        <div class="header-icon" on:click={() => toggleDropdown('notif')}>
+          <Bell size={20} />
+          {#if totalNotifCount > 0}
+            <span class="icon-badge">{totalNotifCount > 99 ? '99+' : totalNotifCount}</span>
+          {/if}
+        </div>
+        {#if showNotifDropdown}
+          <div class="icon-dropdown">
+            <div class="icon-dropdown__header">
+              <span class="icon-dropdown__title">Notifications</span>
+              {#if totalNotifCount > 0}
+                <span class="icon-dropdown__count">{totalNotifCount}</span>
+              {/if}
+            </div>
+            <div class="icon-dropdown__list">
+              {#if unreadMails.length === 0 && upcomingEvents.length === 0}
+                <div class="icon-dropdown__empty">Aucune notification</div>
+              {/if}
+              {#each unreadMails.slice(0, 3) as mail}
+                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
+                  <div class="icon-dropdown__item-icon" style="background:rgba(59,130,246,0.1);color:#3B82F6">
+                    <Mail size={14} />
+                  </div>
+                  <div class="icon-dropdown__item-content">
+                    <span class="icon-dropdown__item-title">{parseFromName(mail.from)}</span>
+                    <span class="icon-dropdown__item-sub">{mail.subject || '(sans objet)'}</span>
+                  </div>
+                  <span class="icon-dropdown__item-time">{formatRelativeDate(mail.internalDate)}</span>
+                </div>
+              {/each}
+              {#each upcomingEvents.filter(e => (e.date_start || '').startsWith(new Date().toISOString().slice(0,10))).slice(0, 3) as evt}
+                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
+                  <div class="icon-dropdown__item-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
+                    <CalendarDays size={14} />
+                  </div>
+                  <div class="icon-dropdown__item-content">
+                    <span class="icon-dropdown__item-title">{evt.title || '(sans titre)'}</span>
+                    <span class="icon-dropdown__item-sub">{formatEventTime(evt.time_start)}</span>
+                  </div>
+                  <span class="icon-dropdown__item-time">Aujourd'hui</span>
+                </div>
+              {/each}
+            </div>
+            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
+              Voir tout
+            </div>
+          </div>
+        {/if}
       </div>
 
-      <!-- Mail -->
-      <div class="header-icon">
-        <Mail size={20} />
+      <!-- ═══ Mail (Envelope) ═══ -->
+      <div class="header-icon-wrapper">
+        <div class="header-icon" on:click={() => toggleDropdown('mail')}>
+          <Mail size={20} />
+          {#if unreadCount > 0}
+            <span class="icon-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+          {/if}
+        </div>
+        {#if showMailDropdown}
+          <div class="icon-dropdown">
+            <div class="icon-dropdown__header">
+              <span class="icon-dropdown__title">Emails</span>
+              {#if unreadCount > 0}
+                <span class="icon-dropdown__count">{unreadCount} non lu{unreadCount > 1 ? 's' : ''}</span>
+              {/if}
+            </div>
+            <div class="icon-dropdown__list">
+              {#if unreadMails.length === 0}
+                <div class="icon-dropdown__empty">Aucun email non lu</div>
+              {/if}
+              {#each unreadMails as mail}
+                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
+                  <div class="icon-dropdown__item-avatar" style="background:{getAvatarColor(parseFromName(mail.from))}">
+                    {parseFromName(mail.from).charAt(0).toUpperCase()}
+                  </div>
+                  <div class="icon-dropdown__item-content">
+                    <span class="icon-dropdown__item-title">{parseFromName(mail.from)}</span>
+                    <span class="icon-dropdown__item-sub">{mail.subject || '(sans objet)'}</span>
+                  </div>
+                  <span class="icon-dropdown__item-time">{formatRelativeDate(mail.internalDate)}</span>
+                </div>
+              {/each}
+            </div>
+            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
+              Voir toute la boite mail
+            </div>
+          </div>
+        {/if}
       </div>
 
-      <!-- Calendar -->
-      <div class="header-icon">
-        <CalendarDays size={20} />
+      <!-- ═══ Calendar ═══ -->
+      <div class="header-icon-wrapper">
+        <div class="header-icon" on:click={() => toggleDropdown('cal')}>
+          <CalendarDays size={20} />
+          {#if todayEventCount > 0}
+            <span class="icon-badge">{todayEventCount}</span>
+          {/if}
+        </div>
+        {#if showCalDropdown}
+          <div class="icon-dropdown">
+            <div class="icon-dropdown__header">
+              <span class="icon-dropdown__title">Agenda</span>
+              {#if todayEventCount > 0}
+                <span class="icon-dropdown__count">{todayEventCount} aujourd'hui</span>
+              {/if}
+            </div>
+            <div class="icon-dropdown__list">
+              {#if upcomingEvents.length === 0}
+                <div class="icon-dropdown__empty">Aucun evenement a venir</div>
+              {/if}
+              {#each upcomingEvents as evt}
+                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
+                  <div class="icon-dropdown__item-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
+                    <CalendarDays size={14} />
+                  </div>
+                  <div class="icon-dropdown__item-content">
+                    <span class="icon-dropdown__item-title">{evt.title || '(sans titre)'}</span>
+                    <span class="icon-dropdown__item-sub">{formatEventDate(evt.date_start)} {evt.all_day ? '' : formatEventTime(evt.time_start)}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
+              Voir le planning
+            </div>
+          </div>
+        {/if}
       </div>
 
       <!-- Profile dropdown -->
-      <div class="profile-dropdown" on:click={() => showUserDropdown = !showUserDropdown}>
+      <div class="profile-dropdown" on:click={() => toggleDropdown('user')}>
         <div class="profile-avatar">
           {getInitials($currentUser)}
         </div>
@@ -110,10 +334,19 @@
   </div>
 </div>
 
-{#if showUserDropdown}
+{#if showUserDropdown || showNotifDropdown || showMailDropdown || showCalDropdown}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="dropdown-backdrop" on:click={() => showUserDropdown = false}></div>
+  <div class="dropdown-backdrop" on:click={closeAllDropdowns}></div>
 {/if}
+
+<script context="module">
+  function getAvatarColor(name) {
+    let hash = 0;
+    for (const c of name) hash = c.charCodeAt(0) + ((hash << 5) - hash);
+    const colors = ['#8869e1', '#F59E0B', '#3A9B94', '#EC4899', '#3B82F6', '#EF4444', '#22C55E'];
+    return colors[Math.abs(hash) % colors.length];
+  }
+</script>
 
 <style>
   /* ═══════════════════════════════════════
@@ -199,7 +432,7 @@
     gap: 0.5rem;
   }
 
-  /* Search bar — YashAdmin style: dark bg, colored search icon */
+  /* Search bar */
   .search-area {
     display: flex;
     align-items: center;
@@ -246,7 +479,11 @@
     background: var(--primary-hover);
   }
 
-  /* Header icons — YashAdmin style: circular with subtle bg */
+  /* Header icons */
+  .header-icon-wrapper {
+    position: relative;
+  }
+
   .header-icon {
     width: 2.75rem;
     height: 2.75rem;
@@ -259,12 +496,168 @@
     background: var(--bg-base);
     border: 1px solid var(--border-subtle);
     transition: all 0.2s ease;
+    position: relative;
   }
 
   .header-icon:hover {
     background: var(--primary);
     color: #fff;
     border-color: var(--primary);
+  }
+
+  /* Badge */
+  .icon-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    min-width: 18px;
+    height: 18px;
+    background: #EF4444;
+    color: #fff;
+    font-size: 0.625rem;
+    font-weight: 700;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+    line-height: 1;
+    border: 2px solid var(--bg-card);
+  }
+
+  /* ── Icon dropdown ── */
+  .icon-dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: -1rem;
+    width: 22rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    overflow: hidden;
+    animation: dropdownIn 0.15s ease-out;
+  }
+
+  @keyframes dropdownIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .icon-dropdown__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.875rem 1rem;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .icon-dropdown__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-heading);
+  }
+
+  .icon-dropdown__count {
+    font-size: 0.75rem;
+    color: var(--primary);
+    font-weight: 500;
+  }
+
+  .icon-dropdown__list {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .icon-dropdown__empty {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+  }
+
+  .icon-dropdown__item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    transition: background 0.1s ease;
+  }
+
+  .icon-dropdown__item:hover {
+    background: var(--bg-hover);
+  }
+
+  .icon-dropdown__item-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon-dropdown__item-avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .icon-dropdown__item-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .icon-dropdown__item-title {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-heading);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .icon-dropdown__item-sub {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+  }
+
+  .icon-dropdown__item-time {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .icon-dropdown__footer {
+    padding: 0.75rem 1rem;
+    text-align: center;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--primary);
+    cursor: pointer;
+    border-top: 1px solid var(--border-subtle);
+    transition: background 0.1s ease;
+  }
+
+  .icon-dropdown__footer:hover {
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.05);
   }
 
   /* Profile dropdown */
