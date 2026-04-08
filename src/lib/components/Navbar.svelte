@@ -307,7 +307,7 @@
 
       <!-- Profile dropdown -->
       <div class="profile-dropdown" on:click={() => toggleDropdown('user')}>
-        <div class="profile-avatar">
+        <div class="profile-avatar" style="background:{$currentUser?.avatar_color || 'var(--primary)'}">
           {getInitials($currentUser)}
         </div>
         {#if $sidebarOpen}
@@ -681,7 +681,7 @@
     width: 2.25rem;
     height: 2.25rem;
     border-radius: 50%;
-    background: var(--primary);
+    /* background set inline from user.avatar_color */
     color: #fff;
     display: flex;
     align-items: center;
