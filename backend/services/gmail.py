@@ -112,18 +112,23 @@ def _parse_attachments(payload: dict) -> list[dict]:
 
 
 def _parse_inline_images(payload: dict) -> dict[str, dict]:
-    """Collect inline images (cid: referenced) — returns {cid: {attachmentId, mimeType}}."""
+    """Collect inline images (cid: referenced).
+    Returns {cid: {attachmentId, mimeType}} or {cid: {dataUri}} for embedded data."""
     inline_map = {}
     def _walk(part):
         headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
         content_id = headers.get("content-id", "")
         body = part.get("body", {})
         att_id = body.get("attachmentId", "")
+        data = body.get("data", "")
         mime = part.get("mimeType", "")
-        if content_id and att_id and mime.startswith("image/"):
-            # Strip < > from Content-ID
+        if content_id and mime.startswith("image/"):
             cid = content_id.strip("<>")
-            inline_map[cid] = {"attachmentId": att_id, "mimeType": mime}
+            if att_id:
+                inline_map[cid] = {"attachmentId": att_id, "mimeType": mime}
+            elif data:
+                # Small image embedded directly in MIME — convert to data URI
+                inline_map[cid] = {"dataUri": f"data:{mime};base64,{data}", "mimeType": mime}
         for sub in part.get("parts", []):
             _walk(sub)
     _walk(payload)
@@ -138,14 +143,17 @@ def _parse_full_message(data: dict) -> dict:
     attachments = _parse_attachments(data.get("payload", {}))
     att_names = [a["filename"] for a in attachments]
 
-    # Resolve cid: references in HTML body → replace with API URLs
+    # Resolve cid: references in HTML body → replace with API URLs or data URIs
     if body_html:
         inline_images = _parse_inline_images(data.get("payload", {}))
         msg_id = data["id"]
         for cid, info in inline_images.items():
-            att_id = info["attachmentId"]
-            api_url = f"http://localhost:8010/api/gmail/messages/{msg_id}/attachments/{att_id}?filename={cid}&preview=true"
-            body_html = body_html.replace(f"cid:{cid}", api_url)
+            if "dataUri" in info:
+                body_html = body_html.replace(f"cid:{cid}", info["dataUri"])
+            else:
+                att_id = info["attachmentId"]
+                api_url = f"http://localhost:8010/api/gmail/messages/{msg_id}/attachments/{att_id}?filename={cid}&preview=true"
+                body_html = body_html.replace(f"cid:{cid}", api_url)
 
     # Determine folder
     folder = "inbox"

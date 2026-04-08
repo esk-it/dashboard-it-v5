@@ -417,12 +417,55 @@
 
   let syncing = false;
   let syncStatus = null;
+  let notificationsGranted = false;
+
+  async function requestNotificationPermission() {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        notificationsGranted = true;
+      } else if (Notification.permission !== 'denied') {
+        const result = await Notification.requestPermission();
+        notificationsGranted = result === 'granted';
+      }
+    }
+  }
+
+  function showNewMailNotification(newMessages) {
+    if (!notificationsGranted || !newMessages.length) return;
+    const count = newMessages.length;
+    const first = newMessages[0];
+    const title = count === 1
+      ? `Nouveau mail de ${parseFromName(first.from)}`
+      : `${count} nouveaux mails`;
+    const body = count === 1
+      ? first.subject || '(sans objet)'
+      : newMessages.slice(0, 3).map(m => `${parseFromName(m.from)}: ${m.subject}`).join('\n');
+
+    try {
+      const notif = new Notification(title, {
+        body,
+        icon: '/favicon.ico',
+        tag: 'new-email', // Replace previous notification
+      });
+      notif.onclick = () => {
+        window.focus();
+        if (count === 1) openMessage(first);
+        notif.close();
+      };
+      // Auto-close after 8 seconds
+      setTimeout(() => notif.close(), 8000);
+    } catch (e) {
+      console.error('Notification failed', e);
+    }
+  }
 
   async function triggerSync(full = false) {
     syncing = true;
+    const prevUnread = unreadCount;
     try {
       const endpoint = full ? '/api/gmail/sync/full' : '/api/gmail/sync';
-      await api.post(endpoint);
+      const result = await api.post(endpoint);
+      syncStatus = result;
     } catch (e) {
       console.error('Sync failed', e);
     }
@@ -430,10 +473,21 @@
     // Refresh current view from cache
     await fetchMessages(true);
     await fetchUnreadCount();
+
+    // Detect new unread emails and show notification
+    if (unreadCount > prevUnread && prevUnread >= 0) {
+      try {
+        // Fetch the latest unread messages to show in notification
+        const data = await api.get('/api/gmail/messages?folder=inbox&max_results=5');
+        const newUnread = (data.messages || []).filter(m => m.unread);
+        showNewMailNotification(newUnread.slice(0, unreadCount - prevUnread));
+      } catch {}
+    }
   }
 
   // ── Lifecycle ──
   onMount(async () => {
+    await requestNotificationPermission();
     await checkStatus();
     if (gmailConnected && hasScope) {
       // Load from cache first (instant)
