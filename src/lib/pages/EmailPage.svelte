@@ -486,14 +486,25 @@
   }
 
   // ── Lifecycle ──
+  const APP_VERSION = '5.8.8';
+
   onMount(async () => {
     await requestNotificationPermission();
     await checkStatus();
     if (gmailConnected && hasScope) {
       // Load from cache first (instant)
       await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature()]);
-      // Then sync in background (non-blocking)
-      triggerSync();
+
+      // Auto full sync after update (one-shot, re-downloads all messages with fixed parsing)
+      const lastSyncVersion = localStorage.getItem('email_sync_version');
+      if (lastSyncVersion !== APP_VERSION) {
+        console.log(`[Email] Version changed (${lastSyncVersion} → ${APP_VERSION}), triggering full sync...`);
+        await triggerSync(true);
+        localStorage.setItem('email_sync_version', APP_VERSION);
+      } else {
+        triggerSync();
+      }
+
       // Auto-sync every 30 seconds
       refreshInterval = setInterval(() => triggerSync(), 30000);
     } else {
@@ -590,8 +601,11 @@
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
             </button>
           {/if}
-          <button class="toolbar-icon" on:click={() => fetchMessages()} title="Rafraichir">
+          <button class="toolbar-icon" class:toolbar-icon--spin={syncing} on:click={() => triggerSync()} title="Sync incrementale">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
+          </button>
+          <button class="toolbar-icon" on:click={() => triggerSync(true)} title="Sync complete (re-telecharge tout)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12a9 9 0 00-9-9M3 12a9 9 0 009 9"/><path d="M21 3v6h-6"/><path d="M3 21v-6h6"/></svg>
           </button>
           <div class="toolbar-separator"></div>
           <input
@@ -1151,6 +1165,9 @@
   .toolbar-icon:hover {
     background: rgba(var(--primary-rgb), 0.08);
     color: var(--primary);
+  }
+  .toolbar-icon--spin :global(svg) {
+    animation: spin 1s linear infinite;
   }
 
   .toolbar-separator {
