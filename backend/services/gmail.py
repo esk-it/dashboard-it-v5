@@ -221,6 +221,9 @@ async def _sync_full_inner(db, max_messages: int = 200) -> dict:
     token = await gcal._ensure_valid_token()
     stats = {"fetched": 0, "stored": 0}
 
+    # Clear FTS index (will be repopulated by _fetch_and_store)
+    await db.execute("DELETE FROM emails_fts")
+
     # Get message IDs
     all_ids = []
     next_page = None
@@ -307,6 +310,12 @@ async def _fetch_and_store(token: str, message_id: str, db) -> bool:
                 parsed["fetched_full"], now,
             ),
         )
+        # Update FTS index
+        await db.execute("DELETE FROM emails_fts WHERE id=?", (parsed["id"],))
+        await db.execute(
+            "INSERT INTO emails_fts (id, subject, sender, snippet, body_text) VALUES (?,?,?,?,?)",
+            (parsed["id"], parsed["subject"], parsed["sender"], parsed["snippet"], parsed["body_text"]),
+        )
         return True
     except Exception as e:
         logger.warning(f"Failed to fetch/store message {message_id}: {e}")
@@ -389,6 +398,7 @@ async def _sync_incremental_inner(db) -> dict:
     # Delete removed messages
     for mid in deleted_ids:
         await db.execute("DELETE FROM emails_cache WHERE id=?", (mid,))
+        await db.execute("DELETE FROM emails_fts WHERE id=?", (mid,))
         stats["deleted"] += 1
 
     # Fetch changed messages one at a time
@@ -423,9 +433,12 @@ async def list_messages_local(db, folder: str = "inbox", query: str = "", limit:
     elif folder == "trash":
         where = "labels LIKE '%TRASH%'"
     elif query:
-        where = "(subject LIKE ? OR sender LIKE ? OR snippet LIKE ?)"
-        q = f"%{query}%"
-        params = [q, q, q]
+        # Use FTS5 for full-text search (includes body_text)
+        # Wrap in double quotes for literal match, fallback to LIKE on error
+        where = "id IN (SELECT id FROM emails_fts WHERE emails_fts MATCH ?)"
+        # Escape FTS5 special chars and wrap terms in double quotes
+        safe_query = '"' + query.replace('"', '""') + '"'
+        params = [safe_query]
     else:
         where = "labels LIKE ?"
         params = [f"%{label}%"]
@@ -542,6 +555,19 @@ async def mark_read(db, message_id: str):
     await db.commit()
 
 
+async def mark_unread(db, message_id: str):
+    token = await gcal._ensure_valid_token()
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            f"{GMAIL_API}/messages/{message_id}/modify",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={"addLabelIds": ["UNREAD"]},
+        )
+        resp.raise_for_status()
+    await db.execute("UPDATE emails_cache SET is_unread=1 WHERE id=?", (message_id,))
+    await db.commit()
+
+
 async def trash_message(db, message_id: str):
     token = await gcal._ensure_valid_token()
     async with httpx.AsyncClient() as client:
@@ -551,6 +577,7 @@ async def trash_message(db, message_id: str):
         )
         resp.raise_for_status()
     await db.execute("DELETE FROM emails_cache WHERE id=?", (message_id,))
+    await db.execute("DELETE FROM emails_fts WHERE id=?", (message_id,))
     await db.commit()
 
 
@@ -678,3 +705,47 @@ async def get_signature() -> str:
     except Exception as e:
         logger.warning(f"Failed to fetch signature: {e}")
     return ""
+
+
+# ═══════════════════════════════════════════════════════════════
+# Local drafts (offline persistence)
+# ═══════════════════════════════════════════════════════════════
+
+
+async def list_drafts_local(db) -> list[dict]:
+    rows = await db.execute_fetchall(
+        "SELECT id, recipient, cc, subject, body, reply_to_message_id, created_at, updated_at "
+        "FROM local_drafts ORDER BY updated_at DESC"
+    )
+    return [
+        {"id": r[0], "to": r[1], "cc": r[2], "subject": r[3], "body": r[4],
+         "reply_to_message_id": r[5], "created_at": r[6], "updated_at": r[7]}
+        for r in rows
+    ]
+
+
+async def save_draft_local(db, data: dict) -> int:
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await db.execute(
+        "INSERT INTO local_drafts (recipient, cc, subject, body, reply_to_message_id, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (data.get("to", ""), data.get("cc", ""), data.get("subject", ""),
+         data.get("body", ""), data.get("reply_to_message_id"), now, now),
+    )
+    await db.commit()
+    return cursor.lastrowid
+
+
+async def update_draft_local(db, draft_id: int, data: dict):
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE local_drafts SET recipient=?, cc=?, subject=?, body=?, reply_to_message_id=?, updated_at=? WHERE id=?",
+        (data.get("to", ""), data.get("cc", ""), data.get("subject", ""),
+         data.get("body", ""), data.get("reply_to_message_id"), now, draft_id),
+    )
+    await db.commit()
+
+
+async def delete_draft_local(db, draft_id: int):
+    await db.execute("DELETE FROM local_drafts WHERE id=?", (draft_id,))
+    await db.commit()

@@ -124,6 +124,21 @@ async def init_db():
             key   TEXT PRIMARY KEY,
             value TEXT NOT NULL DEFAULT ''
         )""",
+        # --- Email FTS5 full-text search index ---
+        """CREATE VIRTUAL TABLE IF NOT EXISTS emails_fts USING fts5(
+            id UNINDEXED, subject, sender, snippet, body_text
+        )""",
+        # --- Local drafts ---
+        """CREATE TABLE IF NOT EXISTS local_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient TEXT NOT NULL DEFAULT '',
+            cc TEXT NOT NULL DEFAULT '',
+            subject TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            reply_to_message_id TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )""",
         # --- Documents ---
         """CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

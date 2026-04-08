@@ -13,6 +13,7 @@
   let loading = true;
   let gmailConnected = false;
   let hasScope = false;
+  let connectedEmail = '';
   let searchQuery = '';
   let nextPageToken = null;
   let loadingMore = false;
@@ -29,6 +30,12 @@
   let composeFiles = [];
   let replyToId = null;
   let sending = false;
+
+  // Local drafts
+  let currentDraftId = null;
+  let drafts = [];
+  let draftAutoSaveTimer = null;
+  let draftDirty = false;
 
   // Inline reply
   let showInlineReply = false;
@@ -146,6 +153,7 @@
       const s = await api.get('/api/gmail/status');
       gmailConnected = s.connected;
       hasScope = s.has_scope;
+      connectedEmail = s.email || '';
     } catch {
       gmailConnected = false;
       hasScope = false;
@@ -249,6 +257,17 @@
     } catch {}
   }
 
+  async function markUnread(msg, e) {
+    if (e) e.stopPropagation();
+    try {
+      await api.post(`/api/gmail/messages/${msg.id}/unread`);
+      const listMsg = messages.find(m => m.id === msg.id);
+      if (listMsg) { listMsg.unread = true; messages = messages; }
+      unreadCount++;
+      if (selectedMessage?.id === msg.id) backToInbox();
+    } catch (err) { console.error('Failed to mark unread', err); }
+  }
+
   async function sendEmail() {
     sending = true;
     try {
@@ -269,9 +288,13 @@
         if (replyToId) payload.reply_to_message_id = replyToId;
         await api.post('/api/gmail/send', payload);
       }
+      // Delete draft if it was saved
+      if (currentDraftId) { await deleteDraft(currentDraftId); }
+      stopDraftAutoSave();
       composeForm = { to: '', cc: '', subject: '', body: '' };
       composeFiles = [];
       replyToId = null;
+      currentDraftId = null;
       currentView = 'inbox';
       folderCache = {};
       // Sync immediately to pickup the sent message
@@ -316,6 +339,61 @@
     sending = false;
   }
 
+  // ── Draft management ──
+  async function fetchDrafts() {
+    try {
+      const data = await api.get('/api/gmail/drafts');
+      drafts = data.drafts || [];
+    } catch { drafts = []; }
+  }
+
+  async function saveDraft() {
+    if (!composeForm.to && !composeForm.subject && !composeForm.body) return;
+    try {
+      const payload = { ...composeForm, reply_to_message_id: replyToId || null };
+      if (currentDraftId) {
+        await api.put(`/api/gmail/drafts/${currentDraftId}`, payload);
+      } else {
+        const result = await api.post('/api/gmail/drafts', payload);
+        currentDraftId = result.id;
+      }
+      draftDirty = false;
+      await fetchDrafts();
+    } catch (e) { console.error('Failed to save draft', e); }
+  }
+
+  async function loadDraft(draft) {
+    composeForm = { to: draft.to || '', cc: draft.cc || '', subject: draft.subject || '', body: draft.body || '' };
+    composeFiles = [];
+    replyToId = draft.reply_to_message_id || null;
+    currentDraftId = draft.id;
+    draftDirty = false;
+    currentView = 'compose';
+  }
+
+  async function deleteDraft(draftId) {
+    try {
+      await api.delete(`/api/gmail/drafts/${draftId}`);
+      drafts = drafts.filter(d => d.id !== draftId);
+      if (currentDraftId === draftId) currentDraftId = null;
+    } catch {}
+  }
+
+  function startDraftAutoSave() {
+    stopDraftAutoSave();
+    draftAutoSaveTimer = setInterval(() => {
+      if (draftDirty && currentView === 'compose') saveDraft();
+    }, 10000);
+  }
+
+  function stopDraftAutoSave() {
+    if (draftAutoSaveTimer) { clearInterval(draftAutoSaveTimer); draftAutoSaveTimer = null; }
+  }
+
+  function onComposeInput() {
+    draftDirty = true;
+  }
+
   function handleInlineReplyFiles(e) {
     inlineReplyFiles = [...inlineReplyFiles, ...Array.from(e.target.files)];
   }
@@ -324,16 +402,34 @@
     inlineReplyFiles = inlineReplyFiles.filter((_, i) => i !== index);
   }
 
-  function openCompose(replyMsg = null) {
+  function openCompose(replyMsg = null, mode = 'reply') {
     composeForm = { to: '', cc: '', subject: '', body: '' };
     composeFiles = [];
     replyToId = null;
-    if (replyMsg) {
+    if (replyMsg && mode === 'reply') {
       composeForm.to = parseFromEmail(replyMsg.from);
-      composeForm.subject = `Re: ${replyMsg.subject}`;
+      composeForm.subject = replyMsg.subject?.startsWith('Re:') ? replyMsg.subject : `Re: ${replyMsg.subject}`;
       replyToId = replyMsg.id;
+    } else if (replyMsg && mode === 'replyAll') {
+      composeForm.to = parseFromEmail(replyMsg.from);
+      // CC = all original recipients (to + cc) minus self and sender
+      const senderEmail = parseFromEmail(replyMsg.from);
+      const allRecipients = [
+        ...(replyMsg.to || '').split(',').map(s => parseFromEmail(s.trim())),
+        ...(replyMsg.cc || '').split(',').map(s => parseFromEmail(s.trim())),
+      ].filter(e => e && e !== connectedEmail && e !== senderEmail);
+      composeForm.cc = [...new Set(allRecipients)].join(', ');
+      composeForm.subject = replyMsg.subject?.startsWith('Re:') ? replyMsg.subject : `Re: ${replyMsg.subject}`;
+      replyToId = replyMsg.id;
+    } else if (replyMsg && mode === 'forward') {
+      composeForm.subject = replyMsg.subject?.startsWith('Fwd:') ? replyMsg.subject : `Fwd: ${replyMsg.subject}`;
+      const fwdHeader = `\n\n---------- Message transfere ----------\nDe : ${replyMsg.from || ''}\nDate : ${replyMsg.date || ''}\nObjet : ${replyMsg.subject || ''}\nA : ${replyMsg.to || ''}\n\n`;
+      composeForm.body = fwdHeader + (replyMsg.body_text || '');
     }
+    currentDraftId = null;
+    draftDirty = false;
     currentView = 'compose';
+    startDraftAutoSave();
   }
 
   function handleFileSelect(e) {
@@ -345,15 +441,22 @@
   }
 
   function switchFolder(folder) {
+    stopDraftAutoSave();
     currentFolder = folder;
     currentView = 'inbox';
     selectedMessage = null;
     showInlineReply = false;
     searchQuery = '';
+    if (folder === 'draft') fetchDrafts();
     fetchMessages(); // Will use cache if available
   }
 
   function backToInbox() {
+    // Auto-save draft if composing with content
+    if (currentView === 'compose' && (composeForm.to || composeForm.subject || composeForm.body)) {
+      saveDraft();
+    }
+    stopDraftAutoSave();
     currentView = 'inbox';
     selectedMessage = null;
     showInlineReply = false;
@@ -486,14 +589,14 @@
   }
 
   // ── Lifecycle ──
-  const APP_VERSION = '5.8.8';
+  const APP_VERSION = '5.9.0';
 
   onMount(async () => {
     await requestNotificationPermission();
     await checkStatus();
     if (gmailConnected && hasScope) {
       // Load from cache first (instant)
-      await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature()]);
+      await Promise.all([fetchMessages(true), fetchUnreadCount(), fetchSignature(), fetchDrafts()]);
 
       // Auto full sync after update (one-shot, re-downloads all messages with fixed parsing)
       const lastSyncVersion = localStorage.getItem('email_sync_version');
@@ -514,6 +617,7 @@
 
   onDestroy(() => {
     if (refreshInterval) clearInterval(refreshInterval);
+    stopDraftAutoSave();
   });
 </script>
 
@@ -538,6 +642,8 @@
           <span class="folder-label">{f.label}</span>
           {#if f.key === 'inbox' && unreadCount > 0}
             <span class="folder-badge">{unreadCount}</span>
+          {:else if f.key === 'draft' && drafts.length > 0}
+            <span class="folder-badge">{drafts.length}</span>
           {/if}
         </button>
       {/each}
@@ -618,12 +724,35 @@
         </div>
       </div>
 
+      <!-- Local drafts list -->
+      {#if currentFolder === 'draft' && drafts.length > 0}
+        <div class="email-list">
+          {#each drafts as draft (draft.id)}
+            <div class="msg-row" on:click={() => loadDraft(draft)}>
+              <div class="msg-sender msg-sender--bold" style="color:var(--text-muted)">Brouillon</div>
+              <div class="msg-content-col">
+                <div class="msg-content">
+                  <span class="msg-subject">{draft.subject || '(sans objet)'}</span>
+                  <span class="msg-snippet"> — {draft.to || 'Aucun destinataire'}</span>
+                </div>
+              </div>
+              <div class="msg-date">{new Date(draft.updated_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</div>
+              <div class="msg-hover-actions">
+                <button class="msg-hover-btn" on:click|stopPropagation={() => deleteDraft(draft.id)} title="Supprimer le brouillon">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                </button>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+
       {#if loading}
         <div class="email-loading">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" class="spin"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg>
           Chargement...
         </div>
-      {:else if messages.length === 0}
+      {:else if messages.length === 0 && !(currentFolder === 'draft' && drafts.length > 0)}
         <div class="email-empty">
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="1" style="opacity:0.4"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           <p style="margin-top:1rem">Aucun message dans ce dossier</p>
@@ -694,6 +823,11 @@
 
               <!-- Hover actions -->
               <div class="msg-hover-actions">
+                {#if !msg.unread}
+                  <button class="msg-hover-btn" on:click={(e) => markUnread(msg, e)} title="Marquer comme non lu">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                  </button>
+                {/if}
                 <button class="msg-hover-btn" on:click={(e) => trashMessage(msg, e)} title="Supprimer">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 </button>
@@ -713,16 +847,16 @@
       <!-- ── Compose view — YashAdmin style ── -->
       <div class="compose-view">
         <div class="compose-field">
-          <input type="text" placeholder="To:" bind:value={composeForm.to} />
+          <input type="text" placeholder="To:" bind:value={composeForm.to} on:input={onComposeInput} />
         </div>
         <div class="compose-field">
-          <input type="text" placeholder="Cc:" bind:value={composeForm.cc} />
+          <input type="text" placeholder="Cc:" bind:value={composeForm.cc} on:input={onComposeInput} />
         </div>
         <div class="compose-field">
-          <input type="text" placeholder="Subject:" bind:value={composeForm.subject} />
+          <input type="text" placeholder="Subject:" bind:value={composeForm.subject} on:input={onComposeInput} />
         </div>
         <div class="compose-field compose-body">
-          <textarea placeholder="Ecrivez votre message..." bind:value={composeForm.body} rows="12"></textarea>
+          <textarea placeholder="Ecrivez votre message..." bind:value={composeForm.body} rows="12" on:input={onComposeInput}></textarea>
         </div>
 
         {#if gmailSignature}
@@ -764,6 +898,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             {sending ? 'Envoi...' : 'Envoyer'}
           </button>
+          <button class="ya-btn draft-btn" on:click={saveDraft}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            {currentDraftId ? 'Brouillon sauve' : 'Sauvegarder'}
+          </button>
           <button class="ya-btn discard-btn" on:click={backToInbox}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Annuler
@@ -782,6 +920,15 @@
           <div class="read-actions">
             <button class="toolbar-btn" on:click={() => openCompose(selectedMessage)} title="Repondre">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 00-4-4H4"/></svg>
+            </button>
+            <button class="toolbar-btn" on:click={() => openCompose(selectedMessage, 'replyAll')} title="Repondre a tous">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 17 4 12 9 7"/><polyline points="15 17 10 12 15 7"/><path d="M20 18v-2a4 4 0 00-4-4H10"/></svg>
+            </button>
+            <button class="toolbar-btn" on:click={() => openCompose(selectedMessage, 'forward')} title="Transferer">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 17 20 12 15 7"/><path d="M4 18v-2a4 4 0 014-4h12"/></svg>
+            </button>
+            <button class="toolbar-btn" on:click={() => markUnread(selectedMessage)} title="Marquer comme non lu">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
             </button>
             <button class="toolbar-btn" on:click={(e) => trashMessage(selectedMessage, e)} title="Supprimer">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
@@ -1431,6 +1578,14 @@
     padding-top: 1rem;
   }
 
+  .draft-btn {
+    background: rgba(var(--primary-rgb, 99, 102, 241), 0.1) !important;
+    color: var(--primary) !important;
+    border: none !important;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
   .discard-btn {
     background: rgba(255,94,94,0.1) !important;
     color: #FF5E5E !important;

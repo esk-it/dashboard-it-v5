@@ -26,6 +26,14 @@ class SendEmailRequest(BaseModel):
     signature_html: str = ""
 
 
+class DraftRequest(BaseModel):
+    to: str = ""
+    cc: str = ""
+    subject: str = ""
+    body: str = ""
+    reply_to_message_id: str | None = None
+
+
 def _check_connected():
     if not gcal.is_connected():
         raise HTTPException(status_code=403, detail="Google not connected")
@@ -195,6 +203,16 @@ async def mark_as_read(message_id: str, db=Depends(get_raw_db)):
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@router.post("/messages/{message_id}/unread")
+async def mark_as_unread(message_id: str, db=Depends(get_raw_db)):
+    _check_connected()
+    try:
+        await gmail.mark_unread(db, message_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @router.get("/signature")
 async def get_signature():
     _check_connected()
@@ -215,3 +233,30 @@ async def unread_count(db=Depends(get_raw_db)):
         return {"count": count}
     except Exception:
         return {"count": 0}
+
+
+# ── Local drafts (no Google connection required) ──
+
+
+@router.get("/drafts")
+async def list_drafts(db=Depends(get_raw_db)):
+    drafts = await gmail.list_drafts_local(db)
+    return {"drafts": drafts}
+
+
+@router.post("/drafts")
+async def create_draft(body: DraftRequest, db=Depends(get_raw_db)):
+    draft_id = await gmail.save_draft_local(db, body.model_dump())
+    return {"ok": True, "id": draft_id}
+
+
+@router.put("/drafts/{draft_id}")
+async def update_draft(draft_id: int, body: DraftRequest, db=Depends(get_raw_db)):
+    await gmail.update_draft_local(db, draft_id, body.model_dump())
+    return {"ok": True}
+
+
+@router.delete("/drafts/{draft_id}")
+async def delete_draft(draft_id: int, db=Depends(get_raw_db)):
+    await gmail.delete_draft_local(db, draft_id)
+    return {"ok": True}
