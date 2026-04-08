@@ -6,8 +6,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import logging
-from .database import init_db
-from .routers import dashboard, tasks, settings, search, planning, documents, changelog, wiki, news, suppliers, parc, security, monitoring, tools, glpi, launcher
+from .database import init_db, get_raw_db
+from .routers import dashboard, tasks, settings, search, planning, documents, changelog, wiki, news, suppliers, parc, security, monitoring, tools, glpi, launcher, auth
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +29,12 @@ except Exception as e:
 async def lifespan(app: FastAPI):
     """Create all tables on startup (handles fresh installs)."""
     await init_db()
+    # Ensure default admin user exists
+    from .routers.auth import ensure_default_admin
+    import aiosqlite
+    from .database import DB_PATH
+    async with aiosqlite.connect(str(DB_PATH)) as db:
+        await ensure_default_admin(db)
     yield
 
 
@@ -58,6 +64,7 @@ app.include_router(monitoring.router)
 app.include_router(tools.router)
 app.include_router(glpi.router)
 app.include_router(launcher.router)
+app.include_router(auth.router)
 if google_calendar:
     app.include_router(google_calendar.router)
 if gmail:

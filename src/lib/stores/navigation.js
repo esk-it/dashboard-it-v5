@@ -20,5 +20,6 @@ export const navItems = [
   { key: 'changelog', path: '/changelog', icon: 'ClipboardList', label: 'Changelog', emoji: '\u{1F4CB}' },
   { key: 'launcher', path: '/launcher', icon: 'Rocket', label: 'Lanceur', emoji: '\u{1F680}' },
   { key: 'tools', path: '/tools', icon: 'Wrench', label: 'Outils', emoji: '\u{1F527}', bottom: true },
+  { key: 'users', path: '/users', icon: 'Users', label: 'Utilisateurs', emoji: '\u{1F465}', bottom: true },
   { key: 'settings', path: '/settings', icon: 'Settings', label: 'Paramètres', emoji: '\u2699\uFE0F', bottom: true },
 ];

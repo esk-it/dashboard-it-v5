@@ -26,6 +26,7 @@
   import MonitoringPage from './lib/pages/MonitoringPage.svelte';
   import LauncherPage from './lib/pages/LauncherPage.svelte';
   import ToolsPage from './lib/pages/ToolsPage.svelte';
+  import UsersPage from './lib/pages/UsersPage.svelte';
   import SettingsPage from './lib/pages/SettingsPage.svelte';
 
   let showSearch = false;
@@ -42,8 +43,11 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     loadSettings();
+    // Check if user is authenticated, redirect to login if not
+    const authed = await checkAuth();
+    if (!authed) currentPage.set('/login');
 
     function handleKeydown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -109,6 +113,8 @@
       <LauncherPage />
     {:else if $currentPage === '/tools'}
       <ToolsPage />
+    {:else if $currentPage === '/users'}
+      <UsersPage />
     {:else if $currentPage === '/settings'}
       <SettingsPage />
     {:else}

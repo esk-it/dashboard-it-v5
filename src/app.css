@@ -569,9 +569,16 @@ input[type="datetime-local"] {
   box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }
 
-/* Light theme: make KPI gap invisible by matching page background */
+/* Light theme: unified KPI group with white background */
 [data-theme="glass-light"] .ya-kpi-row {
-  background: transparent;
+  background: var(--bg-card);
+  border-radius: 0.75rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border-subtle);
+}
+[data-theme="glass-light"] .ya-kpi {
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .ya-kpi__value {

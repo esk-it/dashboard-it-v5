@@ -72,10 +72,10 @@ def _do_backup(prefix: str = "backup") -> str | None:
                     if f.is_file():
                         zf.write(f, f"logos/{f.name}")
 
-        # Rotation: keep last 10 auto + 10 manual
-        for pattern in ["backup_*.zip", "auto_backup_*.zip"]:
+        # Rotation: keep last N backups per type
+        for pattern, keep in [("backup_*.zip", 10), ("auto_backup_*.zip", 10), ("pre_update_*.zip", 5), ("pre_reset_*.zip", 3)]:
             existing = sorted(BACKUP_DIR.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
-            for old in existing[10:]:
+            for old in existing[keep:]:
                 old.unlink()
 
         return zip_name
@@ -441,6 +441,19 @@ async def list_backups():
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         })
     return result
+
+
+@router.delete("/backups/cleanup")
+async def cleanup_old_backups(keep: int = 5):
+    """Delete old backups, keeping only the N most recent per type."""
+    keep = max(1, min(50, keep))
+    deleted = 0
+    for pattern in ["backup_*.zip", "auto_backup_*.zip", "pre_update_*.zip", "pre_reset_*.zip"]:
+        existing = sorted(BACKUP_DIR.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in existing[keep:]:
+            old.unlink()
+            deleted += 1
+    return {"deleted": deleted, "kept_per_type": keep}
 
 
 @router.get("/auto-backup")
