@@ -279,7 +279,7 @@
 }
 
 [data-theme="glass-light"] .profile-avatar {
-  background: var(--primary) !important;
+  /* background set inline from user.avatar_color */
   color: #fff !important;
 }
 
