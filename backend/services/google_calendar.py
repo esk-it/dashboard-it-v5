@@ -415,7 +415,11 @@ async def sync_bidirectional(db) -> dict:
     stats = {"imported": 0, "exported": 0, "updated": 0, "deleted": 0}
 
     # ── 0. Cleanup stale "Working Location" events from cache ──
-    await db.execute("DELETE FROM planning_events WHERE title IN ('Bureau', 'Office', 'Working from office', 'Working from home', 'Domicile', 'Travail')")
+    await db.execute(
+        "DELETE FROM planning_events WHERE "
+        "title IN ('Bureau', 'Office', 'Working from office', 'Working from home', 'Domicile', 'Travail') "
+        "OR title LIKE 'Bureau%' OR title LIKE 'Office%' OR title LIKE 'Domicile%' OR title LIKE 'Travail%'"
+    )
 
     # ── 1. Fetch Google changes ──
     if sync_token:

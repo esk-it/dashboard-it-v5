@@ -55,6 +55,47 @@
   let glpiSaving = false;
   let glpiStats = null;
 
+  // Zabbix integration
+  let zabbixConfig = null;
+  let zabbixForm = { url: '', api_token: '', username: '', password: '' };
+  let zabbixAuthMode = 'login';
+  let zabbixSaving = false;
+
+  const ZABBIX_API = 'http://localhost:8010/api/monitoring';
+
+  async function loadZabbixConfig() {
+    try {
+      const res = await fetch(`${ZABBIX_API}/config`);
+      const cfg = await res.json();
+      zabbixConfig = cfg.configured ? cfg : null;
+      if (cfg.auth_mode === 'login') zabbixAuthMode = 'login';
+      else zabbixAuthMode = 'token';
+    } catch { zabbixConfig = null; }
+  }
+
+  async function saveZabbixConfig() {
+    zabbixSaving = true;
+    try {
+      await fetch(`${ZABBIX_API}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(zabbixForm),
+      });
+      showSaved();
+      await loadZabbixConfig();
+      zabbixForm = { url: '', api_token: '', username: '', password: '' };
+    } catch (e) { console.error(e); }
+    zabbixSaving = false;
+  }
+
+  async function deleteZabbixConfig() {
+    try {
+      await fetch(`${ZABBIX_API}/config`, { method: 'DELETE' });
+      zabbixConfig = null;
+      showSaved();
+    } catch {}
+  }
+
   // Google Calendar integration
   let gcalConfig = null;
   let gcalForm = { client_id: '', client_secret: '' };
@@ -546,7 +587,7 @@
   }
 
   // Load DB info & backups when switching to those panels
-  $: if (activePanel === 1) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); }
+  $: if (activePanel === 1) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); loadZabbixConfig(); }
   $: if (activePanel === 2) loadDbInfo();
   $: if (activePanel === 4) loadBackups();
 
@@ -890,10 +931,40 @@
             <div class="int-header">
               <span class="int-icon">{'\u{1F4E1}'}</span>
               <div class="int-info">
-                <h3>Flux RSS</h3>
-                <p>Sources d'actualit{'\u00e9'}s — {feeds.length} flux configur{'\u00e9'}s</p>
+                <h3>Zabbix Monitoring</h3>
+                <p>Supervision de l'infrastructure r{'\u00e9'}seau</p>
               </div>
-              <button class="int-link" on:click={() => activePanel = 4}>Configurer {'\u2192'}</button>
+              <span class="int-badge" class:active-badge={zabbixConfig} class:soon={!zabbixConfig}>
+                {zabbixConfig ? 'Actif' : 'Non configur\u00e9'}
+              </span>
+            </div>
+            <div class="gw-config-form">
+              {#if zabbixConfig}
+                <div class="gw-status-grid">
+                  <div class="gw-status-item"><span class="gw-status-label">URL</span><span class="gw-status-val">{zabbixConfig.url}</span></div>
+                  <div class="gw-status-item"><span class="gw-status-label">Auth</span><span class="gw-status-val">{zabbixConfig.auth_mode === 'login' ? 'Login (' + (zabbixConfig.username || '') + ')' : 'API Token'}</span></div>
+                </div>
+                <button class="btn-danger" style="margin-top:0.75rem" on:click={deleteZabbixConfig}>Supprimer la configuration</button>
+              {/if}
+              <div class="service-form">
+                <p class="gw-help">{zabbixConfig ? 'Modifier :' : 'Entrez les identifiants Zabbix :'}</p>
+                <div class="service-fields">
+                  <input type="text" bind:value={zabbixForm.url} placeholder="https://zabbix.example.com" />
+                  <div style="display:flex;gap:0.5rem;margin-bottom:0.5rem">
+                    <button class="int-link" class:active-badge={zabbixAuthMode === 'token'} on:click={() => zabbixAuthMode = 'token'}>API Token</button>
+                    <button class="int-link" class:active-badge={zabbixAuthMode === 'login'} on:click={() => zabbixAuthMode = 'login'}>Login</button>
+                  </div>
+                  {#if zabbixAuthMode === 'token'}
+                    <input type="password" bind:value={zabbixForm.api_token} placeholder="API Token" />
+                  {:else}
+                    <input type="text" bind:value={zabbixForm.username} placeholder="Nom d'utilisateur" />
+                    <input type="password" bind:value={zabbixForm.password} placeholder="Mot de passe" />
+                  {/if}
+                  <button class="btn-small" on:click={saveZabbixConfig} disabled={zabbixSaving || !zabbixForm.url}>
+                    {zabbixSaving ? 'Enregistrement...' : 'Enregistrer'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -958,6 +1029,52 @@
               <div class="db-result" class:ok={dbCheckResult.ok} class:err={!dbCheckResult.ok}>
                 <span class="db-result-icon">{dbCheckResult.ok ? '\u2705' : '\u274C'}</span>
                 <pre class="db-result-text">{dbCheckResult.result}</pre>
+              </div>
+            {/if}
+          </div>
+
+          <div class="setting-section">
+            <h3>Sauvegarde</h3>
+            <p class="setting-desc">Cr{'\u00e9'}er une sauvegarde manuelle de la base de donn{'\u00e9'}es et des param{'\u00e8'}tres.</p>
+            <div class="db-actions">
+              <button class="btn-db" on:click={async () => {
+                try {
+                  await fetch(`${API}/backup`, { method: 'POST' });
+                  showSaved();
+                } catch {}
+              }}>{'\u{1F4BE}'} Cr{'\u00e9'}er une sauvegarde</button>
+              <button class="btn-db" on:click={async () => {
+                try {
+                  await fetch(`${API}/backups/cleanup?keep=5`, { method: 'DELETE' });
+                  showSaved();
+                } catch {}
+              }}>{'\u{1F9F9}'} Nettoyer anciennes sauvegardes</button>
+            </div>
+          </div>
+
+          <div class="setting-section danger-section">
+            <h3>{'\u26A0\uFE0F'} Purge compl{'\u00e8'}te</h3>
+            <p class="setting-desc">Supprimer toutes les donn{'\u00e9'}es et repartir de z{'\u00e9'}ro. Cette action est irr{'\u00e9'}versible.</p>
+            <p class="setting-desc" style="color:var(--danger);font-weight:600">Une sauvegarde sera cr{'\u00e9'}{'\u00e9'}e automatiquement avant la purge.</p>
+            {#if !showResetConfirm}
+              <button class="btn-danger" on:click={() => showResetConfirm = true}>{'\u{1F5D1}\uFE0F'} Purger la base de donn{'\u00e9'}es</button>
+            {:else}
+              <div class="reset-confirm">
+                <p>Tapez <strong>PURGER</strong> pour confirmer :</p>
+                <input type="text" bind:value={resetConfirmText} placeholder="PURGER" />
+                <div class="reset-actions">
+                  <button class="btn-danger" disabled={resetConfirmText !== 'PURGER' || resetting} on:click={async () => {
+                    resetting = true;
+                    try {
+                      await fetch(`${API}/reset-data`, { method: 'POST' });
+                      showResetConfirm = false;
+                      resetConfirmText = '';
+                      window.location.reload();
+                    } catch (e) { console.error(e); }
+                    resetting = false;
+                  }}>{resetting ? 'Purge en cours...' : 'Confirmer la purge'}</button>
+                  <button class="btn-small" on:click={() => { showResetConfirm = false; resetConfirmText = ''; }}>Annuler</button>
+                </div>
               </div>
             {/if}
           </div>

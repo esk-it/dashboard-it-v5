@@ -502,8 +502,8 @@
       <span class="ya-kpi__value">{stats.total}</span>
       <span class="ya-kpi__label">Total</span>
     </div>
-    {#each Object.entries(stats.by_type) as [type, count]}
-      <div class="ya-kpi">
+    {#each Object.entries(stats.by_type) as [type, count], i}
+      <div class="ya-kpi {['ya-kpi--info', 'ya-kpi--warning', 'ya-kpi--success', 'ya-kpi--danger', 'ya-kpi--secondary'][i % 5]}">
         <span class="ya-kpi__value">{count}</span>
         <span class="ya-kpi__label">{type}</span>
       </div>
