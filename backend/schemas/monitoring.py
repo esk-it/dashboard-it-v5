@@ -6,13 +6,17 @@ from pydantic import BaseModel
 
 class MonitoringConfig(BaseModel):
     url: str
-    api_token: str
+    api_token: str = ""
+    username: str = ""
+    password: str = ""
 
 
 class MonitoringConfigResponse(BaseModel):
     configured: bool = False
     url: str = ""
     api_token: str = ""  # masked
+    auth_mode: str = "token"  # "token" or "login"
+    username: str = ""
 
 
 class MonitoringHost(BaseModel):

@@ -31,15 +31,23 @@ router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
 async def get_config():
     cfg = get_masked_config()
     if not cfg:
-        return {"configured": False, "url": "", "api_token": ""}
-    return MonitoringConfigResponse(url=cfg["url"], api_token=cfg["api_token"], configured=True)
+        return {"configured": False, "url": "", "api_token": "", "auth_mode": "token", "username": ""}
+    return MonitoringConfigResponse(
+        url=cfg["url"],
+        api_token=cfg.get("api_token", ""),
+        auth_mode=cfg.get("auth_mode", "token"),
+        username=cfg.get("username", ""),
+        configured=True,
+    )
 
 
 @router.put("/config")
 async def update_config(body: MonitoringConfig):
-    if not body.url or not body.api_token:
-        raise HTTPException(400, "url and api_token are required")
-    save_config(body.url, body.api_token)
+    if not body.url:
+        raise HTTPException(400, "URL is required")
+    if not body.api_token and not (body.username and body.password):
+        raise HTTPException(400, "API token ou login/password requis")
+    save_config(body.url, api_token=body.api_token, username=body.username, password=body.password)
     return {"status": "ok"}
 
 

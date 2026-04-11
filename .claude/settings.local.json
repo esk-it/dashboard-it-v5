@@ -122,7 +122,13 @@
       "Bash(grep -r \"import.*fetch\\\\|POST.*auth\\\\|api.*login\" C:/Users/jdeniel/Documents/Projets/Dashboard-Web-v5 --include=*.js --include=*.py)",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/routers/auth.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''auth OK''''\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/main.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''main OK''''\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/database.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''db OK''''\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/database.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''db OK''''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/services/google_calendar.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''backend/routers/google_calendar.py'', encoding=''utf-8''\\).read\\(\\)\\); print\\(''OK''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/services/google_calendar.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''OK''''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/services/zabbix.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''zabbix OK''''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/routers/monitoring.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''monitoring OK''''\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\(''''backend/schemas/monitoring.py'''', encoding=''''utf-8''''\\).read\\(\\)\\); print\\(''''schemas OK''''\\)\")"
     ]
   }
 }

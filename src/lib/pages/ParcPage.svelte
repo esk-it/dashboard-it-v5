@@ -206,7 +206,8 @@
       const pdfBytes = doc.output('arraybuffer');
       await writeFile(path, new Uint8Array(pdfBytes));
       success(`PDF enregistr\u00e9 : ${path.split(/[\\/]/).pop()}`);
-    } catch {
+    } catch (e) {
+      console.error('Tauri PDF save failed, using browser fallback:', e);
       // Fallback: browser download (dev mode or if Tauri dialog unavailable)
       doc.save(defaultName);
       success('PDF export\u00e9');

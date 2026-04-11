@@ -11,6 +11,7 @@
   import SysMonCard from '../components/cards/SysMonCard.svelte';
   import ActivityCard from '../components/cards/ActivityCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
+  import ZabbixCard from '../components/cards/ZabbixCard.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
@@ -35,6 +36,7 @@
   let sysMonCard;
   let activityCard;
   let gaugeChart;
+  let zabbixCard;
 
   $: greeting = getGreeting();
   $: username = $settings.username || 'Utilisateur';
@@ -89,6 +91,7 @@
     if (sysMonCard?.refresh) sysMonCard.refresh();
     if (activityCard?.refresh) activityCard.refresh();
     if (gaugeChart?.refresh) gaugeChart.refresh();
+    if (zabbixCard?.refresh) zabbixCard.refresh();
     success('Donn\u00e9es actualis\u00e9es');
   }
 
@@ -340,9 +343,9 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 4: Systeme (col-6) + Completion du mois (col-6) ═══ -->
+  <!-- ═══ ROW 4: Systeme (col-4) + Zabbix (col-4) + Completion (col-4) ═══ -->
   <div class="row">
-    <div class="col-6">
+    <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Systeme</h4>
@@ -352,7 +355,17 @@
         </div>
       </div>
     </div>
-    <div class="col-6">
+    <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Monitoring</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <ZabbixCard bind:this={zabbixCard} />
+        </div>
+      </div>
+    </div>
+    <div class="col-4">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Completion du mois</h4>

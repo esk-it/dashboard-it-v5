@@ -14,7 +14,8 @@
 
   // Config dialog
   let showConfigDialog = false;
-  let configForm = { url: '', api_token: '' };
+  let configForm = { url: '', api_token: '', username: '', password: '' };
+  let authMode = 'token'; // 'token' | 'login'
   let savingConfig = false;
 
   // Tabs
@@ -80,14 +81,27 @@
   function openConfig() {
     configForm = {
       url: config.configured ? config.url : '',
-      api_token: '',
+      api_token: '', username: '', password: '',
     };
+    authMode = config.auth_mode || 'token';
+    if (config.configured && config.username) {
+      configForm.username = config.username;
+      authMode = 'login';
+    }
     showConfigDialog = true;
   }
 
   async function saveMonitoringConfig() {
-    if (!configForm.url || !configForm.api_token) {
-      toastError('Remplissez les deux champs');
+    if (!configForm.url) {
+      toastError('URL requise');
+      return;
+    }
+    if (authMode === 'token' && !configForm.api_token) {
+      toastError('API Token requis');
+      return;
+    }
+    if (authMode === 'login' && (!configForm.username || !configForm.password)) {
+      toastError('Login et mot de passe requis');
       return;
     }
     savingConfig = true;
@@ -292,18 +306,33 @@
     </div>
     <div class="ya-dialog__body">
       <p class="config-help">
-        Entrez l'URL de votre serveur Zabbix et un API token.<br>
-        <small>Le token se crée dans Zabbix → Administration → API tokens.</small>
+        Entrez l'URL de votre serveur Zabbix et choisissez le mode d'authentification.
       </p>
       <label>
         URL du serveur
         <input type="text" bind:value={configForm.url} placeholder="https://zabbix.example.com" />
       </label>
-      <label>
-        API Token
-        <input type="password" bind:value={configForm.api_token}
-               placeholder={config.configured ? 'Laisser vide pour ne pas changer' : 'votre-api-token'} />
-      </label>
+      <div class="auth-mode-toggle">
+        <button class="auth-mode-btn" class:active={authMode === 'token'} on:click={() => authMode = 'token'}>API Token</button>
+        <button class="auth-mode-btn" class:active={authMode === 'login'} on:click={() => authMode = 'login'}>Login / Password</button>
+      </div>
+      {#if authMode === 'token'}
+        <label>
+          API Token
+          <input type="password" bind:value={configForm.api_token}
+                 placeholder={config.configured ? 'Laisser vide pour ne pas changer' : 'votre-api-token'} />
+          <small style="color:var(--text-muted)">Administration → API tokens dans Zabbix</small>
+        </label>
+      {:else}
+        <label>
+          Nom d'utilisateur
+          <input type="text" bind:value={configForm.username} placeholder="Admin" />
+        </label>
+        <label>
+          Mot de passe
+          <input type="password" bind:value={configForm.password} placeholder="********" />
+        </label>
+      {/if}
     </div>
     <div class="ya-dialog__footer">
       {#if config.configured}
@@ -363,6 +392,17 @@
   /* ── Dialog form ───────────────────────────────────────── */
   .config-help { font-size: 0.8125rem; color: var(--text-secondary); margin: 0 0 1rem; }
   .config-help small { color: var(--text-muted); }
+
+  .auth-mode-toggle {
+    display: flex; border: 1px solid var(--border-card); border-radius: 0.5rem;
+    overflow: hidden; margin-bottom: 0.75rem;
+  }
+  .auth-mode-btn {
+    flex: 1; padding: 0.5rem; background: none; border: none;
+    color: var(--text-muted); font-size: 0.8125rem; font-weight: 600;
+    cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .auth-mode-btn.active { background: var(--accent); color: #fff; }
 
   label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.75rem; }
   input {
