@@ -340,9 +340,9 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 4: Systeme (col-4) + Activite (col-4) + Completion (col-4) ═══ -->
+  <!-- ═══ ROW 4: Systeme (col-6) + Completion du mois (col-6) ═══ -->
   <div class="row">
-    <div class="col-4">
+    <div class="col-6">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Systeme</h4>
@@ -352,23 +352,27 @@
         </div>
       </div>
     </div>
-    <div class="col-4">
-      <div class="w-card">
-        <div class="w-card__header">
-          <h4 class="w-card__title">Activite recente</h4>
-        </div>
-        <div class="w-card__body w-card__body--flush">
-          <ActivityCard bind:this={activityCard} />
-        </div>
-      </div>
-    </div>
-    <div class="col-4">
+    <div class="col-6">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Completion du mois</h4>
         </div>
         <div class="w-card__body" style="display:flex;justify-content:center;">
           <GaugeChart bind:this={gaugeChart} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 5: Activite recente (col-12) ═══ -->
+  <div class="row">
+    <div class="col-12">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Activite recente</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <ActivityCard bind:this={activityCard} />
         </div>
       </div>
     </div>
