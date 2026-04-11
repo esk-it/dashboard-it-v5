@@ -664,6 +664,10 @@ input[type="datetime-local"] {
   background: var(--bg-hover);
 }
 
+.ya-table tbody tr.row-selected {
+  background: rgba(var(--primary-rgb, 99, 102, 241), 0.08);
+}
+
 .ya-table tbody td {
   padding: 0.625rem 1rem;
   font-size: 0.8125rem;

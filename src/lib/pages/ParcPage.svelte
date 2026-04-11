@@ -45,6 +45,26 @@
   let confirmDelete = null;
   let deleting = false;
 
+  // Row selection
+  let selectedEquipIds = new Set();
+  $: selectAllChecked = filteredEquipment.length > 0 && filteredEquipment.every(e => selectedEquipIds.has(e.id));
+
+  function toggleSelectEquip(id) {
+    if (selectedEquipIds.has(id)) selectedEquipIds.delete(id);
+    else selectedEquipIds.add(id);
+    selectedEquipIds = selectedEquipIds;
+  }
+
+  function toggleSelectAllEquip() {
+    if (selectAllChecked) {
+      selectedEquipIds = new Set();
+    } else {
+      selectedEquipIds = new Set(filteredEquipment.map(e => e.id));
+    }
+  }
+
+  $: selectedEquipment = equipment.filter(e => selectedEquipIds.has(e.id));
+
   // GLPI integration
   let glpiConfig = null;
   let glpiSyncing = false;
@@ -182,9 +202,9 @@
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (!path) return; // user cancelled
-      const { writeBinaryFile } = await import('@tauri-apps/plugin-fs');
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
       const pdfBytes = doc.output('arraybuffer');
-      await writeBinaryFile(path, new Uint8Array(pdfBytes));
+      await writeFile(path, new Uint8Array(pdfBytes));
       success(`PDF enregistr\u00e9 : ${path.split(/[\\/]/).pop()}`);
     } catch {
       // Fallback: browser download (dev mode or if Tauri dialog unavailable)
@@ -216,11 +236,12 @@
     const { default: jsPDF } = await import('jspdf');
     await import('jspdf-autotable');
     const doc = new jsPDF('landscape');
+    const items = selectedEquipment.length > 0 ? selectedEquipment : filteredEquipment;
     const startY = addPdfHeader(doc, 'Inventaire du Parc Informatique',
-      `Export\u00e9 le ${new Date().toLocaleDateString('fr-FR')} \u2014 ${filteredEquipment.length} \u00e9quipements`);
+      `Export\u00e9 le ${new Date().toLocaleDateString('fr-FR')} \u2014 ${items.length} \u00e9quipements`);
 
     const headers = [['Hostname', 'Type', 'OS', 'N\u00b0 S\u00e9rie', 'Marque/Mod\u00e8le', 'Site', 'B\u00e2timent', 'Salle', 'Source', 'Utilisateur']];
-    const rows = filteredEquipment.map(e => [
+    const rows = items.map(e => [
       e.hostname, e.equip_type, e.os, e.serial_number,
       [e.brand, e.model].filter(Boolean).join(' '),
       e.site_name || '', e.building_name || '', e.room_name || '',
@@ -256,7 +277,8 @@
   let qrGenerating = false;
 
   function openQrLabels() {
-    qrEquipments = filteredEquipment.slice(0, 50);
+    // Use selected items if any, otherwise filtered items
+    qrEquipments = selectedEquipment.length > 0 ? selectedEquipment.slice(0, 50) : filteredEquipment.slice(0, 50);
     showQrDialog = true;
   }
 
@@ -464,11 +486,11 @@
           <span class="sync-info">Dernière sync : {new Date(glpiStats.last_sync).toLocaleString('fr-FR')}</span>
         {/if}
       {/if}
-      <button class="ya-btn ya-btn--ghost" on:click={exportInventoryPdf} title="Exporter l'inventaire en PDF">
-        {'\u{1F4C4}'} PDF
+      <button class="ya-btn ya-btn--ghost" on:click={exportInventoryPdf} title="Exporter en PDF">
+        {'\u{1F4C4}'} Export PDF{selectedEquipIds.size > 0 ? ` (${selectedEquipIds.size})` : ''}
       </button>
-      <button class="ya-btn ya-btn--ghost" on:click={openQrLabels} title="{'\u00C9'}tiquettes QR">
-        {'\u{1F3F7}\uFE0F'} QR Labels
+      <button class="ya-btn ya-btn--ghost" on:click={openQrLabels} title="Generer des etiquettes QR">
+        {'\u{1F3F7}\uFE0F'} Etiquettes QR{selectedEquipIds.size > 0 ? ` (${selectedEquipIds.size})` : ''}
       </button>
       <button class="ya-btn ya-btn--primary" on:click={openNew}>+ Ajouter</button>
     </div>
@@ -593,6 +615,7 @@
             <table class="ya-table">
               <thead>
                 <tr>
+                  <th style="width:40px"><input type="checkbox" checked={selectAllChecked} on:change={toggleSelectAllEquip} /></th>
                   <th>Hostname</th>
                   <th>Type</th>
                   <th>OS</th>
@@ -606,7 +629,8 @@
               </thead>
               <tbody>
                 {#each filteredEquipment as eq}
-                  <tr>
+                  <tr class:row-selected={selectedEquipIds.has(eq.id)}>
+                    <td><input type="checkbox" checked={selectedEquipIds.has(eq.id)} on:change={() => toggleSelectEquip(eq.id)} /></td>
                     <td class="hostname">{eq.hostname}</td>
                     <td><span class="ya-badge ya-badge--primary">{eq.equip_type}</span></td>
                     <td class="os-cell">{eq.os}</td>
@@ -630,7 +654,7 @@
                   </tr>
                 {/each}
                 {#if filteredEquipment.length === 0}
-                  <tr><td colspan="9" class="empty-row">Aucun équipement trouvé</td></tr>
+                  <tr><td colspan="10" class="empty-row">Aucun équipement trouvé</td></tr>
                 {/if}
               </tbody>
             </table>
