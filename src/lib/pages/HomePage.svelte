@@ -10,7 +10,6 @@
   import ActiveProjectsCard from '../components/cards/ActiveProjectsCard.svelte';
   import SysMonCard from '../components/cards/SysMonCard.svelte';
   import ActivityCard from '../components/cards/ActivityCard.svelte';
-  import QuickLinksCard from '../components/cards/QuickLinksCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
@@ -97,15 +96,27 @@
     currentPage.set('/tasks');
   }
 
-  onMount(() => {
+  onMount(async () => {
     updateClock();
     clockTimer = setInterval(updateClock, 1000);
-    fetchKpis();
+    await fetchKpis();
     loadWeather();
+
+    // Delayed refresh to ensure child components have mounted and backend is ready
+    setTimeout(() => {
+      if (sparklineChart?.refresh) sparklineChart.refresh();
+      if (donutChart?.refresh) donutChart.refresh();
+      if (eventsCard?.refresh) eventsCard.refresh();
+      if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
+      if (activityCard?.refresh) activityCard.refresh();
+      if (gaugeChart?.refresh) gaugeChart.refresh();
+    }, 500);
 
     const mins = $settings.auto_refresh_minutes || 5;
     refreshTimer = setInterval(() => {
       fetchKpis();
+      if (sparklineChart?.refresh) sparklineChart.refresh();
+      if (activityCard?.refresh) activityCard.refresh();
     }, mins * 60 * 1000);
   });
 
@@ -255,45 +266,7 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 2: Sub-cards (Cette semaine + Documents) ═══ -->
-  <div class="row row--sub">
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/tasks')}>
-      <div class="ya-card__body">
-        <span class="ya-card__label">Cette semaine</span>
-        <span class="ya-card__value ya-card__value--md">{kpiWeek}</span>
-        <div class="ya-progress">
-          <div class="ya-progress__bar">
-            <div class="ya-progress__fill" style="width: {kpiWeekPercent}%"></div>
-          </div>
-          <span class="ya-progress__text">Completees {kpiWeek}/{kpiWeekTotal}</span>
-        </div>
-      </div>
-    </div>
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="col-3 ya-card ya-card--flat" on:click={() => currentPage.set('/documents')}>
-      <div class="ya-card__body">
-        <span class="ya-card__label">Documents</span>
-        <span class="ya-card__value ya-card__value--md">{kpiDocs}</span>
-        <div class="ya-sparkline-inline">
-          <svg viewBox="0 0 140 36" class="ya-sparkline-svg" preserveAspectRatio="none">
-            <defs>
-              <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.3" />
-                <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M0,28 Q10,26 20,24 T40,18 T60,22 T80,14 T100,10 T120,16 T140,8 L140,36 L0,36 Z" fill="url(#sparkGrad)" />
-            <path d="M0,28 Q10,26 20,24 T40,18 T60,22 T80,14 T100,10 T120,16 T140,8" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" />
-          </svg>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ ROW 3: Projects Overview (col-8) + Events (col-4) ═══ -->
+  <!-- ═══ ROW 2: Projects Overview (col-8) + Events (col-4) ═══ -->
   <div class="row">
     <div class="col-8">
       <div class="w-card">
@@ -338,7 +311,7 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 4: Active Projects (col-8) + Donut (col-4) ═══ -->
+  <!-- ═══ ROW 3: Active Projects (col-8) + Donut (col-4) ═══ -->
   <div class="row">
     <div class="col-8">
       <div class="w-card">
@@ -367,7 +340,7 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 5: Systeme (col-4) + Activite (col-4) + Completion (col-4) ═══ -->
+  <!-- ═══ ROW 4: Systeme (col-4) + Activite (col-4) + Completion (col-4) ═══ -->
   <div class="row">
     <div class="col-4">
       <div class="w-card">
@@ -401,19 +374,6 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 6: Acces rapides (full width) ═══ -->
-  <div class="row">
-    <div class="col-12">
-      <div class="w-card">
-        <div class="w-card__header">
-          <h4 class="w-card__title">Acces rapides</h4>
-        </div>
-        <div class="w-card__body w-card__body--flush">
-          <QuickLinksCard />
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 
 <style>
