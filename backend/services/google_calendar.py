@@ -414,6 +414,9 @@ async def sync_bidirectional(db) -> dict:
     sync_token = cfg.get("sync_token")
     stats = {"imported": 0, "exported": 0, "updated": 0, "deleted": 0}
 
+    # ── 0. Cleanup stale "Working Location" events from cache ──
+    await db.execute("DELETE FROM planning_events WHERE title IN ('Bureau', 'Office', 'Working from office', 'Working from home', 'Domicile') AND google_event_id IS NOT NULL AND google_event_id != ''")
+
     # ── 1. Fetch Google changes ──
     if sync_token:
         result = await list_events(sync_token=sync_token)
@@ -444,6 +447,10 @@ async def sync_bidirectional(db) -> dict:
 
         # Skip recurring event masters (only sync single instances)
         if g_evt.get("recurrence"):
+            continue
+
+        # Skip Google Workspace "Working Location" events (Bureau, etc.)
+        if g_evt.get("eventType") == "workingLocation":
             continue
 
         itm_data = google_to_itm(g_evt)

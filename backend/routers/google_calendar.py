@@ -138,6 +138,9 @@ async def get_calendar_events(
             for item in result.get("items", []):
                 if item.get("status") == "cancelled" or item.get("recurrence"):
                     continue
+                # Skip Google Workspace "Working Location" events (Bureau, etc.)
+                if item.get("eventType") == "workingLocation":
+                    continue
                 evt = gcal.google_to_itm(item)
                 evt["_calendar_id"] = cal_id
                 evt["_calendar_name"] = cal_info.get("summary", cal_id)
