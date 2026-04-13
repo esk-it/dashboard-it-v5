@@ -156,12 +156,12 @@
 
 /* Light text — only for content-body area, NOT sidebar.
    Excludes elements with inline style (badges, KPI colors, etc.) and specific components */
-[data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count):not(.fc-event):not(.fc-event *):not(.gcal-cal__check):not(.gcal-cal__check *) {
+[data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count):not(.ya-kpi__value):not(.fc-event):not(.fc-event *):not(.gcal-cal__check):not(.gcal-cal__check *) {
   color: var(--text-primary);
 }
 
 [data-theme="glass-light"] .content-body p:not([style*="color"]),
-[data-theme="glass-light"] .content-body span:not(.tab.active span):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count),
+[data-theme="glass-light"] .content-body span:not(.tab.active span):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count):not(.ya-kpi__value),
 [data-theme="glass-light"] .content-body label,
 [data-theme="glass-light"] .content-body li,
 [data-theme="glass-light"] .content-body td:not([style*="color"]),
@@ -576,12 +576,12 @@ input[type="datetime-local"] {
   font-weight: 500;
 }
 
-.ya-kpi--primary .ya-kpi__value { color: var(--primary); }
-.ya-kpi--success .ya-kpi__value { color: var(--success); }
-.ya-kpi--danger .ya-kpi__value { color: var(--danger); }
-.ya-kpi--warning .ya-kpi__value { color: var(--warning); }
-.ya-kpi--info .ya-kpi__value { color: var(--info); }
-.ya-kpi--secondary .ya-kpi__value { color: var(--secondary); }
+.ya-kpi--primary .ya-kpi__value { color: var(--primary) !important; }
+.ya-kpi--success .ya-kpi__value { color: var(--success) !important; }
+.ya-kpi--danger .ya-kpi__value { color: var(--danger) !important; }
+.ya-kpi--warning .ya-kpi__value { color: var(--warning) !important; }
+.ya-kpi--info .ya-kpi__value { color: var(--info) !important; }
+.ya-kpi--secondary .ya-kpi__value { color: var(--secondary) !important; }
 
 /* ── Icon Box ── */
 .ya-icon-box {
