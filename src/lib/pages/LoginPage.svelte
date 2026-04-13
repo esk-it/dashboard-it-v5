@@ -2,6 +2,7 @@
   import { currentPage } from '../stores/navigation.js';
   import { login } from '../stores/auth.js';
   import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-svelte';
+  import logoUrl from '../../assets/logo.png';
 
   let username = '';
   let password = '';
@@ -9,6 +10,7 @@
   let rememberMe = false;
   let error = '';
   let loading = false;
+  let showForgotInfo = false;
 
   async function handleSubmit() {
     error = '';
@@ -28,8 +30,8 @@
   <div class="auth-left">
     <div class="auth-form-wrapper">
       <div class="auth-logo">
-        <div class="logo-icon">IT</div>
-        <span class="logo-label">Manager</span>
+        <img src={logoUrl} alt="ITManager" class="logo-img" />
+        <span class="logo-label">ITManager Dashboard</span>
       </div>
 
       <h1 class="auth-title">Bienvenue !</h1>
@@ -85,7 +87,15 @@
             <span class="checkmark"></span>
             Se souvenir de moi
           </label>
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <span class="forgot-link" on:click={() => showForgotInfo = !showForgotInfo}>Mot de passe oublie ?</span>
         </div>
+        {#if showForgotInfo}
+          <div class="forgot-info">
+            Contactez un administrateur pour reinitialiser votre mot de passe, ou supprimez le fichier <code>dashboard.db</code> pour repartir de zero (identifiants par defaut : admin / admin123).
+          </div>
+        {/if}
 
         <button type="submit" class="auth-btn" disabled={loading}>
           {#if loading}
@@ -104,7 +114,7 @@
         <span on:click={() => currentPage.set('/register')}>Creer un compte</span>
       </p>
 
-      <p class="auth-hint">Compte par defaut : admin / admin123</p>
+      <p class="auth-hint">Premiere installation ? Identifiant : admin / admin123</p>
     </div>
   </div>
 
@@ -179,8 +189,15 @@
     font-weight: 700;
   }
 
+  .logo-img {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    object-fit: contain;
+  }
+
   .logo-label {
-    font-size: 22px;
+    font-size: 20px;
     font-weight: 700;
     color: var(--text-heading, #1e1e2d);
   }
@@ -353,6 +370,31 @@
 
   .auth-link span:hover {
     text-decoration: underline;
+  }
+
+  .forgot-link {
+    font-size: 0.8125rem;
+    color: var(--primary, #452B90);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .forgot-link:hover { text-decoration: underline; }
+
+  .forgot-info {
+    background: rgba(69,43,144,0.06);
+    border: 1px solid rgba(69,43,144,0.15);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-muted, #a2a5b9);
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+  }
+  .forgot-info code {
+    background: rgba(0,0,0,0.08);
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-size: 0.7rem;
   }
 
   .auth-hint {

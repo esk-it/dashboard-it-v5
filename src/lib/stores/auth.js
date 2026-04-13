@@ -30,7 +30,11 @@ export async function login(username, password) {
   token.set(data.access_token);
   refreshToken.set(data.refresh_token);
   currentUser.set(data.user);
-  currentPage.set('/');
+  if (data.must_change_password) {
+    currentPage.set('/change-password');
+  } else {
+    currentPage.set('/');
+  }
   return data;
 }
 

@@ -141,9 +141,13 @@ async def login(body: LoginRequest, db=Depends(get_raw_db)):
     access_token = _create_token(user["id"], user["username"], user["role"], ttl=86400 * 30)
     refresh_token = _create_token(user["id"], user["username"], user["role"], ttl=86400 * 90)
 
+    # Detect default password — force change on first login
+    must_change = body.password == "admin123"
+
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
+        "must_change_password": must_change,
         "user": user,
     }
 
@@ -289,5 +293,22 @@ async def delete_user(user_id: int, db=Depends(get_raw_db)):
         raise HTTPException(400, "Impossible de supprimer le dernier administrateur")
 
     await db.execute("DELETE FROM users WHERE id=?", (user_id,))
+    await db.commit()
+    return {"ok": True}
+
+
+class ChangePasswordRequest(BaseModel):
+    user_id: int
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(body: ChangePasswordRequest, db=Depends(get_raw_db)):
+    if not body.new_password or len(body.new_password) < 4:
+        raise HTTPException(400, "Le mot de passe doit contenir au moins 4 caracteres")
+    if body.new_password == "admin123":
+        raise HTTPException(400, "Choisissez un mot de passe different du mot de passe par defaut")
+    pw_hash = _hash_password(body.new_password)
+    await db.execute("UPDATE users SET password_hash=? WHERE id=?", (pw_hash, body.user_id))
     await db.commit()
     return {"ok": True}

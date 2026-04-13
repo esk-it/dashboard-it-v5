@@ -11,6 +11,7 @@
   import QuickCreate from './lib/components/QuickCreate.svelte';
   import LoginPage from './lib/pages/LoginPage.svelte';
   import LockScreenPage from './lib/pages/LockScreenPage.svelte';
+  import ChangePasswordPage from './lib/pages/ChangePasswordPage.svelte';
   import HomePage from './lib/pages/HomePage.svelte';
   import PlaceholderPage from './lib/pages/PlaceholderPage.svelte';
   import PlanningPage from './lib/pages/PlanningPage.svelte';
@@ -75,6 +76,8 @@
 {#if splashDone}
   {#if $currentPage === '/login'}
     <LoginPage />
+  {:else if $currentPage === '/change-password'}
+    <ChangePasswordPage />
   {:else if $currentPage === '/lock'}
     <LockScreenPage />
   {:else}

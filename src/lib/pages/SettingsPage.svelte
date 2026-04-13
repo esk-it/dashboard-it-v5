@@ -5,18 +5,9 @@
 
   let activePanel = 0;
 
-  // Theme settings
-  let theme = { theme: 'glass', accent: '#06A6C9' };
-
   // General settings
   let general = {
     username: '',
-    auto_refresh_minutes: 5,
-    max_home_tasks: 10,
-    language: 'fr',
-    enabled_modules: {},
-    card_order: [],
-    card_layout: [],
     show_alert_ws: true,
     show_alert_warranty: true,
   };
@@ -131,59 +122,6 @@
   let saved = false;
   let saveTimer = null;
 
-  // Card layout editor
-  const allCards = [
-    { key: 'tasks', label: 'T\u00e2ches', emoji: '\u2705' },
-    { key: 'planning', label: 'Planning', emoji: '\u{1F4C5}' },
-    { key: 'documents', label: 'Documents', emoji: '\u{1F4C1}' },
-    { key: 'security', label: 'S\u00e9curit\u00e9', emoji: '\u{1F6E1}\uFE0F' },
-    { key: 'suppliers', label: 'Prestataires', emoji: '\u{1F4C7}' },
-    { key: 'parc', label: 'Parc', emoji: '\u{1F5A5}\uFE0F' },
-    { key: 'news', label: 'Actualit\u00e9s', emoji: '\u{1F310}' },
-  ];
-
-  const accentPresets = [
-    { name: 'Cyan', color: '#06A6C9' },
-    { name: 'Bleu', color: '#3B82F6' },
-    { name: 'Violet', color: '#8B5CF6' },
-    { name: 'Rose', color: '#EC4899' },
-    { name: 'Rouge', color: '#EF4444' },
-    { name: 'Orange', color: '#F59E0B' },
-    { name: 'Vert', color: '#10B981' },
-    { name: 'Emeraude', color: '#059669' },
-  ];
-
-
-  // Emoji picker for module icons
-  let iconPickerOpen = null; // key of module currently being edited
-  const emojiCategories = [
-    { label: 'IT / Tech', emojis: ['\u{1F4BB}', '\u{1F5A5}\uFE0F', '\u2328\uFE0F', '\u{1F5A8}\uFE0F', '\u{1F4F1}', '\u{1F4E1}', '\u{1F50C}', '\u{1F50B}', '\u{1F4BD}', '\u{1F4BE}', '\u{1F4BF}', '\u{1F4C0}', '\u{1F527}', '\u{1F529}', '\u2699\uFE0F', '\u{1F6E0}\uFE0F'] },
-    { label: 'Sécurité', emojis: ['\u{1F6E1}\uFE0F', '\u{1F512}', '\u{1F513}', '\u{1F510}', '\u{1F511}', '\u{1F6A8}', '\u26A0\uFE0F', '\u{1F6AB}', '\u2705', '\u274C', '\u{1F440}', '\u{1F575}\uFE0F'] },
-    { label: 'Bureau', emojis: ['\u{1F4C1}', '\u{1F4C2}', '\u{1F4C4}', '\u{1F4CB}', '\u{1F4CA}', '\u{1F4C8}', '\u{1F4C9}', '\u{1F4C5}', '\u{1F4C6}', '\u{1F4C7}', '\u{1F4D6}', '\u{1F4DD}', '\u270F\uFE0F', '\u{1F4CE}', '\u{1F4CC}', '\u{1F4CD}'] },
-    { label: 'Communication', emojis: ['\u{1F4E7}', '\u{1F4E8}', '\u{1F4E9}', '\u{1F4EC}', '\u{1F4E2}', '\u{1F514}', '\u{1F4AC}', '\u{1F4AD}', '\u260E\uFE0F', '\u{1F4DE}'] },
-    { label: 'Réseau / Cloud', emojis: ['\u{1F310}', '\u2601\uFE0F', '\u{1F5C4}\uFE0F', '\u{1F4E1}', '\u{1F4F6}', '\u{1F300}', '\u26A1', '\u{1F680}', '\u{1F6F0}\uFE0F', '\u{1F4E6}'] },
-    { label: 'Divers', emojis: ['\u{1F3E2}', '\u{1F464}', '\u{1F465}', '\u2B50', '\u{1F4A1}', '\u{1F3AF}', '\u{1F525}', '\u2764\uFE0F', '\u{1F4B0}', '\u{1F3C6}', '\u{1F6A9}', '\u{1F3F7}\uFE0F'] },
-  ];
-
-  function selectModuleIcon(key, emoji) {
-    setModuleIcon(key, emoji);
-    iconPickerOpen = null;
-  }
-
-  const moduleList = [
-    { key: 'news', label: 'Actualit\u00e9s', emoji: '\u{1F310}' },
-    { key: 'planning', label: 'Planning', emoji: '\u{1F4C5}' },
-    { key: 'tasks', label: 'T\u00e2ches', emoji: '\u2705' },
-    { key: 'documents', label: 'Documents', emoji: '\u{1F4C1}' },
-    { key: 'suppliers', label: 'Prestataires', emoji: '\u{1F4C7}' },
-    { key: 'parc', label: 'Parc', emoji: '\u{1F5A5}\uFE0F' },
-    { key: 'security', label: 'S\u00e9curit\u00e9', emoji: '\u{1F6E1}\uFE0F' },
-    { key: 'wiki', label: 'Proc\u00e9dures', emoji: '\u{1F4D6}' },
-    { key: 'changelog', label: 'Changelog', emoji: '\u{1F4CB}' },
-    { key: 'monitoring', label: 'Monitoring', emoji: '\u{1F4CA}' },
-    { key: 'tools', label: 'Outils', emoji: '\u{1F527}' },
-  ];
-
   const feedCategories = ['S\u00e9curit\u00e9', 'Tech', 'Infra', 'Autre'];
 
   const panels = [
@@ -195,17 +133,8 @@
   ];
 
   onMount(async () => {
-    await Promise.all([loadTheme(), loadGeneral(), loadFeeds(), loadAutoBackup()]);
+    await Promise.all([loadGeneral(), loadFeeds(), loadAutoBackup()]);
   });
-
-  async function loadTheme() {
-    try {
-      const res = await fetch(`${API}/theme`);
-      theme = await res.json();
-      // Do NOT re-apply theme on load — just read the saved value
-      // The theme is already applied by stores/settings.js at startup
-    } catch(e) {}
-  }
 
   async function loadGeneral() {
     try {
@@ -251,16 +180,6 @@
     showSaved();
   }
 
-  async function saveTheme() {
-    await fetch(`${API}/theme`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(theme),
-    });
-    showSaved();
-    document.documentElement.style.setProperty('--accent', theme.accent);
-  }
-
   async function saveGeneral() {
     await fetch(`${API}/general`, {
       method: 'PUT',
@@ -274,40 +193,6 @@
     saved = true;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => { saved = false; }, 2000);
-  }
-
-  function toggleModule(key) {
-    general.enabled_modules = {
-      ...general.enabled_modules,
-      [key]: !general.enabled_modules[key],
-    };
-    saveGeneral();
-  }
-
-  function setAccent(color) { theme.accent = color; saveTheme(); }
-
-  function applyTheme(themeName, save = true) {
-    const root = document.documentElement;
-    if (themeName === 'glass-light') {
-      root.setAttribute('data-theme', 'glass-light');
-      root.style.colorScheme = 'light';
-      document.body.style.background = '#E8ECF2';
-    } else {
-      root.removeAttribute('data-theme');
-      root.style.colorScheme = 'dark';
-      document.body.style.background = '#070B14';
-    }
-    // Reset inline overrides — let CSS variables from app.css handle it
-    const varProps = ['--bg-base','--bg-card','--bg-card-solid','--bg-sidebar','--bg-hover',
-      '--border-subtle','--border-hover','--text-primary','--text-secondary','--text-muted'];
-    varProps.forEach(p => root.style.removeProperty(p));
-    if (save) saveTheme();
-  }
-
-  function setModuleIcon(key, icon) {
-    if (!general.module_icons) general.module_icons = {};
-    general.module_icons[key] = icon || undefined;
-    saveGeneral();
   }
 
   // ── RSS Feeds ─────────────────────────────────────────
@@ -403,11 +288,11 @@
       });
       const data = await res.json();
       if (data.ok) {
-        showResetConfirm = false;
-        resetConfirmText = '';
-        await Promise.all([loadTheme(), loadGeneral(), loadFeeds()]);
+        // Full reload to reflect clean state
+        window.location.reload();
+        return;
       }
-    } catch(e) {}
+    } catch(e) { console.error('Reset failed:', e); }
     resetting = false;
   }
 
@@ -591,33 +476,6 @@
   $: if (activePanel === 2) loadDbInfo();
   $: if (activePanel === 4) loadBackups();
 
-  // Card layout helpers
-  function moveCardUp(idx) {
-    if (idx <= 0) return;
-    const layout = [...(general.card_layout.length ? general.card_layout : allCards.map(c => ({ key: c.key, visible: true })))];
-    [layout[idx], layout[idx-1]] = [layout[idx-1], layout[idx]];
-    general.card_layout = layout;
-    saveGeneral();
-  }
-
-  function moveCardDown(idx) {
-    const layout = general.card_layout.length ? [...general.card_layout] : allCards.map(c => ({ key: c.key, visible: true }));
-    if (idx >= layout.length - 1) return;
-    [layout[idx], layout[idx+1]] = [layout[idx+1], layout[idx]];
-    general.card_layout = layout;
-    saveGeneral();
-  }
-
-  function toggleCardVisible(idx) {
-    const layout = general.card_layout.length ? [...general.card_layout] : allCards.map(c => ({ key: c.key, visible: true }));
-    layout[idx] = { ...layout[idx], visible: !layout[idx].visible };
-    general.card_layout = layout;
-    saveGeneral();
-  }
-
-  $: cardLayout = general.card_layout && general.card_layout.length
-    ? general.card_layout
-    : allCards.map(c => ({ key: c.key, visible: true }));
 </script>
 
 <div class="settings-page">
@@ -1066,9 +924,11 @@
                   <button class="btn-danger" disabled={resetConfirmText !== 'PURGER' || resetting} on:click={async () => {
                     resetting = true;
                     try {
-                      await fetch(`${API}/reset-data`, { method: 'POST' });
-                      showResetConfirm = false;
-                      resetConfirmText = '';
+                      await fetch(`${API}/reset-data`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ confirmation: 'RESET' }),
+                      });
                       window.location.reload();
                     } catch (e) { console.error(e); }
                     resetting = false;

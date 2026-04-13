@@ -197,20 +197,27 @@
   async function savePdfWithDialog(doc, defaultName) {
     try {
       const { save } = await import('@tauri-apps/plugin-dialog');
+      // Use Documents folder as default directory
+      let defaultPath = defaultName;
+      try {
+        const { documentDir, join } = await import('@tauri-apps/api/path');
+        const docsDir = await documentDir();
+        defaultPath = await join(docsDir, defaultName);
+      } catch { /* keep just filename if path API unavailable */ }
+
       const path = await save({
-        defaultPath: defaultName,
+        defaultPath,
         filters: [{ name: 'PDF', extensions: ['pdf'] }],
       });
       if (!path) return; // user cancelled
       const { writeFile } = await import('@tauri-apps/plugin-fs');
       const pdfBytes = doc.output('arraybuffer');
       await writeFile(path, new Uint8Array(pdfBytes));
-      success(`PDF enregistr\u00e9 : ${path.split(/[\\/]/).pop()}`);
+      success(`PDF enregistre : ${path.split(/[\\/]/).pop()}`);
     } catch (e) {
       console.error('Tauri PDF save failed, using browser fallback:', e);
-      // Fallback: browser download (dev mode or if Tauri dialog unavailable)
       doc.save(defaultName);
-      success('PDF export\u00e9');
+      success('PDF exporte');
     }
   }
 
