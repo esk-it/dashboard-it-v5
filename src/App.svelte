@@ -45,9 +45,9 @@
 
   onMount(async () => {
     loadSettings();
-    // Check if user is authenticated, redirect to login if not
-    const authed = await checkAuth();
-    if (!authed) currentPage.set('/login');
+    // Always require login on app startup (security: no auto-login)
+    logout();
+    currentPage.set('/login');
 
     function handleKeydown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
