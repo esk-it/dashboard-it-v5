@@ -146,21 +146,39 @@ async def fetch_hosts(cfg: dict) -> list[dict]:
     return await _api_call(cfg, "host.get", {
         "output": ["hostid", "host", "name", "status", "description"],
         "selectInterfaces": ["ip"],
-        "selectGroups": ["name"],
+        "selectHostGroups": ["name"],  # Zabbix 7+: selectGroups → selectHostGroups
         "sortfield": "name",
     })
 
 
 async def fetch_problems(cfg: dict) -> list[dict]:
-    """Fetch current active problems (triggers in problem state)."""
-    return await _api_call(cfg, "problem.get", {
-        "output": ["eventid", "name", "severity", "clock", "acknowledged"],
+    """Fetch current active problems with host names via triggers."""
+    # Zabbix 7 removed selectHosts from problem.get
+    # Use trigger.get with "only_true" to get active problems + host info
+    triggers = await _api_call(cfg, "trigger.get", {
+        "output": ["triggerid", "description", "priority"],
         "selectHosts": ["name"],
-        "recent": True,
-        "sortfield": ["eventid"],
+        "only_true": True,
+        "active": True,
+        "monitored": True,
+        "skipDependent": True,
+        "sortfield": "lastchange",
         "sortorder": "DESC",
         "limit": 200,
     })
+    # Convert trigger format to problem-like format for compatibility
+    problems = []
+    for t in triggers:
+        hosts = t.get("hosts") or []
+        problems.append({
+            "eventid": t.get("triggerid", ""),
+            "name": t.get("description", ""),
+            "severity": t.get("priority", "0"),
+            "clock": t.get("lastchange", ""),
+            "acknowledged": "0",
+            "hosts": hosts,
+        })
+    return problems
 
 
 # ── Cache ─────────────────────────────────────────────────────

@@ -598,8 +598,7 @@
   .header-actions { display: flex; gap: 10px; align-items: center; }
   .sync-info { font-size: 0.8rem; color: rgba(255,255,255,0.4); margin: 0 0 12px; }
 
-  /* Stats now use global ya-kpi classes */
-  .has-alerts { border-color: #F59E0B; background: rgba(245,158,11,0.08); }
+  /* Stats: color handled by ya-kpi--warning/danger, no background needed */
 
   /* ── Empty state ────────────────────────────────────────── */
   .empty-state {

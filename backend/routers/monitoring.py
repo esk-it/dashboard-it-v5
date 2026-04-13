@@ -80,7 +80,7 @@ def _normalize_host(raw: dict) -> dict:
     """Map raw Zabbix host to our schema."""
     interfaces = raw.get("interfaces") or []
     ip = interfaces[0].get("ip", "") if interfaces else ""
-    groups = [g.get("name", "") for g in (raw.get("groups") or [])]
+    groups = [g.get("name", "") for g in (raw.get("hostgroups") or raw.get("groups") or [])]
 
     # status: 0 = enabled, 1 = disabled
     status = "enabled" if str(raw.get("status")) == "0" else "disabled"
