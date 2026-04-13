@@ -14,17 +14,17 @@ class MonitoringConfig(BaseModel):
 class MonitoringConfigResponse(BaseModel):
     configured: bool = False
     url: str = ""
-    api_token: str = ""  # masked
-    auth_mode: str = "token"  # "token" or "login"
+    api_token: str = ""
+    auth_mode: str = "token"
     username: str = ""
 
 
 class MonitoringHost(BaseModel):
     id: str = ""
     name: str = ""
-    host: str = ""           # technical name
-    status: str = ""         # enabled / disabled
-    available: str = ""      # available / unavailable / unknown
+    host: str = ""
+    status: str = ""
+    available: str = ""
     groups: list[str] = []
     ip: str = ""
     description: str = ""
@@ -34,8 +34,8 @@ class MonitoringHost(BaseModel):
 class MonitoringProblem(BaseModel):
     id: str = ""
     host: str = ""
-    severity: str = ""       # not_classified / information / warning / average / high / disaster
-    name: str = ""           # problem description
+    severity: str = ""
+    name: str = ""
     timestamp: str = ""
     acknowledged: bool = False
 

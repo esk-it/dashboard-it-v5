@@ -1,8 +1,8 @@
-"""Zabbix API client.
+"""Zabbix API client — enriched for Monitoring v2.
 
-Connects to a Zabbix server to fetch host and problem data.
+Connects to a Zabbix server to fetch host, problem, group and metric data.
 Cache is stored in backend/data/zabbix_cache.json.
-Config (url, api_token) is stored in backend/data/zabbix_config.json.
+Config (url, api_token or username/password) is stored in backend/data/zabbix_config.json.
 """
 from __future__ import annotations
 
@@ -70,24 +70,18 @@ def get_masked_config() -> dict | None:
     return result
 
 
-# ── Zabbix API calls ─────────────────────────────────────────
+# ── Zabbix JSON-RPC ──────────────────────────────────────────
 
 _session_token: str | None = None
 
 
 async def _zabbix_api(url: str, token: str, method: str, params: dict | None = None, auth_token: str | None = None) -> dict:
-    """Call a Zabbix JSON-RPC API method.
-
-    token: API Bearer token (for API token auth)
-    auth_token: session token from user.login (for login/password auth)
-    """
     payload = {
         "jsonrpc": "2.0",
         "method": method,
         "params": params or {},
         "id": 1,
     }
-    # If using session-based auth (login/password), add auth to payload
     if auth_token:
         payload["auth"] = auth_token
 
@@ -105,7 +99,6 @@ async def _zabbix_api(url: str, token: str, method: str, params: dict | None = N
 
 
 async def _get_session_token(url: str, username: str, password: str) -> str:
-    """Authenticate via user.login and return a session token."""
     global _session_token
     payload = {
         "jsonrpc": "2.0",
@@ -124,49 +117,45 @@ async def _get_session_token(url: str, username: str, password: str) -> str:
 
 
 async def _api_call(cfg: dict, method: str, params: dict) -> list | dict:
-    """Call Zabbix API with either token or login/password auth."""
     url = cfg["url"]
     if cfg.get("api_token"):
         return await _zabbix_api(url, cfg["api_token"], method, params)
     else:
-        # Login/password auth — get session token
         global _session_token
         if not _session_token:
             _session_token = await _get_session_token(url, cfg["username"], cfg["password"])
         try:
             return await _zabbix_api(url, "", method, params, auth_token=_session_token)
         except ValueError:
-            # Session might have expired, retry with fresh login
             _session_token = await _get_session_token(url, cfg["username"], cfg["password"])
             return await _zabbix_api(url, "", method, params, auth_token=_session_token)
 
 
+# ── Data fetching ────────────────────────────────────────────
+
 async def fetch_hosts(cfg: dict) -> list[dict]:
-    """Fetch all monitored hosts with their interfaces."""
+    """Fetch all monitored hosts with interfaces and availability."""
     return await _api_call(cfg, "host.get", {
-        "output": ["hostid", "host", "name", "status", "description"],
-        "selectInterfaces": ["ip"],
-        "selectHostGroups": ["name"],  # Zabbix 7+: selectGroups → selectHostGroups
+        "output": ["hostid", "host", "name", "status", "description", "available"],
+        "selectInterfaces": ["ip", "type", "available"],
+        "selectHostGroups": ["name"],
         "sortfield": "name",
     })
 
 
 async def fetch_problems(cfg: dict) -> list[dict]:
-    """Fetch current active problems with host names via triggers."""
-    # Zabbix 7 removed selectHosts from problem.get
-    # Use trigger.get with "only_true" to get active problems + host info
+    """Fetch active problems via trigger.get (Zabbix 7+ compatible)."""
     triggers = await _api_call(cfg, "trigger.get", {
-        "output": ["triggerid", "description", "priority"],
-        "selectHosts": ["name"],
+        "output": ["triggerid", "description", "priority", "lastchange"],
+        "selectHosts": ["name", "hostid"],
         "only_true": True,
         "active": True,
         "monitored": True,
         "skipDependent": True,
-        "sortfield": "lastchange",
+        "sortfield": "priority",
         "sortorder": "DESC",
         "limit": 200,
     })
-    # Convert trigger format to problem-like format for compatibility
     problems = []
     for t in triggers:
         hosts = t.get("hosts") or []
@@ -181,21 +170,42 @@ async def fetch_problems(cfg: dict) -> list[dict]:
     return problems
 
 
+async def fetch_host_groups(cfg: dict) -> list[dict]:
+    """Fetch host groups with host count."""
+    return await _api_call(cfg, "hostgroup.get", {
+        "output": ["groupid", "name"],
+        "selectHosts": ["hostid"],
+        "sortfield": "name",
+    })
+
+
+async def fetch_host_items(cfg: dict, hostid: str) -> list[dict]:
+    """Fetch monitored items for a specific host (key metrics)."""
+    return await _api_call(cfg, "item.get", {
+        "output": ["itemid", "name", "key_", "lastvalue", "units", "lastclock", "value_type"],
+        "hostids": hostid,
+        "sortfield": "name",
+        "limit": 100,
+        "monitored": True,
+    })
+
+
 # ── Cache ─────────────────────────────────────────────────────
 
 def load_cache() -> dict:
     if not CACHE_PATH.exists():
-        return {"hosts": [], "problems": [], "synced_at": None}
+        return {"hosts": [], "problems": [], "groups": [], "synced_at": None}
     try:
         return json.loads(CACHE_PATH.read_text(encoding="utf-8"))
     except Exception:
-        return {"hosts": [], "problems": [], "synced_at": None}
+        return {"hosts": [], "problems": [], "groups": [], "synced_at": None}
 
 
-def save_cache(hosts: list[dict], problems: list[dict]) -> dict:
+def save_cache(hosts: list[dict], problems: list[dict], groups: list[dict] | None = None) -> dict:
     data = {
         "hosts": hosts,
         "problems": problems,
+        "groups": groups or [],
         "synced_at": datetime.now().isoformat(timespec="seconds"),
     }
     CACHE_PATH.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
@@ -203,11 +213,15 @@ def save_cache(hosts: list[dict], problems: list[dict]) -> dict:
 
 
 async def sync_all() -> dict:
-    """Full sync: fetch hosts + problems from Zabbix and cache."""
+    """Full sync: fetch hosts + problems + groups from Zabbix and cache."""
     cfg = load_config()
     if not cfg:
         raise ValueError("Zabbix credentials not configured")
 
     hosts = await fetch_hosts(cfg)
     problems = await fetch_problems(cfg)
-    return save_cache(hosts, problems)
+    try:
+        groups = await fetch_host_groups(cfg)
+    except Exception:
+        groups = []
+    return save_cache(hosts, problems, groups)
