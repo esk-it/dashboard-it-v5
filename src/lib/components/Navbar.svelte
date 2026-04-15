@@ -57,6 +57,11 @@
   }
 
   // ── Data fetching ──
+  async function triggerMailSync() {
+    // Background sync: trigger incremental sync then refresh preview
+    try { await api.post('/api/gmail/sync'); } catch {}
+  }
+
   async function fetchMailPreview() {
     try {
       const { count } = await api.get('/api/gmail/unread-count');
@@ -95,6 +100,12 @@
     await Promise.all([fetchMailPreview(), fetchCalendarPreview()]);
   }
 
+  async function syncAndRefresh() {
+    // Trigger background email sync then refresh all previews
+    await triggerMailSync();
+    await fetchAll();
+  }
+
   // Helpers
   function parseFromName(from) {
     if (!from) return 'Inconnu';
@@ -128,8 +139,10 @@
   }
 
   onMount(() => {
-    fetchAll();
-    refreshTimer = setInterval(fetchAll, 60000);
+    // Initial: trigger background mail sync + fetch all previews
+    syncAndRefresh();
+    // Auto-refresh every 30s (sync mail + update badges)
+    refreshTimer = setInterval(syncAndRefresh, 30000);
   });
 
   onDestroy(() => {

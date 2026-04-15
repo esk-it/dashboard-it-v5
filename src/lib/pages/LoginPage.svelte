@@ -2,7 +2,7 @@
   import { currentPage } from '../stores/navigation.js';
   import { login } from '../stores/auth.js';
   import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-svelte';
-  import logoUrl from '../../assets/logo.png';
+  import logoUrl from '../../assets/ESKlogoB.png';
 
   let username = '';
   let password = '';
@@ -30,8 +30,7 @@
   <div class="auth-left">
     <div class="auth-form-wrapper">
       <div class="auth-logo">
-        <img src={logoUrl} alt="ITManager" class="logo-img" />
-        <span class="logo-label">ITManager Dashboard</span>
+        <img src={logoUrl} alt="ESK-IT" class="logo-img-wide" />
       </div>
 
       <h1 class="auth-title">Bienvenue !</h1>
@@ -189,10 +188,9 @@
     font-weight: 700;
   }
 
-  .logo-img {
-    width: 44px;
-    height: 44px;
-    border-radius: 10px;
+  .logo-img-wide {
+    max-width: 200px;
+    max-height: 60px;
     object-fit: contain;
   }
 

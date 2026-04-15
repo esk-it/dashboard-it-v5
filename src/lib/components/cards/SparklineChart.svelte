@@ -22,27 +22,28 @@
   );
 
   let weeklyData = [];
-  let loading = true;
+  let initialLoading = true; // Only for first load
 
   const labels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   export function refresh() {
-    fetchData();
+    // Don't set loading on refresh — just update data silently
+    fetchData(false);
   }
 
   onMount(() => {
-    fetchData();
+    fetchData(true);
   });
 
-  async function fetchData() {
-    loading = true;
+  async function fetchData(showLoading = true) {
+    if (showLoading) initialLoading = true;
     try {
       const data = await api.get('/api/dashboard/stats/weekly');
       weeklyData = data.values || data.weekly || data || [];
     } catch (e) {
-      weeklyData = [3, 5, 2, 8, 4, 1, 6];
+      if (!weeklyData.length) weeklyData = [3, 5, 2, 8, 4, 1, 6];
     }
-    loading = false;
+    initialLoading = false;
   }
 
   // Generate a secondary dataset (created tasks) from the primary (completed)
@@ -86,10 +87,7 @@
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    interaction: {
-      mode: 'index',
-      intersect: false,
-    },
+    interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
@@ -106,22 +104,12 @@
     scales: {
       x: {
         grid: { display: false },
-        ticks: {
-          color: '#828690',
-          font: { size: 11, family: 'Poppins' },
-        },
+        ticks: { color: '#828690', font: { size: 11, family: 'Poppins' } },
         border: { display: false },
       },
       y: {
-        grid: {
-          color: 'rgba(255,255,255,0.05)',
-          drawBorder: false,
-        },
-        ticks: {
-          color: '#828690',
-          font: { size: 11, family: 'Poppins' },
-          stepSize: 2,
-        },
+        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
+        ticks: { color: '#828690', font: { size: 11, family: 'Poppins' }, stepSize: 2 },
         border: { display: false },
         beginAtZero: true,
       },
@@ -130,10 +118,12 @@
 </script>
 
 <div class="chart-container">
-  {#if !loading}
-    <Bar data={chartData} options={chartOptions} />
-  {:else}
+  {#if initialLoading}
     <div class="loading">Chargement...</div>
+  {:else}
+    {#key weeklyData}
+      <Bar data={chartData} options={chartOptions} />
+    {/key}
   {/if}
 </div>
 
@@ -149,47 +139,11 @@
 </div>
 
 <style>
-  .chart-container {
-    height: 250px;
-    padding: 0.5rem 0;
-  }
-
-  .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: var(--text-muted);
-    font-size: 0.8125rem;
-  }
-
-  .chart-legend {
-    display: flex;
-    gap: 1.5rem;
-    justify-content: center;
-    padding: 0.5rem 0 0;
-  }
-
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 0.375rem;
-    font-size: 0.75rem;
-    color: var(--text-secondary);
-  }
-
-  .legend-dot {
-    width: 0.625rem;
-    height: 0.625rem;
-    border-radius: 2px;
-  }
-
-  .legend-dot--bar {
-    background: #452B90;
-  }
-
-  .legend-dot--line {
-    background: #F8B940;
-    border-radius: 50%;
-  }
+  .chart-container { height: 250px; padding: 0.5rem 0; }
+  .loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-muted); font-size: 0.8125rem; }
+  .chart-legend { display: flex; gap: 1.5rem; justify-content: center; padding: 0.5rem 0 0; }
+  .legend-item { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-secondary); }
+  .legend-dot { width: 0.625rem; height: 0.625rem; border-radius: 2px; }
+  .legend-dot--bar { background: #452B90; }
+  .legend-dot--line { background: #F8B940; border-radius: 50%; }
 </style>

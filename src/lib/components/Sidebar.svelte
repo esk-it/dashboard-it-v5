@@ -5,6 +5,7 @@
   import { theme, toggleTheme } from '../stores/theme.js';
   import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
   import logoUrl from '../../assets/logo.png';
+  import eskLogoB from '../../assets/ESKlogoB.png';
 
   const dispatch = createEventDispatcher();
 
@@ -47,9 +48,10 @@
 <!-- Nav Header (logo area) — YashAdmin .nav-header -->
 <div class="nav-header" class:collapsed={!$sidebarOpen}>
   <a href="#/" class="brand-logo" on:click|preventDefault={() => navigate('/')}>
-    <img src={logoUrl} alt="Logo" class="logo-icon" />
     {#if $sidebarOpen}
-      <span class="brand-title">ITManager</span>
+      <img src={eskLogoB} alt="ESK-IT" class="logo-wide" />
+    {:else}
+      <img src={logoUrl} alt="Logo" class="logo-icon" />
     {/if}
   </a>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -168,6 +170,12 @@
     object-fit: contain;
     flex-shrink: 0;
     border-radius: 0.5rem;
+  }
+
+  .logo-wide {
+    max-width: 160px;
+    max-height: 40px;
+    object-fit: contain;
   }
 
   .brand-title {
