@@ -18,11 +18,12 @@
   let unreadCount = 0;
   let upcomingEvents = [];
   let todayEventCount = 0;
+  let overdueTasks = [];
   let refreshTimer;
 
   // Get current page label for breadcrumb
   $: currentLabel = navItems.find(i => i.path === $currentPage)?.label || 'Dashboard';
-  $: totalNotifCount = unreadCount + todayEventCount;
+  $: totalNotifCount = unreadCount + todayEventCount + overdueTasks.length;
 
   function handleLogout() {
     showUserDropdown = false;
@@ -96,12 +97,23 @@
     }
   }
 
+  async function fetchOverdueTasks() {
+    try {
+      const data = await api.get('/api/dashboard/kpis');
+      if (data.overdue_tasks > 0) {
+        const tasks = await api.get('/api/dashboard/top-tasks');
+        overdueTasks = (tasks || []).filter(t => t.status === 'overdue').slice(0, 5);
+      } else {
+        overdueTasks = [];
+      }
+    } catch { overdueTasks = []; }
+  }
+
   async function fetchAll() {
-    await Promise.all([fetchMailPreview(), fetchCalendarPreview()]);
+    await Promise.all([fetchMailPreview(), fetchCalendarPreview(), fetchOverdueTasks()]);
   }
 
   async function syncAndRefresh() {
-    // Trigger background email sync then refresh all previews
     await triggerMailSync();
     await fetchAll();
   }
@@ -204,9 +216,21 @@
               {/if}
             </div>
             <div class="icon-dropdown__list">
-              {#if unreadMails.length === 0 && upcomingEvents.length === 0}
+              {#if unreadMails.length === 0 && upcomingEvents.length === 0 && overdueTasks.length === 0}
                 <div class="icon-dropdown__empty">Aucune notification</div>
               {/if}
+              {#each overdueTasks.slice(0, 3) as task}
+                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/tasks'); }}>
+                  <div class="icon-dropdown__item-icon" style="background:rgba(239,68,68,0.1);color:#EF4444">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </div>
+                  <div class="icon-dropdown__item-content">
+                    <span class="icon-dropdown__item-title">Tache en retard</span>
+                    <span class="icon-dropdown__item-sub">{task.title || '(sans titre)'}</span>
+                  </div>
+                  <span class="icon-dropdown__item-time" style="color:#EF4444">{task.due_date || ''}</span>
+                </div>
+              {/each}
               {#each unreadMails.slice(0, 3) as mail}
                 <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
                   <div class="icon-dropdown__item-icon" style="background:rgba(59,130,246,0.1);color:#3B82F6">

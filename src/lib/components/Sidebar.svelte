@@ -173,9 +173,10 @@
   }
 
   .logo-wide {
-    max-width: 160px;
-    max-height: 40px;
+    max-width: 190px;
+    max-height: 44px;
     object-fit: contain;
+    padding: 0.125rem 0;
   }
 
   .brand-title {

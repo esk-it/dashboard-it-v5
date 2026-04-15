@@ -115,12 +115,16 @@
       if (gaugeChart?.refresh) gaugeChart.refresh();
     }, 500);
 
-    const mins = $settings.auto_refresh_minutes || 5;
+    // Auto-refresh every 5 minutes — update KPIs and key cards silently
     refreshTimer = setInterval(() => {
       fetchKpis();
       if (sparklineChart?.refresh) sparklineChart.refresh();
+      if (donutChart?.refresh) donutChart.refresh();
+      if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
       if (activityCard?.refresh) activityCard.refresh();
-    }, mins * 60 * 1000);
+      if (gaugeChart?.refresh) gaugeChart.refresh();
+      if (zabbixCard?.refresh) zabbixCard.refresh();
+    }, 5 * 60 * 1000);
   });
 
   onDestroy(() => {

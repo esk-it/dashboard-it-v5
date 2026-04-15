@@ -121,9 +121,7 @@
   {#if initialLoading}
     <div class="loading">Chargement...</div>
   {:else}
-    {#key weeklyData}
-      <Bar data={chartData} options={chartOptions} />
-    {/key}
+    <Bar data={chartData} options={chartOptions} />
   {/if}
 </div>
 
