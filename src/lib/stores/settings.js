@@ -28,15 +28,8 @@ export async function loadSettings() {
     }
   }
 
-  // Sync theme from backend → theme store (single source of truth)
-  try {
-    const backendTheme = await api.get('/api/settings/theme');
-    if (backendTheme?.theme) {
-      theme.set(backendTheme.theme); // This triggers theme.subscribe → applies to DOM + localStorage
-    }
-  } catch (e) {
-    console.warn('Failed to load theme:', e);
-  }
+  // Theme is managed client-side via theme.js store (localStorage)
+  // No backend sync needed — toggleTheme in navbar handles persistence
 
   // Apply compact mode from localStorage
   if (localStorage.getItem('itm-compact') === '1') {
