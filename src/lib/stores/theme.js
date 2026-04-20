@@ -1,8 +1,8 @@
 import { writable } from 'svelte/store';
 
 // Theme: 'glass' (dark) or 'glass-light' (light)
-const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('itm-theme') : null;
-export const theme = writable(stored || 'glass-light');
+// Default to glass-light. Backend settings override this on load via settings.js
+export const theme = writable('glass-light');
 export const accent = writable('#452B90');
 
 // Apply theme to DOM — single source of truth

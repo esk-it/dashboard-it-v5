@@ -875,17 +875,26 @@
                 <p>Tapez <strong>PURGER</strong> pour confirmer :</p>
                 <input type="text" bind:value={resetConfirmText} placeholder="PURGER" />
                 <div class="reset-actions">
-                  <button class="btn-danger" disabled={resetConfirmText !== 'PURGER' || resetting} on:click={async () => {
+                  <button class="btn-danger" disabled={resetConfirmText.toUpperCase() !== 'PURGER' || resetting} on:click={async () => {
                     resetting = true;
                     try {
-                      await fetch(`${API}/reset-data`, {
+                      const res = await fetch(`${API}/reset-data`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ confirmation: 'PURGER' }),
                       });
-                      window.location.reload();
-                    } catch (e) { console.error(e); }
-                    resetting = false;
+                      const data = await res.json();
+                      if (data.ok) {
+                        alert('Purge terminee. Le programme va redemarrer.');
+                        window.location.reload();
+                      } else {
+                        alert('Erreur: ' + (data.message || 'Purge echouee'));
+                        resetting = false;
+                      }
+                    } catch (e) {
+                      alert('Erreur de connexion: ' + e.message);
+                      resetting = false;
+                    }
                   }}>{resetting ? 'Purge en cours...' : 'Confirmer la purge'}</button>
                   <button class="btn-small" on:click={() => { showResetConfirm = false; resetConfirmText = ''; }}>Annuler</button>
                 </div>
