@@ -479,9 +479,9 @@ async def set_auto_backup_settings(payload: dict = Body(...)):
 
 @router.post("/reset-data")
 async def reset_data(payload: dict = Body(...)):
-    """Reset all data. Requires confirmation='RESET' in body."""
-    if payload.get("confirmation") != "RESET":
-        return {"ok": False, "message": "Confirmation invalide. Envoyez {\"confirmation\": \"RESET\"}"}
+    """Reset all data. Requires confirmation='RESET' or 'PURGER' in body."""
+    if payload.get("confirmation") not in ("RESET", "PURGER"):
+        return {"ok": False, "message": "Confirmation invalide"}
 
     # Backup first
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -516,11 +516,37 @@ async def reset_data(payload: dict = Body(...)):
     _write_json(THEME_FILE, THEME_DEFAULTS)
     _write_json(RSS_FILE, RSS_DEFAULTS)
 
-    # Also clear GLPI/WithSecure caches
+    # Clear all integration caches and configs
     data_dir = BACKEND_DIR / "data"
-    for cache_file in ["glpi_cache.json", "glpi_config.json", "ws_cache.json", "ws_config.json"]:
+    for cache_file in [
+        "glpi_cache.json", "glpi_config.json",
+        "ws_cache.json", "ws_config.json",
+        "zabbix_cache.json", "zabbix_config.json",
+    ]:
         p = data_dir / cache_file
         if p.exists():
             p.unlink()
+
+    # Clear Google Calendar sync token so next sync does a fresh full import
+    gcal_config = data_dir / "google_config.json"
+    if gcal_config.exists():
+        try:
+            import json as _json
+            cfg = _json.loads(gcal_config.read_text(encoding="utf-8"))
+            cfg.pop("sync_token", None)
+            cfg.pop("last_sync", None)
+            gcal_config.write_text(_json.dumps(cfg, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    # Recreate default admin user
+    try:
+        from .auth import ensure_default_admin
+        import aiosqlite as _aiosqlite
+        _db = await _aiosqlite.connect(str(DB_PATH))
+        await ensure_default_admin(_db)
+        await _db.close()
+    except Exception:
+        pass
 
     return {"ok": True, "message": f"Donn\u00e9es r\u00e9initialis\u00e9es. Backup de s\u00e9curit\u00e9 cr\u00e9\u00e9: {zip_path.name}"}

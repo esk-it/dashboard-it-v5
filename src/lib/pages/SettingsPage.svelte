@@ -276,26 +276,6 @@
     }
   }
 
-  // ── Reset ─────────────────────────────────────────────
-  async function confirmReset() {
-    if (resetConfirmText !== 'RESET') return;
-    resetting = true;
-    try {
-      const res = await fetch(`${API}/reset-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ confirmation: 'RESET' }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        // Full reload to reflect clean state
-        window.location.reload();
-        return;
-      }
-    } catch(e) { console.error('Reset failed:', e); }
-    resetting = false;
-  }
-
   function copyToClipboard(text) {
     navigator.clipboard.writeText(text);
   }
@@ -556,32 +536,6 @@
             </div>
           </div>
 
-          <div class="setting-section danger-section">
-            <h3>{'\u26A0\uFE0F'} Zone dangereuse</h3>
-            {#if !showResetConfirm}
-              <button class="btn-danger" on:click={() => showResetConfirm = true}>
-                {'\u{1F5D1}\uFE0F'} R{'\u00e9'}initialiser toutes les donn{'\u00e9'}es
-              </button>
-            {:else}
-              <div class="reset-confirm">
-                <p class="reset-warning">
-                  {'\u26A0\uFE0F'} Cette action supprimera la base de donn{'\u00e9'}es et r{'\u00e9'}initialisera tous les param{'\u00e8'}tres.
-                  Un backup sera cr{'\u00e9'}{'\u00e9'} automatiquement avant la suppression.
-                </p>
-                <div class="reset-input-row">
-                  <span>Tapez <strong>RESET</strong> pour confirmer :</span>
-                  <input type="text" bind:value={resetConfirmText} placeholder="RESET" class="reset-input" />
-                  <button class="btn-danger-confirm" on:click={confirmReset}
-                    disabled={resetConfirmText !== 'RESET' || resetting}>
-                    {resetting ? '\u23F3 ...' : 'Confirmer'}
-                  </button>
-                  <button class="btn-cancel" on:click={() => { showResetConfirm = false; resetConfirmText = ''; }}>
-                    Annuler
-                  </button>
-                </div>
-              </div>
-            {/if}
-          </div>
         </div>
 
       <!-- ═══════════════ 2: INTEGRATIONS ═══════════════ -->
@@ -927,7 +881,7 @@
                       await fetch(`${API}/reset-data`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ confirmation: 'RESET' }),
+                        body: JSON.stringify({ confirmation: 'PURGER' }),
                       });
                       window.location.reload();
                     } catch (e) { console.error(e); }
