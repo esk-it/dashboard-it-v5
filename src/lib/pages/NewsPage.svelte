@@ -102,7 +102,9 @@
   }
 
   // ── Computed / Reactive ────────────────────────────────
+  // Note: readArticles included in deps to trigger re-filter when articles are marked read
   $: filteredArticles = allArticles.filter(a => {
+    void readArticles; // force reactivity dependency
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (!(a.title || '').toLowerCase().includes(q)) return false;

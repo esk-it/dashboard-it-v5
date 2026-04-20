@@ -154,6 +154,16 @@
   color: var(--text-heading) !important;
 }
 
+/* Light theme: force white text on colored ya-cards (purple, gold, teal) */
+[data-theme="glass-light"] [class*="ya-card--purple"],
+[data-theme="glass-light"] [class*="ya-card--gold"],
+[data-theme="glass-light"] [class*="ya-card--teal"],
+[data-theme="glass-light"] [class*="ya-card--purple"] *,
+[data-theme="glass-light"] [class*="ya-card--gold"] *,
+[data-theme="glass-light"] [class*="ya-card--teal"] * {
+  color: #fff !important;
+}
+
 /* Light text — only for content-body area, NOT sidebar.
    Excludes elements with inline style (badges, KPI colors, etc.) and specific components */
 [data-theme="glass-light"] .content-body *:not(.tab.active):not([class*="btn-"]):not(button):not([class*="ya-card--"]):not([class*="ya-card--"] *):not([style*="color"]):not(.dt-status-badge):not(.dt-priority-badge):not(.dt-tag):not(.task-kpi__count):not(.ya-kpi__value):not(.fc-event):not(.fc-event *):not(.gcal-cal__check):not(.gcal-cal__check *) {

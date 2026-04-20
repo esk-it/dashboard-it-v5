@@ -306,7 +306,12 @@
     const ids = [...gcalEnabledCalendars].join(',');
     try {
       const { events: evts } = await api.get(`/api/google-calendar/events?calendar_ids=${encodeURIComponent(ids)}&start=${start}&end=${end}`);
-      gcalExternalEvents = evts || [];
+      // Filter out Google Workspace "Working Location" events (Bureau, Office, etc.)
+      const WORKING_LOC_TITLES = ['bureau', 'office', 'domicile', 'travail', 'working from office', 'working from home'];
+      gcalExternalEvents = (evts || []).filter(e => {
+        const title = (e.title || '').toLowerCase().trim();
+        return !WORKING_LOC_TITLES.some(wl => title === wl || title.startsWith(wl));
+      });
     } catch (e) {
       console.error('Failed to fetch Google Calendar events', e);
       // Keep existing gcalExternalEvents — don't clear on error

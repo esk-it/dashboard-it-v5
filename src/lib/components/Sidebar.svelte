@@ -172,9 +172,9 @@
   }
 
   .brand-name-img {
-    max-height: 28px;
+    max-height: 36px;
     object-fit: contain;
-    margin-left: 0.625rem;
+    margin-left: 0.75rem;
   }
 
   .brand-title {

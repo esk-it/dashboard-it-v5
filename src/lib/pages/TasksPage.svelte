@@ -767,7 +767,7 @@
         </div>
       </div>
     </div>
-  {:else}
+  {:else if viewMode === 'kanban'}
     <!-- Kanban view -->
     <div class="kanban-board">
       {#each kanbanColumns as col}
