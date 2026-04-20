@@ -98,7 +98,8 @@ def _parse_attachments(payload: dict) -> list[dict]:
         filename = part.get("filename", "")
         body = part.get("body", {})
         att_id = body.get("attachmentId", "")
-        if filename and att_id and not _is_inline(part):
+        # Accept attachments with filename (even without attachmentId for sent mails)
+        if filename and not _is_inline(part):
             attachments.append({
                 "filename": filename,
                 "mimeType": part.get("mimeType", ""),

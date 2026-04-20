@@ -135,7 +135,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/monitoring.py', encoding='utf-8'\\).read\\(\\)\\); print\\('router OK'\\)\")",
       "Bash(grep -v \"^\\\\s*\\\\$: cardLayout\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/auth.py', encoding='utf-8'\\).read\\(\\)\\); print\\('auth OK'\\)\")",
-      "Bash(grep -n \"Bar\\\\|Doughnut\\\\|import.*chartjs\" /c/Users/jdeniel/Documents/Projets/Dashboard-Web-v5/src/lib/components/cards/*.svelte)"
+      "Bash(grep -n \"Bar\\\\|Doughnut\\\\|import.*chartjs\" /c/Users/jdeniel/Documents/Projets/Dashboard-Web-v5/src/lib/components/cards/*.svelte)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/services/gmail.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }
