@@ -2,7 +2,7 @@
   import { currentPage } from '../stores/navigation.js';
   import { login } from '../stores/auth.js';
   import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-svelte';
-  import logoUrl from '../../assets/ESKlogoB.png';
+  import logoUrl from '../../assets/ESKlogoN.png';
 
   let username = '';
   let password = '';

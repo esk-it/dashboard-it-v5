@@ -102,7 +102,9 @@
       const data = await api.get('/api/dashboard/kpis');
       if (data.overdue_tasks > 0) {
         const tasks = await api.get('/api/dashboard/top-tasks');
-        overdueTasks = (tasks || []).filter(t => t.status === 'overdue').slice(0, 5);
+        const today = new Date().toISOString().slice(0, 10);
+        // Tasks are overdue if due_date is before today
+        overdueTasks = (tasks || []).filter(t => t.due_date && t.due_date < today).slice(0, 5);
       } else {
         overdueTasks = [];
       }

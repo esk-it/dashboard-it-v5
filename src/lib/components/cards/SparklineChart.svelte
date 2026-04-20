@@ -4,16 +4,8 @@
   import { Bar } from 'svelte-chartjs';
   import {
     Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    BarElement,
-    PointElement,
-    LineElement,
-    LineController,
-    BarController,
-    Filler,
-    Tooltip,
-    Legend,
+    CategoryScale, LinearScale, BarElement, PointElement, LineElement,
+    LineController, BarController, Filler, Tooltip, Legend,
   } from 'chart.js';
 
   ChartJS.register(
@@ -21,119 +13,80 @@
     LineController, BarController, Filler, Tooltip, Legend
   );
 
-  let weeklyData = [];
-  let initialLoading = true; // Only for first load
+  let weeklyData = [0, 0, 0, 0, 0, 0, 0]; // Start with zeros, not empty
+  let ready = false;
 
   const labels = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
   export function refresh() {
-    // Don't set loading on refresh — just update data silently
-    fetchData(false);
+    fetchData();
   }
 
-  onMount(() => {
-    fetchData(true);
-  });
+  onMount(() => { fetchData(); });
 
-  async function fetchData(showLoading = true) {
-    if (showLoading) initialLoading = true;
+  async function fetchData() {
     try {
       const data = await api.get('/api/dashboard/stats/weekly');
-      weeklyData = data.values || data.weekly || data || [];
-    } catch (e) {
-      if (!weeklyData.length) weeklyData = [3, 5, 2, 8, 4, 1, 6];
+      const values = data.values || data.weekly || data || [];
+      if (Array.isArray(values) && values.length > 0) {
+        weeklyData = values.slice(0, 7);
+      }
+    } catch {
+      // Keep existing data on error
     }
-    initialLoading = false;
+    ready = true;
   }
 
-  // Generate a secondary dataset (created tasks) from the primary (completed)
-  $: completedData = weeklyData.slice(0, 7);
+  $: completedData = weeklyData;
   $: createdData = completedData.map(v => Math.max(1, Math.round(v * 1.2 + Math.random() * 2)));
 
   $: chartData = {
-    labels: labels.slice(0, completedData.length || 7),
+    labels,
     datasets: [
       {
-        type: 'bar',
-        label: 'Completees',
-        data: completedData,
-        backgroundColor: 'rgba(69, 43, 144, 0.85)',
-        hoverBackgroundColor: '#7B5EC6',
-        borderRadius: 4,
-        borderSkipped: false,
-        barPercentage: 0.5,
-        categoryPercentage: 0.6,
-        order: 2,
+        type: 'bar', label: 'Completees', data: completedData,
+        backgroundColor: 'rgba(69, 43, 144, 0.85)', hoverBackgroundColor: '#7B5EC6',
+        borderRadius: 4, borderSkipped: false, barPercentage: 0.5, categoryPercentage: 0.6, order: 2,
       },
       {
-        type: 'line',
-        label: 'Creees',
-        data: createdData,
-        borderColor: '#F8B940',
-        backgroundColor: 'rgba(248, 185, 64, 0.08)',
-        fill: true,
-        tension: 0.4,
-        borderWidth: 2.5,
-        pointRadius: 4,
-        pointBackgroundColor: '#F8B940',
-        pointBorderColor: '#182237',
-        pointBorderWidth: 2,
-        pointHoverRadius: 6,
-        order: 1,
+        type: 'line', label: 'Creees', data: createdData,
+        borderColor: '#F8B940', backgroundColor: 'rgba(248, 185, 64, 0.08)',
+        fill: true, tension: 0.4, borderWidth: 2.5,
+        pointRadius: 4, pointBackgroundColor: '#F8B940',
+        pointBorderColor: '#182237', pointBorderWidth: 2, pointHoverRadius: 6, order: 1,
       },
     ],
   };
 
   const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
+    responsive: true, maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: '#182237',
-        borderColor: 'rgba(255,255,255,0.1)',
-        borderWidth: 1,
-        titleColor: '#fff',
-        bodyColor: '#828690',
-        padding: 12,
-        cornerRadius: 8,
+        backgroundColor: '#182237', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1,
+        titleColor: '#fff', bodyColor: '#828690', padding: 12, cornerRadius: 8,
         titleFont: { weight: '600' },
       },
     },
     scales: {
-      x: {
-        grid: { display: false },
-        ticks: { color: '#828690', font: { size: 11, family: 'Poppins' } },
-        border: { display: false },
-      },
-      y: {
-        grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false },
-        ticks: { color: '#828690', font: { size: 11, family: 'Poppins' }, stepSize: 2 },
-        border: { display: false },
-        beginAtZero: true,
-      },
+      x: { grid: { display: false }, ticks: { color: '#828690', font: { size: 11, family: 'Poppins' } }, border: { display: false } },
+      y: { grid: { color: 'rgba(255,255,255,0.05)', drawBorder: false }, ticks: { color: '#828690', font: { size: 11, family: 'Poppins' }, stepSize: 2 }, border: { display: false }, beginAtZero: true },
     },
   };
 </script>
 
 <div class="chart-container">
-  {#if initialLoading}
-    <div class="loading">Chargement...</div>
-  {:else}
+  {#if ready}
     <Bar data={chartData} options={chartOptions} />
+  {:else}
+    <div class="loading">Chargement...</div>
   {/if}
 </div>
 
 <div class="chart-legend">
-  <span class="legend-item">
-    <span class="legend-dot legend-dot--bar"></span>
-    Completees
-  </span>
-  <span class="legend-item">
-    <span class="legend-dot legend-dot--line"></span>
-    Creees
-  </span>
+  <span class="legend-item"><span class="legend-dot legend-dot--bar"></span> Completees</span>
+  <span class="legend-item"><span class="legend-dot legend-dot--line"></span> Creees</span>
 </div>
 
 <style>
