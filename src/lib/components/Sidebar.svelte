@@ -5,7 +5,7 @@
   import { theme, toggleTheme } from '../stores/theme.js';
   import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
   import logoUrl from '../../assets/logo.png';
-  import eskLogoB from '../../assets/ESKlogoB.png';
+  import nomB from '../../assets/nomB.png';
 
   const dispatch = createEventDispatcher();
 
@@ -48,10 +48,9 @@
 <!-- Nav Header (logo area) — YashAdmin .nav-header -->
 <div class="nav-header" class:collapsed={!$sidebarOpen}>
   <a href="#/" class="brand-logo" on:click|preventDefault={() => navigate('/')}>
+    <img src={logoUrl} alt="Logo" class="logo-icon" />
     {#if $sidebarOpen}
-      <img src={eskLogoB} alt="ESK-IT" class="logo-wide" />
-    {:else}
-      <img src={logoUrl} alt="Logo" class="logo-icon" />
+      <img src={nomB} alt="Le Kreisker" class="brand-name-img" />
     {/if}
   </a>
   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -172,11 +171,10 @@
     border-radius: 0.5rem;
   }
 
-  .logo-wide {
-    max-width: 190px;
-    max-height: 44px;
+  .brand-name-img {
+    max-height: 28px;
     object-fit: contain;
-    padding: 0.125rem 0;
+    margin-left: 0.625rem;
   }
 
   .brand-title {
