@@ -576,7 +576,7 @@
     <div class="ya-page-card__body" style="padding:1rem 1.25rem">
       <div class="action-bar">
         <div class="action-left">
-          <div class="ya-tabs">
+          <div class="ya-tabs ya-tabs--boxed">
             <button class="ya-tab" class:ya-tab--active={viewMode === 'list'} on:click={() => viewMode = 'list'}>Liste</button>
             <button class="ya-tab" class:ya-tab--active={viewMode === 'kanban'} on:click={() => viewMode = 'kanban'}>Kanban</button>
             <button class="ya-tab" class:ya-tab--active={viewMode === 'stats'} on:click={() => viewMode = 'stats'}>Stats</button>

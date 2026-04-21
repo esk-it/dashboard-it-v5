@@ -163,6 +163,14 @@
     </div>
   </header>
 
+  <!-- ═══ Alert banners ═══ -->
+  {#if kpiOverdue > 0}
+    <div class="ya-alert ya-alert--danger">
+      <span class="ya-alert__icon">⚠️</span>
+      <span class="ya-alert__text"><strong>{kpiOverdue} tache{kpiOverdue > 1 ? 's' : ''} en retard</strong> — Action requise</span>
+    </div>
+  {/if}
+
   <!-- ═══ ROW 1: 4 YashAdmin-style KPI cards ═══ -->
   <div class="row">
     <!-- Card 1: Purple — Taches en cours -->

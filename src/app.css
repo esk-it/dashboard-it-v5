@@ -836,6 +836,132 @@ input[type="datetime-local"] {
   font-weight: 600;
 }
 
+/* ── YashAdmin Solid Alerts ── */
+.ya-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #fff;
+  margin-bottom: 0.75rem;
+  animation: fadeIn 0.3s ease-out;
+}
+.ya-alert__icon { flex-shrink: 0; font-size: 1.125rem; }
+.ya-alert__text { flex: 1; }
+.ya-alert__close {
+  background: none; border: none; color: rgba(255,255,255,0.7); cursor: pointer;
+  font-size: 1.25rem; padding: 0; line-height: 1; transition: color 0.15s;
+}
+.ya-alert__close:hover { color: #fff; }
+
+.ya-alert--danger { background: #EF4444; }
+.ya-alert--warning { background: #F59E0B; }
+.ya-alert--success { background: #22C55E; }
+.ya-alert--info { background: #3B82F6; }
+.ya-alert--purple { background: #8B5CF6; }
+.ya-alert--dark { background: #475569; }
+
+/* ── YashAdmin Animated Progress Bars ── */
+.ya-progress-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bg-base);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.ya-progress-bar--lg { height: 12px; }
+.ya-progress-bar--xl { height: 18px; border-radius: 9px; }
+
+.ya-progress-bar__fill {
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.6s ease;
+  position: relative;
+  overflow: hidden;
+}
+.ya-progress-bar__fill--primary { background: var(--primary); }
+.ya-progress-bar__fill--success { background: #22C55E; }
+.ya-progress-bar__fill--danger { background: #EF4444; }
+.ya-progress-bar__fill--warning { background: #F59E0B; }
+.ya-progress-bar__fill--info { background: #3B82F6; }
+
+/* Striped animation */
+.ya-progress-bar__fill--striped {
+  background-image: linear-gradient(
+    45deg,
+    rgba(255,255,255,0.15) 25%, transparent 25%,
+    transparent 50%, rgba(255,255,255,0.15) 50%,
+    rgba(255,255,255,0.15) 75%, transparent 75%, transparent
+  );
+  background-size: 1rem 1rem;
+  animation: ya-progress-stripe 1s linear infinite;
+}
+@keyframes ya-progress-stripe {
+  from { background-position: 1rem 0; }
+  to { background-position: 0 0; }
+}
+
+.ya-progress-bar__label {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.625rem; font-weight: 700; color: #fff;
+}
+
+/* ── YashAdmin Colored Icon Buttons ── */
+.ya-btn--success { background: #22C55E; color: #fff; border: none; }
+.ya-btn--success:hover { filter: brightness(1.1); }
+.ya-btn--danger { background: #EF4444; color: #fff; border: none; }
+.ya-btn--danger:hover { filter: brightness(1.1); }
+.ya-btn--warning { background: #F59E0B; color: #fff; border: none; }
+.ya-btn--warning:hover { filter: brightness(1.1); }
+.ya-btn--info { background: #3B82F6; color: #fff; border: none; }
+.ya-btn--info:hover { filter: brightness(1.1); }
+.ya-btn--purple { background: #8B5CF6; color: #fff; border: none; }
+.ya-btn--purple:hover { filter: brightness(1.1); }
+.ya-btn--outline-primary {
+  background: transparent; color: var(--primary);
+  border: 1px solid var(--primary);
+}
+.ya-btn--outline-primary:hover { background: var(--primary); color: #fff; }
+
+.ya-btn--icon-start svg { margin-right: 0.25rem; }
+.ya-btn--sm { padding: 0.25rem 0.625rem; font-size: 0.75rem; }
+.ya-btn--lg { padding: 0.625rem 1.5rem; font-size: 0.9375rem; }
+
+/* ── YashAdmin Enhanced Tabs ── */
+.ya-tabs--underline {
+  display: flex; gap: 0; background: none; border-radius: 0; padding: 0;
+  border-bottom: 2px solid var(--border-subtle);
+}
+.ya-tabs--underline .ya-tab {
+  border-radius: 0; padding: 0.625rem 1.25rem;
+  border-bottom: 2px solid transparent; margin-bottom: -2px;
+  background: none;
+}
+.ya-tabs--underline .ya-tab--active {
+  background: none; color: var(--primary); box-shadow: none;
+  border-bottom-color: var(--primary); font-weight: 600;
+}
+
+.ya-tabs--boxed {
+  display: flex; gap: 0; background: none; border-radius: 0; padding: 0;
+}
+.ya-tabs--boxed .ya-tab {
+  border: 1px solid var(--border-subtle); border-radius: 0;
+  margin-right: -1px; background: var(--bg-base); padding: 0.5rem 1.25rem;
+}
+.ya-tabs--boxed .ya-tab:first-child { border-radius: 0.5rem 0 0 0.5rem; }
+.ya-tabs--boxed .ya-tab:last-child { border-radius: 0 0.5rem 0.5rem 0; }
+.ya-tabs--boxed .ya-tab--active {
+  background: var(--primary); color: #fff; border-color: var(--primary);
+  box-shadow: none;
+}
+
 /* ── Dialog / Modal — YashAdmin style ── */
 .ya-dialog-overlay {
   position: fixed;

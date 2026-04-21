@@ -592,7 +592,7 @@
 </div>
 
 <!-- ── Tabs ────────────────────────────────────────────────── -->
-<div class="ya-tabs">
+<div class="ya-tabs ya-tabs--boxed">
   <button class="ya-tab" class:ya-tab--active={activeTab === 'inventory'} on:click={() => switchTab('inventory')}>
     Inventaire
   </button>

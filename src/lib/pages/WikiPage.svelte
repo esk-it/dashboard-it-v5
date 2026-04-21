@@ -215,8 +215,16 @@
       TEL: '#06A6C9', IMP: '#D97706', SRV: '#7C3AED',
       INST: '#10B981', CONF: '#6366F1', MAJ: '#F59E0B', DIAG: '#EF4444',
       DEPL: '#8B5CF6', SAV: '#22D3EE', REST: '#EC4899', MIGR: '#F97316',
+      BACKUP: '#06B6D4', SECU: '#DC2626', UTIL: '#8B5CF6', MAINT: '#D97706',
+      SYNC: '#0EA5E9', UPDATE: '#F59E0B', LDAP: '#7C3AED', MAIL: '#3B82F6',
+      TEST: '#22C55E', AUDIT: '#F97316', RESET: '#EF4444', CUST: '#EC4899',
     };
-    return colors[code] || '#64748B';
+    if (colors[code]) return colors[code];
+    // Generate a consistent color for unknown codes based on hash
+    let hash = 0;
+    for (const c of code) hash = c.charCodeAt(0) + ((hash << 5) - hash);
+    const palette = ['#6C63FF', '#22C55E', '#F59E0B', '#EC4899', '#3B82F6', '#EF4444', '#8B5CF6', '#06A6C9', '#D97706', '#10B981'];
+    return palette[Math.abs(hash) % palette.length];
   }
 
   // ── Derived ────────────────────────────────────────────
@@ -338,13 +346,14 @@
         if (selectedArticle && selectedArticle.id === updated.id) {
           selectedArticle = updated;
         }
-        success('Article modifié');
+        success('Article modifie');
       } else {
         const created = await api.post('/api/wiki', form);
         articles = [...articles, created];
-        success('Article créé');
+        success('Article cree');
       }
       closeDialog();
+      loadRefTree(); // Refresh reference tree after save
     } catch (e) {
       toastError('Erreur lors de la sauvegarde');
     }
@@ -358,7 +367,8 @@
       if (selectedArticle && selectedArticle.id === id) {
         backToList();
       }
-      success('Article supprimé');
+      loadRefTree(); // Refresh reference tree after delete
+      success('Article supprime');
     } catch (e) {
       toastError('Erreur lors de la suppression');
     }

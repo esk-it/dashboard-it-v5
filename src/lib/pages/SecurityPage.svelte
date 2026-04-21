@@ -200,14 +200,14 @@
 </div>
 
 <!-- ── Tabs ────────────────────────────────────────────────── -->
-<div class="tabs">
-  <button class="tab" class:active={activeTab === 'devices'} on:click={() => switchTab('devices')}>
+<div class="ya-tabs ya-tabs--underline">
+  <button class="ya-tab" class:ya-tab--active={activeTab === 'devices'} on:click={() => switchTab('devices')}>
     Appareils
   </button>
-  <button class="tab" class:active={activeTab === 'coverage'} on:click={() => switchTab('coverage')}>
+  <button class="ya-tab" class:ya-tab--active={activeTab === 'coverage'} on:click={() => switchTab('coverage')}>
     Couverture
   </button>
-  <button class="tab" class:active={activeTab === 'profiles'} on:click={() => switchTab('profiles')}>
+  <button class="ya-tab" class:ya-tab--active={activeTab === 'profiles'} on:click={() => switchTab('profiles')}>
     Profils
   </button>
 </div>

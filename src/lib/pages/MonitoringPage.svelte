@@ -241,12 +241,31 @@
     </div>
   </div>
 
+  <!-- ═══ Alert banners ═══ -->
+  {#if problems.some(p => p.severity === 'catastrophe')}
+    <div class="ya-alert ya-alert--danger">
+      <span class="ya-alert__icon">🚨</span>
+      <span class="ya-alert__text"><strong>Alerte critique !</strong> {problems.filter(p => p.severity === 'catastrophe').length} probleme(s) de severite catastrophe detecte(s)</span>
+    </div>
+  {:else if stats.unavailable > 0}
+    <div class="ya-alert ya-alert--warning">
+      <span class="ya-alert__icon">⚠️</span>
+      <span class="ya-alert__text"><strong>Attention</strong> — {stats.unavailable} hote(s) hors ligne</span>
+    </div>
+  {:else if stats.active_problems === 0 && stats.total_hosts > 0}
+    <div class="ya-alert ya-alert--success">
+      <span class="ya-alert__icon">✅</span>
+      <span class="ya-alert__text">Tous les systemes fonctionnent normalement</span>
+    </div>
+  {/if}
+
   <!-- ═══ Toolbar ═══ -->
   <div class="mon-toolbar">
     <div class="mon-toolbar__left">
-      <button class="ya-btn ya-btn--ghost" on:click={openConfig}>⚙️ Config</button>
-      <button class="ya-btn ya-btn--primary" on:click={triggerSync} disabled={syncing}>
-        {syncing ? '⏳ Sync...' : '🔄 Synchroniser'}
+      <button class="ya-btn ya-btn--ghost ya-btn--icon-start" on:click={openConfig}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg> Config</button>
+      <button class="ya-btn ya-btn--primary ya-btn--icon-start" on:click={triggerSync} disabled={syncing}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 12a10 10 0 0118-6M22 12a10 10 0 01-18 6"/></svg>
+        {syncing ? 'Sync...' : 'Synchroniser'}
       </button>
       {#if stats.synced_at}
         <span class="sync-info">Derniere sync : {formatDate(stats.synced_at)}</span>
