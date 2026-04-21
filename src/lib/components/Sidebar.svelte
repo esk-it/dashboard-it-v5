@@ -24,7 +24,7 @@
       appVersion = '4.0.1';
     }
     loadBadges();
-    interval = setInterval(loadBadges, 30000);
+    interval = setInterval(loadBadges, 15000);
   });
 
   onDestroy(() => { if (interval) clearInterval(interval); });
