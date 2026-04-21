@@ -370,6 +370,34 @@
     showDialog = true;
   }
 
+  async function exportArticleMd(article) {
+    try {
+      const res = await fetch(`http://localhost:8010/api/wiki/${article.id}/export`);
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      // Try Tauri save dialog
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { writeFile } = await import('@tauri-apps/plugin-fs');
+        const safeName = (article.title || 'procedure').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '_') + '.md';
+        const path = await save({ defaultPath: safeName, filters: [{ name: 'Markdown', extensions: ['md'] }] });
+        if (path) {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          await writeFile(path, bytes);
+        }
+      } catch {
+        // Browser fallback
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = (article.title || 'procedure') + '.md';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      console.error('Export failed:', e);
+    }
+  }
+
   function openEditDialog(article) {
     editingArticle = article;
     form = {
@@ -695,6 +723,7 @@
               {selectedArticle.pinned ? '📌 Désépingler' : '📍 Épingler'}
             </button>
             <button class="btn-ghost" on:click={() => openEditDialog(selectedArticle)}>✏️ Modifier</button>
+            <button class="btn-ghost" on:click={() => exportArticleMd(selectedArticle)}>📥 Exporter .md</button>
             <button class="btn-ghost btn-ghost-danger" on:click={() => { confirmDeleteId = selectedArticle.id; }}>🗑️ Supprimer</button>
           </div>
         {/if}

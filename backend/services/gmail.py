@@ -62,10 +62,14 @@ async def has_gmail_scope() -> bool:
 
 
 def _is_inline(part) -> bool:
+    """Check if a part is an inline image (signature/embedded), not a real attachment.
+    Only exclude parts that have BOTH content-id AND are images — these are
+    signature images. Real attachments sometimes have content-disposition: inline
+    but should still be shown as attachments."""
     headers = {h["name"].lower(): h["value"] for h in part.get("headers", [])}
-    if headers.get("content-id"):
-        return True
-    if headers.get("content-disposition", "").startswith("inline"):
+    mime = part.get("mimeType", "")
+    # Only treat as inline if it's an image with a Content-ID (signature embed)
+    if headers.get("content-id") and mime.startswith("image/"):
         return True
     return False
 

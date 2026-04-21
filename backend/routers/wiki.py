@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 
 from ..database import get_raw_db
 from ..schemas.wiki import (
@@ -186,6 +187,50 @@ async def get_article(article_id: int, db=Depends(get_raw_db)):
         id=r[0], title=r[1], category=r[2], content=r[3], tags=r[4],
         pinned=bool(r[5]), created_at=r[6], updated_at=r[7], source_path=r[8],
         content_format=r[9],
+    )
+
+
+@router.get("/{article_id}/export")
+async def export_article_md(article_id: int, db=Depends(get_raw_db)):
+    """Export a wiki article as a .md file download."""
+    rows = await db.execute_fetchall(
+        "SELECT title, COALESCE(content,''), COALESCE(content_format,'html') FROM wiki_articles WHERE id = ?",
+        (article_id,),
+    )
+    if not rows:
+        raise HTTPException(404, "Article not found")
+    title, content, fmt = rows[0]
+
+    # If content is HTML, do a basic conversion to markdown
+    if fmt == "html" and content:
+        import re as _re
+        md = content
+        md = _re.sub(r"<h1[^>]*>(.*?)</h1>", r"# \1\n", md)
+        md = _re.sub(r"<h2[^>]*>(.*?)</h2>", r"## \1\n", md)
+        md = _re.sub(r"<h3[^>]*>(.*?)</h3>", r"### \1\n", md)
+        md = _re.sub(r"<strong>(.*?)</strong>", r"**\1**", md)
+        md = _re.sub(r"<b>(.*?)</b>", r"**\1**", md)
+        md = _re.sub(r"<em>(.*?)</em>", r"*\1*", md)
+        md = _re.sub(r"<i>(.*?)</i>", r"*\1*", md)
+        md = _re.sub(r"<code>(.*?)</code>", r"`\1`", md)
+        md = _re.sub(r"<br\s*/?>", "\n", md)
+        md = _re.sub(r"<li[^>]*>(.*?)</li>", r"- \1\n", md)
+        md = _re.sub(r"<[^>]+>", "", md)  # strip remaining tags
+        md = _re.sub(r"\n{3,}", "\n\n", md)  # collapse extra newlines
+        content = md.strip()
+    else:
+        content = content or ""
+
+    # Add title as H1 header
+    md_content = f"# {title}\n\n{content}\n"
+
+    safe_title = re.sub(r'[^\w\s-]', '', title).strip().replace(' ', '_')
+    filename = f"{safe_title}.md"
+
+    return Response(
+        content=md_content.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

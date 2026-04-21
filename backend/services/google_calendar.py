@@ -202,7 +202,7 @@ async def _ensure_valid_token() -> str:
 
 
 async def list_calendars() -> list[dict]:
-    """List all calendars for the authenticated user."""
+    """List all calendars for the authenticated user, including primary."""
     token = await _ensure_valid_token()
     async with httpx.AsyncClient() as client:
         resp = await client.get(
@@ -211,7 +211,7 @@ async def list_calendars() -> list[dict]:
         )
         resp.raise_for_status()
     items = resp.json().get("items", [])
-    return [
+    calendars = [
         {
             "id": c["id"],
             "summary": c.get("summary", ""),
@@ -221,6 +221,26 @@ async def list_calendars() -> list[dict]:
         }
         for c in items
     ]
+
+    # Ensure primary calendar is included (sometimes missing from calendarList)
+    has_primary = any(c["primary"] for c in calendars)
+    if not has_primary:
+        try:
+            cfg = load_config()
+            email = cfg.get("connected_email", "") if cfg else ""
+            if email:
+                # Add the user's primary calendar explicitly
+                calendars.insert(0, {
+                    "id": email,
+                    "summary": "Mon calendrier",
+                    "primary": True,
+                    "backgroundColor": "#4B8BFF",
+                    "foregroundColor": "#fff",
+                })
+        except Exception:
+            pass
+
+    return calendars
 
 
 async def list_events(
