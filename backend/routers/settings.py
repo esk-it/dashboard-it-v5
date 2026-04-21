@@ -535,4 +535,13 @@ async def reset_data(payload: dict = Body(...)):
             try: f.unlink()
             except Exception: pass
 
+    # Delete all imported files (documents, logos, launcher icons)
+    import shutil
+    for folder in ["documents", "logos", "launcher_icons"]:
+        folder_path = data_dir / folder
+        if folder_path.exists():
+            try: shutil.rmtree(folder_path)
+            except Exception: pass
+            folder_path.mkdir(parents=True, exist_ok=True)  # Recreate empty
+
     return {"ok": True, "message": f"Donn\u00e9es r\u00e9initialis\u00e9es. Backup: {zip_path.name}"}
