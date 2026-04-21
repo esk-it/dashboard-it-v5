@@ -626,7 +626,7 @@
               <svg class="chevron" class:open={expandedSites[site.id]} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
             </span>
             <span class="tree-ico">{'\u{1F3E2}'}</span>
-            <span class="tree-label">{site.code || site.name}</span>
+            <span class="tree-label">{site.name || site.code}</span>
             <span class="tree-count">{countBySite(site.id)}</span>
           </button>
           {#if expandedSites[site.id] && buildings[site.id]}

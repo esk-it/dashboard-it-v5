@@ -46,9 +46,18 @@
 
   onMount(async () => {
     loadSettings();
-    // Always require login on app startup (security: no auto-login)
-    logout();
-    currentPage.set('/login');
+    // Check "remember me" — if active and not expired, skip login
+    const rememberUntil = parseInt(localStorage.getItem('auth_remember_until') || '0');
+    const hasToken = !!localStorage.getItem('auth_token');
+    if (rememberUntil > Date.now() && hasToken) {
+      // Session still valid — check auth and proceed
+      const authed = await checkAuth();
+      if (!authed) { logout(); currentPage.set('/login'); }
+    } else {
+      // Expired or not remembered — force login
+      logout();
+      currentPage.set('/login');
+    }
 
     function handleKeydown(e) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {

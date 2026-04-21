@@ -3,6 +3,7 @@
   import { login } from '../stores/auth.js';
   import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-svelte';
   import logoUrl from '../../assets/ESKlogoN.png';
+  import eskLogoBUrl from '../../assets/ESKlogoB.png';
 
   let username = '';
   let password = '';
@@ -17,6 +18,12 @@
     loading = true;
     try {
       await login(username, password);
+      if (rememberMe) {
+        // Remember for 7 days
+        localStorage.setItem('auth_remember_until', String(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      } else {
+        localStorage.removeItem('auth_remember_until');
+      }
     } catch (e) {
       error = e.message;
     } finally {
@@ -84,7 +91,7 @@
           <label class="checkbox-wrap">
             <input type="checkbox" bind:checked={rememberMe} />
             <span class="checkmark"></span>
-            Se souvenir de moi
+            Se souvenir (7 jours)
           </label>
           <!-- svelte-ignore a11y_click_events_have_key_events -->
           <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -92,7 +99,10 @@
         </div>
         {#if showForgotInfo}
           <div class="forgot-info">
-            Contactez un administrateur pour reinitialiser votre mot de passe, ou supprimez le fichier <code>dashboard.db</code> pour repartir de zero (identifiants par defaut : admin / admin123).
+            <p><strong>Mot de passe oublie ?</strong></p>
+            <p>Contactez un administrateur pour reinitialiser votre mot de passe.</p>
+            <p>Si vous etes l'administrateur, supprimez le fichier <code>dashboard.db</code> dans le repertoire de l'application pour repartir de zero.</p>
+            <p style="margin-top:0.5rem;opacity:0.7">Identifiants par defaut : <code>admin</code> / <code>admin123</code></p>
           </div>
         {/if}
 
@@ -127,9 +137,15 @@
         <div class="deco-circle c4"></div>
       </div>
       <div class="brand-block">
-        <div class="brand-logo">IT</div>
-        <h2>IT Manager</h2>
-        <p>Votre tableau de bord IT centralise pour gerer vos equipements, taches et securite.</p>
+        <img src={eskLogoBUrl} alt="ESK" class="brand-esk-logo" />
+        <p>Tableau de bord IT de l'Ensemble Scolaire du Kreisker</p>
+        <div class="brand-features">
+          <span>Parc informatique</span>
+          <span>Monitoring</span>
+          <span>Securite</span>
+          <span>Messagerie</span>
+          <span>Planning</span>
+        </div>
       </div>
       <div class="deco-dots">
         {#each Array(36) as _, i}
@@ -427,20 +443,30 @@
     z-index: 2;
   }
 
-  .brand-logo {
-    width: 72px;
-    height: 72px;
-    border-radius: 20px;
-    background: rgba(255, 255, 255, 0.15);
-    backdrop-filter: blur(10px);
+  .brand-esk-logo {
+    max-width: 260px;
+    max-height: 80px;
+    object-fit: contain;
+    margin: 0 auto 1.5rem;
+    display: block;
+  }
+
+  .brand-features {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     justify-content: center;
-    font-size: 28px;
-    font-weight: 700;
-    color: #fff;
-    margin: 0 auto 1.25rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-top: 1.25rem;
+  }
+  .brand-features span {
+    padding: 0.375rem 0.875rem;
+    border-radius: 2rem;
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.9);
+    font-size: 0.75rem;
+    font-weight: 500;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255,255,255,0.15);
   }
 
   .auth-right h2 {
