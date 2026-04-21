@@ -36,10 +36,6 @@
   <!-- Left panel: form -->
   <div class="auth-left">
     <div class="auth-form-wrapper">
-      <div class="auth-logo">
-        <img src={logoUrl} alt="ESK-IT" class="logo-img-wide" />
-      </div>
-
       <h1 class="auth-title">Bienvenue !</h1>
       <p class="auth-subtitle">Connectez-vous pour acceder a votre espace</p>
 

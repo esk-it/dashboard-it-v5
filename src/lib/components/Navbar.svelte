@@ -5,6 +5,7 @@
   import { currentUser, logout } from '../stores/auth.js';
   import { api } from '../api/client.js';
   import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays } from 'lucide-svelte';
+  import { success, error as toastError, info } from '../stores/toast.js';
 
   const dispatch = createEventDispatcher();
 
@@ -18,6 +19,10 @@
   let unreadCount = 0;
   let upcomingEvents = [];
   let todayEventCount = 0;
+
+  // Change detection for notifications
+  let prevUnreadCount = -1; // -1 = first load, skip notification
+  let prevProblemCount = -1;
   let overdueTasks = [];
   let refreshTimer;
 
@@ -66,7 +71,14 @@
   async function fetchMailPreview() {
     try {
       const { count } = await api.get('/api/gmail/unread-count');
-      unreadCount = count || 0;
+      const newCount = count || 0;
+      // Detect new unread mails (skip first load)
+      if (prevUnreadCount >= 0 && newCount > prevUnreadCount) {
+        const diff = newCount - prevUnreadCount;
+        info(`${diff} nouveau${diff > 1 ? 'x' : ''} mail${diff > 1 ? 's' : ''} non lu${diff > 1 ? 's' : ''}`);
+      }
+      prevUnreadCount = newCount;
+      unreadCount = newCount;
       if (unreadCount > 0) {
         const data = await api.get('/api/gmail/messages?folder=inbox&max_results=5');
         unreadMails = (data.messages || []).filter(m => m.unread).slice(0, 5);
@@ -111,8 +123,21 @@
     } catch { overdueTasks = []; }
   }
 
+  async function fetchMonitoringAlerts() {
+    try {
+      const stats = await api.get('/api/monitoring/stats');
+      const problemCount = stats.active_problems || 0;
+      // Detect new critical problems (skip first load)
+      if (prevProblemCount >= 0 && problemCount > prevProblemCount) {
+        const diff = problemCount - prevProblemCount;
+        toastError(`${diff} nouvelle${diff > 1 ? 's' : ''} alerte${diff > 1 ? 's' : ''} monitoring !`);
+      }
+      prevProblemCount = problemCount;
+    } catch { /* monitoring not configured, ignore */ }
+  }
+
   async function fetchAll() {
-    await Promise.all([fetchMailPreview(), fetchCalendarPreview(), fetchOverdueTasks()]);
+    await Promise.all([fetchMailPreview(), fetchCalendarPreview(), fetchOverdueTasks(), fetchMonitoringAlerts()]);
   }
 
   async function syncAndRefresh() {

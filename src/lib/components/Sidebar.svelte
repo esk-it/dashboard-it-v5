@@ -13,6 +13,7 @@
 
   let appVersion = '';
   let overdueCount = 0;
+  let unreadMailCount = 0;
   let interval;
 
   onMount(async () => {
@@ -22,18 +23,23 @@
     } catch {
       appVersion = '4.0.1';
     }
-    loadOverdueCount();
-    interval = setInterval(loadOverdueCount, 60000);
+    loadBadges();
+    interval = setInterval(loadBadges, 30000);
   });
 
   onDestroy(() => { if (interval) clearInterval(interval); });
 
-  async function loadOverdueCount() {
+  async function loadBadges() {
     try {
       const res = await fetch('http://localhost:8010/api/tasks?status=open');
       const tasks = await res.json();
       const today = new Date().toISOString().slice(0, 10);
       overdueCount = tasks.filter(t => t.due_date && t.due_date < today && !t.done).length;
+    } catch { /* ignore */ }
+    try {
+      const res = await fetch('http://localhost:8010/api/gmail/unread-count');
+      const data = await res.json();
+      unreadMailCount = data.count || 0;
     } catch { /* ignore */ }
   }
 
@@ -95,6 +101,9 @@
               {/if}
               {#if item.key === 'tasks' && overdueCount > 0}
                 <span class="badge-count">{overdueCount}</span>
+              {/if}
+              {#if item.key === 'email' && unreadMailCount > 0}
+                <span class="badge-count badge-mail">{unreadMailCount > 99 ? '99+' : unreadMailCount}</span>
               {/if}
             </a>
           </li>
@@ -357,6 +366,7 @@
     justify-content: center;
     padding: 0 0.25rem;
   }
+  .badge-mail { background: #3B82F6; }
 
   /* ═══════════════════════════════════════
      BOTTOM SECTION
