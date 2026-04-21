@@ -174,7 +174,9 @@ async def reference_tree(db=Depends(get_raw_db)):
             article["action_code"] = action_code
             article["action_label"] = action_label
             # Strip reference from title for clean display
-            clean_title = r[1][len(parsed["ref"]):].lstrip(" -–—")
+            clean_title = r[1][len(parsed["ref"]):].lstrip(" -\u2013\u2014")
+            if not clean_title and action_label:
+                clean_title = action_label  # Use action label when no descriptive title
             article["clean_title"] = clean_title or r[1]
 
             # Build nested tree

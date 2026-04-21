@@ -140,7 +140,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/settings.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/services/gmail.py', encoding='utf-8'\\).read\\(\\)\\); print\\('gmail OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/services/google_calendar.py', encoding='utf-8'\\).read\\(\\)\\); print\\('gcal OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/wiki.py', encoding='utf-8'\\).read\\(\\)\\); print\\('wiki OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/wiki.py', encoding='utf-8'\\).read\\(\\)\\); print\\('wiki OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/wiki.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }

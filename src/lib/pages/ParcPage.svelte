@@ -290,6 +290,23 @@
     showQrDialog = true;
   }
 
+  // Color per equipment type for labels
+  const TYPE_COLORS = {
+    'PC': [69, 43, 144],        // Purple
+    'Portable': [59, 130, 246], // Blue
+    'Moniteur': [34, 197, 94],  // Green
+    'Imprimante': [245, 158, 11], // Amber
+    'Switch': [6, 166, 201],    // Cyan
+    'Serveur': [239, 68, 68],   // Red
+    'AP Wi-Fi': [139, 92, 246], // Violet
+    'Chromebook': [16, 185, 129], // Emerald
+  };
+
+  function truncPdf(text, maxLen) {
+    if (!text) return '';
+    return text.length > maxLen ? text.slice(0, maxLen - 2) + '..' : text;
+  }
+
   async function generateQrLabels() {
     qrGenerating = true;
     try {
@@ -298,17 +315,29 @@
       const doc = new jsPDF('portrait');
 
       const perRow = 3;
-      const labelW = 60;
-      const labelH = 35;
-      const marginX = 10;
-      const marginY = 10;
-      const gapX = 5;
-      const gapY = 5;
+      const labelW = 62;
+      const labelH = 38;
+      const marginX = 8;
+      const marginY = 8;
+      const gapX = 3;
+      const gapY = 3;
+      const labelsPerPage = perRow * 7; // 21
+
+      // Try to add logo
+      let logoImg = null;
+      try {
+        const img = new Image();
+        img.src = logoUrl;
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width; canvas.height = img.height;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        logoImg = canvas.toDataURL('image/png');
+      } catch { /* no logo fallback */ }
 
       for (let i = 0; i < qrEquipments.length; i++) {
         const eq = qrEquipments[i];
-        const pageIdx = Math.floor(i / 21); // 3 cols x 7 rows = 21 per page
-        const posOnPage = i % 21;
+        const posOnPage = i % labelsPerPage;
         const col = posOnPage % perRow;
         const row = Math.floor(posOnPage / perRow);
 
@@ -317,29 +346,73 @@
         const x = marginX + col * (labelW + gapX);
         const y = marginY + row * (labelH + gapY);
 
-        // QR code
-        const qrData = `${eq.hostname}|${eq.serial_number || ''}|${eq.equip_type}`;
-        const qrDataUrl = await QRCode.toDataURL(qrData, { width: 80, margin: 1 });
-        doc.addImage(qrDataUrl, 'PNG', x + 1, y + 1, 18, 18);
+        // Color stripe on left (by equipment type)
+        const typeColor = TYPE_COLORS[eq.equip_type] || [100, 116, 139];
+        doc.setFillColor(...typeColor);
+        doc.rect(x, y, 2.5, labelH, 'F');
 
-        // Text
-        doc.setFontSize(8);
-        doc.setFont(undefined, 'bold');
-        doc.text(eq.hostname || '—', x + 21, y + 6);
-        doc.setFont(undefined, 'normal');
-        doc.setFontSize(6);
-        doc.text(`Type: ${eq.equip_type}`, x + 21, y + 11);
-        doc.text(`SN: ${eq.serial_number || '—'}`, x + 21, y + 15);
-        doc.text(`Site: ${eq.site_name || '—'}`, x + 21, y + 19);
+        // Background
+        doc.setFillColor(252, 252, 253);
+        doc.rect(x + 2.5, y, labelW - 2.5, labelH, 'F');
 
         // Border
-        doc.setDrawColor(200);
+        doc.setDrawColor(220, 220, 225);
+        doc.setLineWidth(0.3);
         doc.rect(x, y, labelW, labelH);
+
+        // QR code
+        const qrData = [eq.hostname, eq.equip_type, eq.serial_number || '', eq.site_name || ''].join(' | ');
+        const qrDataUrl = await QRCode.toDataURL(qrData, { width: 100, margin: 1, color: { dark: '#1a1a2e' } });
+        doc.addImage(qrDataUrl, 'PNG', x + 4, y + 2, 16, 16);
+
+        // Logo (top right, small)
+        if (logoImg) {
+          try { doc.addImage(logoImg, 'PNG', x + labelW - 10, y + 1.5, 7, 7); } catch {}
+        }
+
+        // Hostname (bold, prominent)
+        doc.setTextColor(26, 26, 46);
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'bold');
+        doc.text(truncPdf(eq.hostname || '', 22), x + 22, y + 6);
+
+        // Type badge
+        doc.setFontSize(5.5);
+        doc.setFont(undefined, 'normal');
+        doc.setTextColor(...typeColor);
+        doc.text(eq.equip_type || '', x + 22, y + 10);
+
+        // Details
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(5.5);
+        const details = [
+          eq.serial_number ? `SN: ${truncPdf(eq.serial_number, 20)}` : '',
+          eq.site_name ? `${truncPdf(eq.site_name, 15)}` : '',
+          eq.building_name ? `${truncPdf(eq.building_name, 12)}${eq.room_name ? ' > ' + truncPdf(eq.room_name, 10) : ''}` : '',
+        ].filter(Boolean);
+
+        details.forEach((line, idx) => {
+          doc.text(line, x + 22, y + 14 + idx * 3.5);
+        });
+
+        // Separator line
+        doc.setDrawColor(230, 230, 235);
+        doc.setLineWidth(0.2);
+        doc.line(x + 4, y + 19, x + labelW - 4, y + 19);
+
+        // Footer: date
+        doc.setFontSize(4.5);
+        doc.setTextColor(160, 165, 185);
+        doc.text(new Date().toLocaleDateString('fr-FR'), x + 4, y + labelH - 2);
+
+        // Footer: brand
+        doc.setFontSize(4.5);
+        doc.text('ITManager', x + labelW - 16, y + labelH - 2);
       }
 
       await savePdfWithDialog(doc, `etiquettes_qr_parc_${new Date().toISOString().slice(0,10)}.pdf`);
       showQrDialog = false;
-      success(`${qrEquipments.length} \u00e9tiquettes g\u00e9n\u00e9r\u00e9es`);
+      success(`${qrEquipments.length} etiquettes generees`);
     } catch (e) {
       toastError('Erreur : ' + e.message);
     }
