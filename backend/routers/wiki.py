@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections import defaultdict
 from datetime import datetime
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from ..database import get_raw_db
@@ -17,6 +20,14 @@ from ..schemas.wiki import (
 )
 
 router = APIRouter(prefix="/api/wiki", tags=["wiki"])
+
+# Custom segments storage
+if os.environ.get("ITMANAGER_DATA_DIR"):
+    _DATA_DIR = Path(os.environ["ITMANAGER_DATA_DIR"]) / "data"
+else:
+    _DATA_DIR = Path(__file__).parent.parent / "data"
+_DATA_DIR.mkdir(parents=True, exist_ok=True)
+_CUSTOM_SEGMENTS_FILE = _DATA_DIR / "wiki_segments.json"
 
 
 @router.get("/categories", response_model=list[WikiCategoryResponse])
@@ -72,20 +83,49 @@ async def list_articles(
     ]
 
 
-# ── Reference parsing (helper used by endpoints below) ────────
-SEGMENT_LABELS = {
-    "PROC": "Procédure", "DOC": "Documentation", "GUIDE": "Guide", "FORM": "Formulaire", "NOTE": "Note",
+# ── Reference parsing (dynamic segments) ────────────────────
+_BASE_SEGMENT_LABELS = {
+    # Types
+    "PROC": "Procedure", "DOC": "Documentation", "GUIDE": "Guide", "FORM": "Formulaire", "NOTE": "Note",
     "OLD": "Ancien",
-    "SI": "Système d'Info", "RES": "Réseau", "SEC": "Sécurité", "PED": "Pédagogique",
-    "ADM": "Administration", "TEL": "Téléphonie", "IMP": "Impression", "SRV": "Serveurs",
-    "INST": "Installation", "CONF": "Configuration", "MAJ": "Mise à jour", "DIAG": "Diagnostic",
-    "DEPL": "Déploiement", "SAV": "Sauvegarde", "BACKUP": "Sauvegarde", "REST": "Restauration",
-    "SUPP": "Support", "CREA": "Création", "MIGR": "Migration", "SECU": "Sécurisation",
+    # Domains
+    "SI": "Systeme d'Info", "RES": "Reseau", "SEC": "Securite", "PED": "Pedagogique",
+    "ADM": "Administration", "TEL": "Telephonie", "IMP": "Impression", "SRV": "Serveurs",
+    # Actions
+    "INST": "Installation", "CONF": "Configuration", "MAJ": "Mise a jour", "DIAG": "Diagnostic",
+    "DEPL": "Deploiement", "SAV": "Sauvegarde", "BACKUP": "Sauvegarde", "REST": "Restauration",
+    "SUPP": "Support", "CREA": "Creation", "MIGR": "Migration", "SECU": "Securisation",
     "UTIL": "Utilisation", "CUST": "Personnalisation", "GIT": "Git",
-    "HTTPS": "HTTPS/SSL", "SYNC": "Synchronisation", "UPDATE": "Mise à jour",
+    "HTTPS": "HTTPS/SSL", "SYNC": "Synchronisation", "UPDATE": "Mise a jour",
     "INVENTORY": "Inventaire", "LDAP": "Annuaire LDAP", "MAIL": "Messagerie",
-    "MAINT": "Maintenance", "RESET": "Réinitialisation", "TEST": "Test", "AUDIT": "Audit",
+    "MAINT": "Maintenance", "RESET": "Reinitialisation", "TEST": "Test", "AUDIT": "Audit",
 }
+
+def _load_custom_segments() -> dict:
+    if _CUSTOM_SEGMENTS_FILE.exists():
+        try:
+            return json.loads(_CUSTOM_SEGMENTS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {}
+
+def _save_custom_segments(customs: dict):
+    _CUSTOM_SEGMENTS_FILE.write_text(json.dumps(customs, indent=2, ensure_ascii=False), encoding="utf-8")
+
+def _get_all_segments() -> dict:
+    """Merge base segments with custom segments. Custom overrides base."""
+    merged = dict(_BASE_SEGMENT_LABELS)
+    merged.update(_load_custom_segments())
+    return merged
+
+def _learn_segment(code: str):
+    """Auto-learn an unknown segment code by adding it to custom segments."""
+    all_segs = _get_all_segments()
+    if code not in all_segs:
+        customs = _load_custom_segments()
+        customs[code] = code  # Use code as default label
+        _save_custom_segments(customs)
+
 REF_PATTERN = re.compile(r'^([A-Z0-9]+-[A-Z0-9]+(?:-[A-Z0-9]+)*)')
 
 def _parse_ref(title: str) -> dict | None:
@@ -96,7 +136,12 @@ def _parse_ref(title: str) -> dict | None:
     parts = ref.split("-")
     if len(parts) < 2:
         return None
-    segments = [{"code": p, "label": SEGMENT_LABELS.get(p, p)} for p in parts]
+    all_segs = _get_all_segments()
+    segments = [{"code": p, "label": all_segs.get(p, p)} for p in parts]
+    # Auto-learn any unknown segments
+    for p in parts:
+        if p not in all_segs:
+            _learn_segment(p)
     return {"ref": ref, "segments": segments}
 
 
@@ -153,6 +198,7 @@ async def reference_tree(db=Depends(get_raw_db)):
 
 @router.get("/references/segments")
 async def reference_segments(db=Depends(get_raw_db)):
+    all_segs = _get_all_segments()
     rows = await db.execute_fetchall("SELECT title FROM wiki_articles")
     types, domains, tools, actions = set(), set(), set(), set()
     for r in rows:
@@ -164,9 +210,30 @@ async def reference_segments(db=Depends(get_raw_db)):
                 tools.add(parsed["segments"][2]["code"])
             if len(parsed["segments"]) >= 4:
                 actions.add(parsed["segments"][3]["code"])
+    # Also include all known segments (base + custom) so they show in dropdowns
+    for code in all_segs:
+        if code in ("PROC", "DOC", "GUIDE", "FORM", "NOTE", "OLD"):
+            types.add(code)
+        elif code in ("SI", "RES", "SEC", "PED", "ADM", "TEL", "IMP", "SRV"):
+            domains.add(code)
     def to_list(s):
-        return [{"code": c, "label": SEGMENT_LABELS.get(c, c)} for c in sorted(s)]
+        return [{"code": c, "label": all_segs.get(c, c)} for c in sorted(s)]
     return {"types": to_list(types), "domains": to_list(domains), "tools": to_list(tools), "actions": to_list(actions)}
+
+
+@router.post("/references/segments")
+async def add_custom_segment(body: dict = Body(...)):
+    """Add a custom segment code with a label."""
+    code = body.get("code", "").strip().upper()
+    label = body.get("label", "").strip()
+    if not code or len(code) < 2:
+        raise HTTPException(400, "Code must be at least 2 characters")
+    if not label:
+        label = code
+    customs = _load_custom_segments()
+    customs[code] = label
+    _save_custom_segments(customs)
+    return {"ok": True, "code": code, "label": label}
 
 
 # ── Single article (AFTER references/* to avoid route conflict) ──

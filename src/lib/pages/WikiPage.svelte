@@ -136,43 +136,46 @@
   $: generatedRef = [refType, refDomain, refTool, refAction].filter(Boolean).join('-');
 
   // Known types, domains, actions for reference parsing
-  const KNOWN_TYPES = ['PROC', 'DOC', 'GUIDE', 'NOTE', 'OLD'];
-  const KNOWN_DOMAINS = ['SI', 'RES', 'SEC', 'PED', 'ADM', 'TEL'];
-  const KNOWN_ACTIONS = [
+  // Dynamic segment lists — enriched from API + base defaults
+  const BASE_TYPES = ['PROC', 'DOC', 'GUIDE', 'NOTE', 'OLD'];
+  const BASE_DOMAINS = ['SI', 'RES', 'SEC', 'PED', 'ADM', 'TEL', 'IMP', 'SRV'];
+  const BASE_ACTIONS = [
     'INST', 'CONF', 'MAJ', 'DIAG', 'DEPL', 'SAV', 'REST', 'MIGR', 'SECU',
     'UTIL', 'BACKUP', 'FORM', 'CUST', 'GIT', 'HTTPS', 'SYNC', 'UPDATE',
     'INVENTORY', 'LDAP', 'MAIL', 'MAINT', 'RESET', 'TEST', 'AUDIT',
   ];
 
+  // Merge base with discovered segments from API
+  $: knownTypes = [...new Set([...BASE_TYPES, ...(refSegments?.types || []).map(s => s.code)])];
+  $: knownDomains = [...new Set([...BASE_DOMAINS, ...(refSegments?.domains || []).map(s => s.code)])];
+  $: knownActions = [...new Set([...BASE_ACTIONS, ...(refSegments?.actions || []).map(s => s.code)])];
+
   function autoFillRefFromCode(refCode) {
-    // Parse a reference like "PROC-SI-NGINX-INST" or "OLD-PROC-SI-GLPI-BACKUP"
     const parts = refCode.split('-').filter(Boolean);
     let idx = 0;
 
-    // Skip OLD prefix
     if (parts[idx] === 'OLD') idx++;
 
-    // Type
-    if (idx < parts.length && KNOWN_TYPES.includes(parts[idx])) {
+    // Type — accept any known type or unknown (auto-learned)
+    if (idx < parts.length) {
       refType = parts[idx];
       idx++;
     }
 
-    // Domain
-    if (idx < parts.length && KNOWN_DOMAINS.includes(parts[idx])) {
+    // Domain — accept any
+    if (idx < parts.length) {
       refDomain = parts[idx];
       idx++;
     }
 
-    // Tool (everything between domain and action)
-    // The last part might be an action, everything else is the tool
+    // Remaining: tool + optional action
     const remaining = parts.slice(idx);
     if (remaining.length > 0) {
       const lastPart = remaining[remaining.length - 1];
-      if (KNOWN_ACTIONS.includes(lastPart) && remaining.length > 1) {
+      if (knownActions.includes(lastPart) && remaining.length > 1) {
         refAction = lastPart;
         refTool = remaining.slice(0, -1).join('-');
-      } else if (KNOWN_ACTIONS.includes(lastPart)) {
+      } else if (knownActions.includes(lastPart)) {
         refAction = lastPart;
         refTool = '';
       } else {
@@ -820,24 +823,20 @@
       <div class="ya-dialog__body">
         <!-- Reference generator -->
           <div class="ref-generator">
-            <span class="ref-gen-label">{'\u{1F3F7}\uFE0F'} R{'\u00e9'}f{'\u00e9'}rence :</span>
+            <span class="ref-gen-label">{'\u{1F3F7}\uFE0F'} Reference :</span>
             <select class="ref-gen-select" bind:value={refType}>
-              <option value="">—</option>
-              <option value="PROC">PROC</option>
-              <option value="DOC">DOC</option>
-              <option value="GUIDE">GUIDE</option>
-              <option value="NOTE">NOTE</option>
+              <option value="">Type</option>
+              {#each knownTypes as t}
+                <option value={t}>{t}</option>
+              {/each}
             </select>
             <select class="ref-gen-select" bind:value={refDomain}>
               <option value="">Domaine</option>
-              <option value="SI">SI (Syst. Info)</option>
-              <option value="RES">RES (R{'\u00e9'}seau)</option>
-              <option value="SEC">SEC (S{'\u00e9'}curit{'\u00e9'})</option>
-              <option value="PED">PED (P{'\u00e9'}dagogique)</option>
-              <option value="ADM">ADM (Administration)</option>
-              <option value="TEL">TEL (T{'\u00e9'}l{'\u00e9'}phonie)</option>
+              {#each knownDomains as d}
+                <option value={d}>{d}</option>
+              {/each}
               {#if refSegments}
-                {#each refSegments.domains.filter(d => !['SI','RES','SEC','PED','ADM','TEL'].includes(d.code)) as d}
+                {#each (refSegments.domains || []).filter(d => !knownDomains.includes(d.code)) as d}
                   <option value={d.code}>{d.code} ({d.label})</option>
                 {/each}
               {/if}
@@ -845,29 +844,9 @@
             <input type="text" class="ref-gen-input" bind:value={refTool} placeholder="OUTIL (EX: NGINX)" style="width:120px;text-transform:uppercase" />
             <select class="ref-gen-select" bind:value={refAction}>
               <option value="">Action</option>
-              <option value="INST">INST (Installation)</option>
-              <option value="CONF">CONF (Configuration)</option>
-              <option value="MAJ">MAJ (Mise {'\u00e0'} jour)</option>
-              <option value="UPDATE">UPDATE (Mise {'\u00e0'} jour)</option>
-              <option value="BACKUP">BACKUP (Sauvegarde)</option>
-              <option value="REST">REST (Restauration)</option>
-              <option value="UTIL">UTIL (Utilisation)</option>
-              <option value="FORM">FORM (Formulaire)</option>
-              <option value="CUST">CUST (Personnalisation)</option>
-              <option value="GIT">GIT (Gestion Git)</option>
-              <option value="HTTPS">HTTPS (Certificats/SSL)</option>
-              <option value="SYNC">SYNC (Synchronisation)</option>
-              <option value="LDAP">LDAP (Annuaire)</option>
-              <option value="MAIL">MAIL (Messagerie)</option>
-              <option value="INVENTORY">INVENTORY (Inventaire)</option>
-              <option value="DIAG">DIAG (Diagnostic)</option>
-              <option value="DEPL">DEPL (D{'\u00e9'}ploiement)</option>
-              <option value="MIGR">MIGR (Migration)</option>
-              <option value="SECU">SECU (S{'\u00e9'}curisation)</option>
-              <option value="MAINT">MAINT (Maintenance)</option>
-              <option value="RESET">RESET (R{'\u00e9'}initialisation)</option>
-              <option value="TEST">TEST (Test/Validation)</option>
-              <option value="AUDIT">AUDIT (Audit)</option>
+              {#each knownActions as a}
+                <option value={a}>{a}</option>
+              {/each}
             </select>
             {#if generatedRef.includes('-')}
               <button class="ref-gen-apply" on:click={() => { form.title = generatedRef + ' - ' + form.title.replace(/^[A-Z0-9-]+ ?- ?/, ''); }}>
