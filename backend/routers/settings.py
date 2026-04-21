@@ -496,57 +496,43 @@ async def reset_data(payload: dict = Body(...)):
         if RSS_FILE.exists():
             zf.write(RSS_FILE, "rss_feeds.json")
 
-    # Truncate all tables (keep schema intact)
-    import aiosqlite
-    db = await aiosqlite.connect(str(DB_PATH))
-    try:
-        cursor = await db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
-        tables = [row[0] for row in await cursor.fetchall()]
-        for table in tables:
-            await db.execute(f"DELETE FROM [{table}]")
-        await db.commit()
-    finally:
-        await db.close()
+    # Delete the database file entirely — clean slate
+    if DB_PATH.exists():
+        try:
+            DB_PATH.unlink()
+        except Exception:
+            # If DB is locked, try renaming instead
+            DB_PATH.rename(DB_PATH.with_suffix(".db.old"))
+    # Also delete WAL/SHM journal files
+    for suffix in [".db-wal", ".db-shm"]:
+        p = DB_PATH.parent / (DB_PATH.stem + suffix)
+        if p.exists():
+            try: p.unlink()
+            except Exception: pass
 
-    # Re-run init_db to recreate default data (seeds)
+    # Recreate fresh database with all tables + default admin
     await init_db()
+    try:
+        import aiosqlite
+        from .auth import ensure_default_admin
+        _db = await aiosqlite.connect(str(DB_PATH))
+        await ensure_default_admin(_db)
+        await _db.close()
+    except Exception as e:
+        logger.warning(f"Failed to create default admin after reset: {e}")
 
-    # Reset settings to defaults
+    # Reset all settings to defaults
     _write_json(GENERAL_FILE, GENERAL_DEFAULTS)
     _write_json(THEME_FILE, THEME_DEFAULTS)
     _write_json(RSS_FILE, RSS_DEFAULTS)
 
-    # Clear all integration caches and configs
+    # Delete ALL integration caches and configs
     data_dir = BACKEND_DIR / "data"
-    for cache_file in [
-        "glpi_cache.json", "glpi_config.json",
-        "ws_cache.json", "ws_config.json",
-        "zabbix_cache.json", "zabbix_config.json",
-    ]:
-        p = data_dir / cache_file
-        if p.exists():
-            p.unlink()
+    for f in data_dir.glob("*.json"):
+        fname = f.name
+        # Keep settings files we just wrote, delete everything else
+        if fname not in ("general_settings.json", "settings.json", "rss_feeds.json", "auto_backup_settings.json"):
+            try: f.unlink()
+            except Exception: pass
 
-    # Clear Google Calendar sync token so next sync does a fresh full import
-    gcal_config = data_dir / "google_config.json"
-    if gcal_config.exists():
-        try:
-            import json as _json
-            cfg = _json.loads(gcal_config.read_text(encoding="utf-8"))
-            cfg.pop("sync_token", None)
-            cfg.pop("last_sync", None)
-            gcal_config.write_text(_json.dumps(cfg, indent=2), encoding="utf-8")
-        except Exception:
-            pass
-
-    # Recreate default admin user
-    try:
-        from .auth import ensure_default_admin
-        import aiosqlite as _aiosqlite
-        _db = await _aiosqlite.connect(str(DB_PATH))
-        await ensure_default_admin(_db)
-        await _db.close()
-    except Exception:
-        pass
-
-    return {"ok": True, "message": f"Donn\u00e9es r\u00e9initialis\u00e9es. Backup de s\u00e9curit\u00e9 cr\u00e9\u00e9: {zip_path.name}"}
+    return {"ok": True, "message": f"Donn\u00e9es r\u00e9initialis\u00e9es. Backup: {zip_path.name}"}

@@ -878,28 +878,26 @@
                   <button class="btn-danger" disabled={resetConfirmText.toUpperCase() !== 'PURGER' || resetting} on:click={async () => {
                     resetting = true;
                     try {
-                      const controller = new AbortController();
-                      const timeout = setTimeout(() => controller.abort(), 30000);
                       const res = await fetch(`${API}/reset-data`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ confirmation: 'PURGER' }),
-                        signal: controller.signal,
                       });
-                      clearTimeout(timeout);
-                      if (res.ok) {
-                        await new Promise(r => setTimeout(r, 3000));
+                      const data = await res.json().catch(() => ({ ok: true }));
+                      if (res.ok || data.ok) {
+                        // Clear all client-side storage for fresh start
+                        localStorage.clear();
+                        sessionStorage.clear();
+                        await new Promise(r => setTimeout(r, 2000));
                         window.location.reload();
                       } else {
-                        const data = await res.json().catch(() => ({}));
-                        alert('Erreur serveur: ' + (data.message || `HTTP ${res.status}`));
+                        alert('Erreur: ' + (data.message || 'Purge echouee'));
                         resetting = false;
                       }
                     } catch (e) {
-                      console.error('Purge error:', e);
-                      // If fetch failed, the purge might have worked but backend restarted
-                      // Wait and try to reload
-                      await new Promise(r => setTimeout(r, 5000));
+                      // Purge likely succeeded but backend is restarting
+                      localStorage.clear();
+                      await new Promise(r => setTimeout(r, 3000));
                       window.location.reload();
                     }
                   }}>{resetting ? 'Purge en cours...' : 'Confirmer la purge'}</button>
