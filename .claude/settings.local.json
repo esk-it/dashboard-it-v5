@@ -151,7 +151,10 @@
       "Bash(grep -rn '${API_BASE}' src/lib/ --include=\"*.svelte\" --include=\"*.js\")",
       "Bash(grep -rn '${API_BASE}' src/lib/ --include=\"*.svelte\")",
       "Bash(grep -rn \"\\\\`_blank'\" src/lib/ --include=\"*.svelte\" --include=\"*.js\")",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/projects.py', encoding='utf-8'\\).read\\(\\)\\); print\\('projects OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/main.py', encoding='utf-8'\\).read\\(\\)\\); print\\('main OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/database.py', encoding='utf-8'\\).read\\(\\)\\); print\\('db OK'\\)\")"
     ]
   }
 }

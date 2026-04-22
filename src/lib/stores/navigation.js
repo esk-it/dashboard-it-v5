@@ -7,6 +7,7 @@ export const navItems = [
   { type: 'section', label: 'VOTRE ENTREPRISE' },
   { key: 'home', path: '/', icon: 'Home', label: 'Dashboard', emoji: '\u{1F3E0}' },
   { key: 'tasks', path: '/tasks', icon: 'CheckSquare', label: 'Tâches', emoji: '✅' },
+  { key: 'projects', path: '/projects', icon: 'Target', label: 'Projets', emoji: '\u{1F3AF}' },
   { key: 'planning', path: '/planning', icon: 'Calendar', label: 'Planning', emoji: '\u{1F4C5}' },
   { key: 'documents', path: '/documents', icon: 'FileText', label: 'Documents', emoji: '\u{1F4C1}' },
   { key: 'email', path: '/email', icon: 'Mail', label: 'Email', emoji: '\u{1F4E7}' },

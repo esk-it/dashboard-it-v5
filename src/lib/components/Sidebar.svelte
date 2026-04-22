@@ -3,14 +3,14 @@
   import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
-  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu, Target } from 'lucide-svelte';
   import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
   import nomB from '../../assets/nomB.png';
 
   const dispatch = createEventDispatcher();
 
-  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings };
+  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target };
 
   let appVersion = '';
   let overdueCount = 0;
@@ -282,7 +282,7 @@
   .menu-title-dot {
     height: 1px;
     background: var(--border-subtle);
-    margin: 0.75rem 1rem;
+    margin: 0.625rem 1rem;
   }
 
   /* Nav items */
@@ -376,6 +376,13 @@
     margin-top: auto;
     padding: 0.5rem 0 1rem;
     border-top: 1px solid var(--border-subtle);
+    margin-left: 1.875rem;
+    margin-right: 1.875rem;
+  }
+
+  .collapsed .nav-bottom-section {
+    margin-left: 1rem;
+    margin-right: 1rem;
   }
 
   .nav-bottom-item {

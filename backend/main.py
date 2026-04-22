@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 import logging
 from .database import init_db, get_raw_db
-from .routers import dashboard, tasks, settings, search, planning, documents, changelog, wiki, news, suppliers, parc, security, monitoring, tools, glpi, launcher, auth
+from .routers import dashboard, tasks, settings, search, planning, documents, changelog, wiki, news, suppliers, parc, security, monitoring, tools, glpi, launcher, auth, projects
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +65,7 @@ app.include_router(tools.router)
 app.include_router(glpi.router)
 app.include_router(launcher.router)
 app.include_router(auth.router)
+app.include_router(projects.router)
 if google_calendar:
     app.include_router(google_calendar.router)
 if gmail:

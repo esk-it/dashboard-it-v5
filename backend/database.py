@@ -59,6 +59,34 @@ async def init_db():
             created_at TEXT NOT NULL DEFAULT '',
             last_login TEXT NOT NULL DEFAULT ''
         )""",
+        # --- Projects ---
+        """CREATE TABLE IF NOT EXISTS projects (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'not_started',
+            color TEXT NOT NULL DEFAULT '#3B82F6',
+            start_date TEXT NOT NULL DEFAULT '',
+            end_date TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT ''
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_suppliers (
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            supplier_id INTEGER NOT NULL,
+            PRIMARY KEY (project_id, supplier_id)
+        )""",
+        """CREATE TABLE IF NOT EXISTS project_documents (
+            project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+            document_id INTEGER NOT NULL,
+            PRIMARY KEY (project_id, document_id)
+        )""",
         # --- Tasks ---
         """CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -477,6 +505,12 @@ async def _run_migrations(db):
         await db.execute(
             "ALTER TABLE parc_equipment ADD COLUMN last_user TEXT NOT NULL DEFAULT ''"
         )
+
+    # Project link on tasks
+    cursor = await db.execute("PRAGMA table_info(tasks)")
+    task_cols = [row[1] for row in await cursor.fetchall()]
+    if "project_id" not in task_cols:
+        await db.execute("ALTER TABLE tasks ADD COLUMN project_id INTEGER")
 
     # Google Calendar sync columns on planning_events
     cursor = await db.execute("PRAGMA table_info(planning_events)")
