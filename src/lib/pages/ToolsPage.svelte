@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
+  import { API_BASE } from '../api/client.js';
 
-  const API = '/api/tools';
+  const API = `${API_BASE}/api/tools`;
 
   // ── Tab system ────────────────────────────────────────────────────────────
   let activeTab = 'ping';

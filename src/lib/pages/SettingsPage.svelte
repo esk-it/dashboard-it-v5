@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
+  import { API_BASE } from '../api/client.js';
 
-  const API = '/api/settings';
+  const API = `${API_BASE}/api/settings`;
 
   let activePanel = 0;
 
@@ -52,7 +53,7 @@
   let zabbixAuthMode = 'login';
   let zabbixSaving = false;
 
-  const ZABBIX_API = '/api/monitoring';
+  const ZABBIX_API = `${API_BASE}/api/monitoring`;
 
   async function loadZabbixConfig() {
     try {
@@ -283,7 +284,7 @@
   }
 
   // ── WithSecure ───────────────────────────────────────
-  const WS_API = '/api/security';
+  const WS_API = `${API_BASE}/api/security`;
 
   async function loadWsConfig() {
     try {
@@ -323,7 +324,7 @@
   }
 
   // ── GLPI ─────────────────────────────────────────────
-  const GLPI_API = '/api/glpi';
+  const GLPI_API = `${API_BASE}/api/glpi`;
 
   async function loadGlpiConfig() {
     try {
@@ -370,7 +371,7 @@
   }
 
   // ── Google Calendar ─────────────────────────────────
-  const GCAL_API = '/api/google-calendar';
+  const GCAL_API = `${API_BASE}/api/google-calendar`;
 
   async function loadGcalConfig() {
     try {

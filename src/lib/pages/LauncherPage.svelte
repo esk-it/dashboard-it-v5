@@ -3,7 +3,7 @@
   import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
 
-  const API = '/api/launcher';
+  const API = `${API_BASE}/api/launcher`;
 
   // Simple Icons CDN for tech brand logos (white SVG on transparent)
   const SI = (name) => `https://cdn.simpleicons.org/${name}/white`;
