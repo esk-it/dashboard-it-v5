@@ -193,6 +193,9 @@
 
   // ── Export PDF helpers ──────────────────────────────────────
   import logoUrl from '../../assets/logo.png';
+  import suLogoUrl from '../../assets/SUlogo.png';
+  import ndeLogoUrl from '../../assets/NDElogo.png';
+  import ndkLogoUrl from '../../assets/NDKlogo.png';
 
   async function savePdfWithDialog(doc, defaultName) {
     try {
@@ -307,110 +310,100 @@
     return text.length > maxLen ? text.slice(0, maxLen - 2) + '..' : text;
   }
 
+  // Preload image as data URL for jsPDF
+  async function loadImgDataUrl(src) {
+    try {
+      const img = new Image();
+      img.src = src;
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      return c.toDataURL('image/png');
+    } catch { return null; }
+  }
+
+  function getSiteLogoSrc(siteName) {
+    const s = (siteName || '').toLowerCase();
+    if (s.includes('ursule') || s.includes('sainte') || s.includes('su')) return suLogoUrl;
+    if (s.includes('esperance') || s.includes('nde')) return ndeLogoUrl;
+    if (s.includes('kreisker') || s.includes('ndk') || s.includes('lycee') || s.includes('lyc')) return ndkLogoUrl;
+    return logoUrl;
+  }
+
   async function generateQrLabels() {
     qrGenerating = true;
     try {
-      const QRCode = (await import('qrcode')).default;
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF('portrait');
 
-      const perRow = 3;
-      const labelW = 62;
-      const labelH = 38;
-      const marginX = 8;
-      const marginY = 8;
-      const gapX = 3;
-      const gapY = 3;
-      const labelsPerPage = perRow * 7; // 21
+      // Label dimensions: 45.7mm x 21.2mm, 4 cols x 12 rows = 48 per page
+      const labelW = 45.7;
+      const labelH = 21.2;
+      const cols = 4;
+      const rows = 12;
+      const labelsPerPage = cols * rows;
+      const pageW = 210;
+      const pageH = 297;
+      const marginX = (pageW - cols * labelW) / 2;
+      const marginY = (pageH - rows * labelH) / 2;
 
-      // Try to add logo
-      let logoImg = null;
-      try {
-        const img = new Image();
-        img.src = logoUrl;
-        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width; canvas.height = img.height;
-        canvas.getContext('2d').drawImage(img, 0, 0);
-        logoImg = canvas.toDataURL('image/png');
-      } catch { /* no logo fallback */ }
+      // Preload site logos
+      const siteLogos = {};
+      for (const eq of qrEquipments) {
+        const src = getSiteLogoSrc(eq.site_name);
+        if (!siteLogos[src]) siteLogos[src] = await loadImgDataUrl(src);
+      }
 
       for (let i = 0; i < qrEquipments.length; i++) {
         const eq = qrEquipments[i];
         const posOnPage = i % labelsPerPage;
-        const col = posOnPage % perRow;
-        const row = Math.floor(posOnPage / perRow);
+        const col = posOnPage % cols;
+        const row = Math.floor(posOnPage / cols);
 
         if (i > 0 && posOnPage === 0) doc.addPage();
 
-        const x = marginX + col * (labelW + gapX);
-        const y = marginY + row * (labelH + gapY);
+        const x = marginX + col * labelW;
+        const y = marginY + row * labelH;
 
-        // Color stripe on left (by equipment type)
-        const typeColor = TYPE_COLORS[eq.equip_type] || [100, 116, 139];
-        doc.setFillColor(...typeColor);
-        doc.rect(x, y, 2.5, labelH, 'F');
-
-        // Background
-        doc.setFillColor(252, 252, 253);
-        doc.rect(x + 2.5, y, labelW - 2.5, labelH, 'F');
-
-        // Border
-        doc.setDrawColor(220, 220, 225);
+        // Rounded border
+        doc.setDrawColor(210, 210, 210);
         doc.setLineWidth(0.3);
-        doc.rect(x, y, labelW, labelH);
+        doc.roundedRect(x + 0.3, y + 0.3, labelW - 0.6, labelH - 0.6, 1.5, 1.5);
 
-        // QR code
-        const qrData = [eq.hostname, eq.equip_type, eq.serial_number || '', eq.site_name || ''].join(' | ');
-        const qrDataUrl = await QRCode.toDataURL(qrData, { width: 100, margin: 1, color: { dark: '#1a1a2e' } });
-        doc.addImage(qrDataUrl, 'PNG', x + 4, y + 2, 16, 16);
-
-        // Logo (top right, small)
-        if (logoImg) {
-          try { doc.addImage(logoImg, 'PNG', x + labelW - 10, y + 1.5, 7, 7); } catch {}
+        // LEFT: Site logo — almost full height, slightly right of edge
+        const logoSize = labelH - 1;
+        const logoX = x + 2.5;
+        const logoY = y + (labelH - logoSize) / 2;
+        const logoSrc = getSiteLogoSrc(eq.site_name);
+        const logoData = siteLogos[logoSrc];
+        if (logoData) {
+          try { doc.addImage(logoData, 'PNG', logoX, logoY, logoSize, logoSize); } catch {}
         }
 
-        // Hostname (bold, prominent)
-        doc.setTextColor(26, 26, 46);
-        doc.setFontSize(8);
+        // RIGHT: text aligned right, 7mm from edge
+        const rightEdge = x + labelW - 7;
+
+        // Room code — top right, bold 8pt
+        const roomCode = eq.room_name || '';
+        if (roomCode) {
+          doc.setTextColor(50, 50, 50);
+          doc.setFontSize(8);
+          doc.setFont(undefined, 'bold');
+          doc.text(roomCode, rightEdge, y + labelH - 7.5, { align: 'right' });
+        }
+
+        // Hostname number — bottom right, bold 24pt
+        const hostname = eq.hostname || '';
+        const numMatch = hostname.match(/(\d+)$/);
+        const displayNum = numMatch ? numMatch[1] : hostname;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(24);
         doc.setFont(undefined, 'bold');
-        doc.text(truncPdf(eq.hostname || '', 22), x + 22, y + 6);
-
-        // Type badge
-        doc.setFontSize(5.5);
-        doc.setFont(undefined, 'normal');
-        doc.setTextColor(...typeColor);
-        doc.text(eq.equip_type || '', x + 22, y + 10);
-
-        // Details
-        doc.setTextColor(100, 116, 139);
-        doc.setFontSize(5.5);
-        const details = [
-          eq.serial_number ? `SN: ${truncPdf(eq.serial_number, 20)}` : '',
-          eq.site_name ? `${truncPdf(eq.site_name, 15)}` : '',
-          eq.building_name ? `${truncPdf(eq.building_name, 12)}${eq.room_name ? ' > ' + truncPdf(eq.room_name, 10) : ''}` : '',
-        ].filter(Boolean);
-
-        details.forEach((line, idx) => {
-          doc.text(line, x + 22, y + 14 + idx * 3.5);
-        });
-
-        // Separator line
-        doc.setDrawColor(230, 230, 235);
-        doc.setLineWidth(0.2);
-        doc.line(x + 4, y + 19, x + labelW - 4, y + 19);
-
-        // Footer: date
-        doc.setFontSize(4.5);
-        doc.setTextColor(160, 165, 185);
-        doc.text(new Date().toLocaleDateString('fr-FR'), x + 4, y + labelH - 2);
-
-        // Footer: brand
-        doc.setFontSize(4.5);
-        doc.text('ITManager', x + labelW - 16, y + labelH - 2);
+        doc.text(displayNum, rightEdge, y + labelH - 3.5, { align: 'right' });
       }
 
-      await savePdfWithDialog(doc, `etiquettes_qr_parc_${new Date().toISOString().slice(0,10)}.pdf`);
+      await savePdfWithDialog(doc, `etiquettes_parc_${new Date().toISOString().slice(0,10)}.pdf`);
       showQrDialog = false;
       success(`${qrEquipments.length} etiquettes generees`);
     } catch (e) {
