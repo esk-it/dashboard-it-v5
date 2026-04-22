@@ -1,9 +1,9 @@
 <script>
   import { onMount } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
 
-  const API = 'http://localhost:8010/api/launcher';
+  const API = '/api/launcher';
 
   // Simple Icons CDN for tech brand logos (white SVG on transparent)
   const SI = (name) => `https://cdn.simpleicons.org/${name}/white`;
@@ -33,7 +33,7 @@
   // Icon display logic — local icons served from backend
   function getIconDisplay(link) {
     if (link.icon_type === 'local') {
-      return { type: 'img', value: `http://localhost:8010/api/launcher/${link.id}/icon` };
+      return { type: 'img', value: `${API_BASE}/api/launcher/${link.id}/icon` };
     }
     if (link.icon_type === 'url' && link.icon_value) {
       return { type: 'img', value: link.icon_value };

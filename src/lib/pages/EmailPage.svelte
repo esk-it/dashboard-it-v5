@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import DOMPurify from 'dompurify';
 
   // ── State ──
@@ -282,7 +282,7 @@
         fd.append('bcc', '');
         fd.append('reply_to_message_id', replyToId || '');
         for (const f of composeFiles) fd.append('files', f);
-        await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+        await fetch('/api/gmail/send-with-attachments', { method: 'POST', body: fd });
       } else {
         const payload = { ...composeForm, signature_html: gmailSignature || '' };
         if (replyToId) payload.reply_to_message_id = replyToId;
@@ -320,7 +320,7 @@
         fd.append('bcc', '');
         fd.append('reply_to_message_id', selectedMessage.id);
         for (const f of inlineReplyFiles) fd.append('files', f);
-        await fetch('http://localhost:8010/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+        await fetch('/api/gmail/send-with-attachments', { method: 'POST', body: fd });
       } else {
         await api.post('/api/gmail/send', {
           to: parseFromEmail(selectedMessage.from),
@@ -468,7 +468,7 @@
   async function downloadAttachment(msgId, attId, filename) {
     try {
       // Fetch binary data from backend
-      const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
+      const url = `${API_BASE}/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('Download failed');
       const arrayBuffer = await resp.arrayBuffer();
@@ -490,9 +490,9 @@
       // Fallback: open in system browser
       try {
         const { open } = await import('@tauri-apps/plugin-shell');
-        await open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
+        await open(`${API_BASE}/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`);
       } catch {
-        window.open(`http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`, '_blank');
+        window.open(`${API_BASE}/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}`, '_blank');
       }
     }
   }
@@ -500,7 +500,7 @@
   async function previewAttachment(msgId, attId, filename, mimeType) {
     previewModal = { open: true, url: '', filename, mimeType, loading: true, msgId, attId };
     try {
-      const url = `http://localhost:8010/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}&preview=true`;
+      const url = `${API_BASE}/api/gmail/messages/${msgId}/attachments/${attId}?filename=${encodeURIComponent(filename)}&preview=true`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('Preview failed');
       const blob = await resp.blob();

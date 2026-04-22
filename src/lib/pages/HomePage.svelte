@@ -62,7 +62,7 @@
 
   async function loadWeather() {
     try {
-      const res = await fetch('http://localhost:8010/api/dashboard/weather');
+      const res = await fetch('/api/dashboard/weather');
       weatherData = await res.json();
       if (!weatherData.temperature && weatherData.temperature !== 0) weatherData = null;
     } catch { weatherData = null; }

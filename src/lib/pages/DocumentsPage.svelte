@@ -1,10 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
-
-  // ── Constants ──────────────────────────────────────────────
-  const API_BASE = 'http://localhost:8010';
 
   const DOC_TYPE_COLORS = {
     DEVIS:     { bg: '#3B82F620', color: '#3B82F6', label: 'Devis',              border: '#3B82F6', icon: '\u{1F4D5}' },

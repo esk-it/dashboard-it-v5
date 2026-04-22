@@ -12,7 +12,7 @@
   async function loadWeather() {
     loading = true;
     try {
-      const res = await fetch('http://localhost:8010/api/dashboard/weather');
+      const res = await fetch('/api/dashboard/weather');
       weather = await res.json();
     } catch { weather = null; }
     loading = false;

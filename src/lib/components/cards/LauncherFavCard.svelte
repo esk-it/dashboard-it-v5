@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { API_BASE } from '../../api/client.js';
   import GlassCard from '../GlassCard.svelte';
 
   let favorites = [];
@@ -12,7 +13,7 @@
   async function load() {
     loading = true;
     try {
-      const res = await fetch('http://localhost:8010/api/launcher');
+      const res = await fetch('/api/launcher');
       const all = await res.json();
       favorites = all.filter(l => l.favorite);
     } catch { favorites = []; }
@@ -20,7 +21,7 @@
   }
 
   function getIconSrc(link) {
-    if (link.icon_type === 'local') return `http://localhost:8010/api/launcher/${link.id}/icon`;
+    if (link.icon_type === 'local') return `${API_BASE}/api/launcher/${link.id}/icon`;
     if (link.icon_type === 'url' && link.icon_value) return link.icon_value;
     return null;
   }

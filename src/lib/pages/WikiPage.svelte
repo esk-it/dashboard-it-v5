@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
   import { marked } from 'marked';
 
@@ -385,7 +385,7 @@
 
   async function exportArticleMd(article) {
     try {
-      const res = await fetch(`http://localhost:8010/api/wiki/${article.id}/export`);
+      const res = await fetch(`${API_BASE}/api/wiki/${article.id}/export`);
       if (!res.ok) throw new Error('Export failed');
       const blob = await res.blob();
       // Try Tauri save dialog

@@ -31,13 +31,13 @@
 
   async function loadBadges() {
     try {
-      const res = await fetch('http://localhost:8010/api/tasks?status=open');
+      const res = await fetch('/api/tasks?status=open');
       const tasks = await res.json();
       const today = new Date().toISOString().slice(0, 10);
       overdueCount = tasks.filter(t => t.due_date && t.due_date < today && !t.done).length;
     } catch { /* ignore */ }
     try {
-      const res = await fetch('http://localhost:8010/api/gmail/unread-count');
+      const res = await fetch('/api/gmail/unread-count');
       const data = await res.json();
       unreadMailCount = data.count || 0;
     } catch { /* ignore */ }

@@ -14,7 +14,7 @@ token.subscribe(v => { if (v) localStorage.setItem('auth_token', v); else localS
 refreshToken.subscribe(v => { if (v) localStorage.setItem('auth_refresh', v); else localStorage.removeItem('auth_refresh'); });
 currentUser.subscribe(v => { if (v) localStorage.setItem('auth_user', JSON.stringify(v)); else localStorage.removeItem('auth_user'); });
 
-const API_BASE = 'http://localhost:8010';
+import { API_BASE } from '../api/client.js';
 
 export async function login(username, password) {
   const res = await fetch(`${API_BASE}/api/auth/login`, {

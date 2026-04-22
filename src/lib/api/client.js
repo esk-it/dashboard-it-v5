@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:8010';
+export const API_BASE = 'http://localhost:8010';
+export function apiUrl(path) { return `${API_BASE}${path}`; }
 
 async function request(method, path, data = null) {
   const opts = {

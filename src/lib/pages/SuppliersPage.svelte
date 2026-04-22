@@ -1,9 +1,7 @@
 <script>
   import { onMount } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
-
-  const API_BASE = 'http://localhost:8010';
 
   // ── State ──────────────────────────────────────────────────
   let suppliers = [];

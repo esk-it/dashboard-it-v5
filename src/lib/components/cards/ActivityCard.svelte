@@ -12,7 +12,7 @@
   async function load() {
     loading = true;
     try {
-      const res = await fetch('http://localhost:8010/api/dashboard/activity?limit=10');
+      const res = await fetch('/api/dashboard/activity?limit=10');
       activities = await res.json();
     } catch { activities = []; }
     loading = false;
