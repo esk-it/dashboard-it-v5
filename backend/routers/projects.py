@@ -46,22 +46,35 @@ def _now():
 async def _project_dict(db, row) -> dict:
     """Build a project dict with computed stats."""
     pid = row[0]
+    total_tasks = 0
+    done_tasks = 0
+    doc_count = 0
+    sup_count = 0
 
-    # Count tasks
-    tasks_rows = await db.execute_fetchall(
-        "SELECT COUNT(*), SUM(CASE WHEN done=1 THEN 1 ELSE 0 END) FROM tasks WHERE project_id=?", (pid,)
-    )
-    total_tasks = tasks_rows[0][0] or 0
-    done_tasks = tasks_rows[0][1] or 0
+    try:
+        tasks_rows = await db.execute_fetchall(
+            "SELECT COUNT(*), SUM(CASE WHEN done=1 THEN 1 ELSE 0 END) FROM tasks WHERE project_id=?", (pid,)
+        )
+        total_tasks = tasks_rows[0][0] or 0
+        done_tasks = int(tasks_rows[0][1] or 0)
+    except Exception:
+        pass  # project_id column may not exist yet
+
+    try:
+        doc_count = (await db.execute_fetchall(
+            "SELECT COUNT(*) FROM project_documents WHERE project_id=?", (pid,)
+        ))[0][0]
+    except Exception:
+        pass
+
+    try:
+        sup_count = (await db.execute_fetchall(
+            "SELECT COUNT(*) FROM project_suppliers WHERE project_id=?", (pid,)
+        ))[0][0]
+    except Exception:
+        pass
+
     progress = round((done_tasks / total_tasks * 100) if total_tasks > 0 else 0)
-
-    # Count linked documents and suppliers
-    doc_count = (await db.execute_fetchall(
-        "SELECT COUNT(*) FROM project_documents WHERE project_id=?", (pid,)
-    ))[0][0]
-    sup_count = (await db.execute_fetchall(
-        "SELECT COUNT(*) FROM project_suppliers WHERE project_id=?", (pid,)
-    ))[0][0]
 
     return {
         "id": pid,
@@ -79,6 +92,25 @@ async def _project_dict(db, row) -> dict:
         "document_count": doc_count,
         "supplier_count": sup_count,
     }
+
+
+# ── Stats (MUST be before /{project_id} to avoid route conflict) ──
+
+@router.get("/stats/summary")
+async def project_stats(db=Depends(get_raw_db)):
+    try:
+        rows = await db.execute_fetchall("SELECT status, COUNT(*) FROM projects GROUP BY status")
+        counts = {r[0]: r[1] for r in rows}
+        total = sum(counts.values())
+        return {
+            "total": total,
+            "in_progress": counts.get("in_progress", 0),
+            "not_started": counts.get("not_started", 0),
+            "completed": counts.get("completed", 0),
+            "paused": counts.get("paused", 0),
+        }
+    except Exception:
+        return {"total": 0, "in_progress": 0, "not_started": 0, "completed": 0, "paused": 0}
 
 
 # ── CRUD ──
@@ -113,50 +145,63 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
         raise HTTPException(404, "Projet non trouve")
     project = await _project_dict(db, rows[0])
 
-    # Get tasks
-    task_rows = await db.execute_fetchall(
-        "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
-        (project_id,),
-    )
-    project["tasks"] = [
-        {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
-         "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8]}
-        for r in task_rows
-    ]
+    # Get tasks (safely — project_id column may not exist)
+    try:
+        task_rows = await db.execute_fetchall(
+            "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+            (project_id,),
+        )
+        project["tasks"] = [
+            {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
+             "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8]}
+            for r in task_rows
+        ]
+    except Exception as e:
+        logger.warning(f"Failed to get tasks for project {project_id}: {e}")
+        project["tasks"] = []
 
-    # Get linked documents
-    doc_rows = await db.execute_fetchall(
-        """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference
-           FROM documents d JOIN project_documents pd ON d.id = pd.document_id
-           WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
-        (project_id,),
-    )
-    project["documents"] = [
-        {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4]}
-        for r in doc_rows
-    ]
+    # Get linked documents (safely)
+    try:
+        doc_rows = await db.execute_fetchall(
+            """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference
+               FROM documents d JOIN project_documents pd ON d.id = pd.document_id
+               WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
+            (project_id,),
+        )
+        project["documents"] = [
+            {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4]}
+            for r in doc_rows
+        ]
+    except Exception:
+        project["documents"] = []
 
-    # Get linked suppliers
-    sup_rows = await db.execute_fetchall(
-        """SELECT s.id, s.name, s.contact_name, s.phone, s.email
-           FROM suppliers s JOIN project_suppliers ps ON s.id = ps.supplier_id
-           WHERE ps.project_id=? ORDER BY s.name""",
-        (project_id,),
-    )
-    project["suppliers"] = [
-        {"id": r[0], "name": r[1], "contact_name": r[2], "phone": r[3], "email": r[4]}
-        for r in sup_rows
-    ]
+    # Get linked suppliers (safely)
+    try:
+        sup_rows = await db.execute_fetchall(
+            """SELECT s.id, s.name, s.contact_name, s.phone, s.email
+               FROM suppliers s JOIN project_suppliers ps ON s.id = ps.supplier_id
+               WHERE ps.project_id=? ORDER BY s.name""",
+            (project_id,),
+        )
+        project["suppliers"] = [
+            {"id": r[0], "name": r[1], "contact_name": r[2], "phone": r[3], "email": r[4]}
+            for r in sup_rows
+        ]
+    except Exception:
+        project["suppliers"] = []
 
     # Get notes
-    note_rows = await db.execute_fetchall(
-        "SELECT id, content, created_at FROM project_notes WHERE project_id=? ORDER BY created_at DESC",
-        (project_id,),
-    )
-    project["notes"] = [
-        {"id": r[0], "content": r[1], "created_at": r[2]}
-        for r in note_rows
-    ]
+    try:
+        note_rows = await db.execute_fetchall(
+            "SELECT id, content, created_at FROM project_notes WHERE project_id=? ORDER BY created_at DESC",
+            (project_id,),
+        )
+        project["notes"] = [
+            {"id": r[0], "content": r[1], "created_at": r[2]}
+            for r in note_rows
+        ]
+    except Exception:
+        project["notes"] = []
 
     return project
 
@@ -292,17 +337,3 @@ async def delete_note(project_id: int, note_id: int, db=Depends(get_raw_db)):
     return {"ok": True}
 
 
-# ── Stats (for dashboard) ──
-
-@router.get("/stats/summary")
-async def project_stats(db=Depends(get_raw_db)):
-    rows = await db.execute_fetchall("SELECT status, COUNT(*) FROM projects GROUP BY status")
-    counts = {r[0]: r[1] for r in rows}
-    total = sum(counts.values())
-    return {
-        "total": total,
-        "in_progress": counts.get("in_progress", 0),
-        "not_started": counts.get("not_started", 0),
-        "completed": counts.get("completed", 0),
-        "paused": counts.get("paused", 0),
-    }
