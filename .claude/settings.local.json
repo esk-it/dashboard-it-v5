@@ -157,7 +157,8 @@
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/database.py', encoding='utf-8'\\).read\\(\\)\\); print\\('db OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/projects.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
       "Bash(grep -rn \"fetch\\(\\\\`/api/\\\\|fetch\\('/api/\\\\|= '/api/\" src/lib/ --include=\"*.svelte\" --include=\"*.js\")",
-      "Bash(grep -rn 'fetch\\(`/api' src/lib/ --include=\"*.svelte\" --include=\"*.js\")"
+      "Bash(grep -rn 'fetch\\(`/api' src/lib/ --include=\"*.svelte\" --include=\"*.js\")",
+      "Bash(curl -s -X POST http://localhost:8010/api/projects/1/tasks -H \"Content-Type: application/json\" -d '{\"title\":\"Test tache\",\"priority\":2}')"
     ]
   }
 }

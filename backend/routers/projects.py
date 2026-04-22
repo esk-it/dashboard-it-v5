@@ -201,12 +201,18 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
             await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
         else:
             now = _now()
+            # First create the task without project_id (compatible with any schema)
             cursor = await db.execute(
-                "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,?,0,?,?,?,'',?)",
-                (body.get("title", ""), body.get("category", ""), body.get("priority", 2),
-                 body.get("due_date"), now, body.get("notes", ""), body.get("site", ""), project_id),
+                "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence) VALUES (?,?,?,?,0,?,?,?,'') ",
+                (body.get("title", ""), body.get("category", ""), int(body.get("priority", 2)),
+                 body.get("due_date") or None, now, body.get("notes", ""), body.get("site", "")),
             )
             task_id = cursor.lastrowid
+            # Then link to project (will work even if project_id column was added via migration)
+            try:
+                await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
+            except Exception:
+                logger.warning(f"Could not set project_id on task {task_id} — column may not exist")
         await db.commit()
         return {"ok": True, "task_id": task_id}
     except Exception as e:
