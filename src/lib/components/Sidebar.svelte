@@ -381,15 +381,16 @@
   }
 
   .collapsed .nav-bottom-section {
-    margin-left: 1rem;
-    margin-right: 1rem;
+    margin-left: 0.75rem;
+    margin-right: 0.75rem;
+    padding-top: 0.625rem;
   }
 
   .nav-bottom-item {
     display: flex;
     align-items: center;
     gap: 0.65rem;
-    padding: 0.625rem 1.875rem;
+    padding: 0.625rem 0;
     font-size: 0.9375rem;
     color: var(--text-secondary);
     cursor: pointer;

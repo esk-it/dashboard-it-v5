@@ -203,7 +203,7 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
         # Create new task
         now = _now()
         cursor = await db.execute(
-            "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, project_id) VALUES (?,?,?,?,0,?,?,?,?)",
+            "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,?,0,?,?,?,'',?)",
             (body.get("title", ""), body.get("category", ""), body.get("priority", 2),
              body.get("due_date"), now, body.get("notes", ""), body.get("site", ""), project_id),
         )
