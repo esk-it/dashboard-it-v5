@@ -195,21 +195,23 @@ async def delete_project(project_id: int, db=Depends(get_raw_db)):
 @router.post("/{project_id}/tasks")
 async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depends(get_raw_db)):
     """Create a new task linked to this project, or link an existing task."""
-    task_id = body.get("task_id")
-    if task_id:
-        # Link existing task
-        await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
-    else:
-        # Create new task
-        now = _now()
-        cursor = await db.execute(
-            "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,?,0,?,?,?,'',?)",
-            (body.get("title", ""), body.get("category", ""), body.get("priority", 2),
-             body.get("due_date"), now, body.get("notes", ""), body.get("site", ""), project_id),
-        )
-        task_id = cursor.lastrowid
-    await db.commit()
-    return {"ok": True, "task_id": task_id}
+    try:
+        task_id = body.get("task_id")
+        if task_id:
+            await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
+        else:
+            now = _now()
+            cursor = await db.execute(
+                "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,?,0,?,?,?,'',?)",
+                (body.get("title", ""), body.get("category", ""), body.get("priority", 2),
+                 body.get("due_date"), now, body.get("notes", ""), body.get("site", ""), project_id),
+            )
+            task_id = cursor.lastrowid
+        await db.commit()
+        return {"ok": True, "task_id": task_id}
+    except Exception as e:
+        logger.exception(f"Failed to add task to project {project_id}")
+        raise HTTPException(502, f"Erreur creation tache: {e}")
 
 
 @router.delete("/{project_id}/tasks/{task_id}")
