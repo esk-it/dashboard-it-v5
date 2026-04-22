@@ -5,7 +5,7 @@
   import { currentUser, logout } from '../stores/auth.js';
   import { api } from '../api/client.js';
   import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays } from 'lucide-svelte';
-  import { success, error as toastError, info } from '../stores/toast.js';
+  import { success, error as toastError, info, mail as toastMail, alert_critical as toastCritical } from '../stores/toast.js';
 
   const dispatch = createEventDispatcher();
 
@@ -75,7 +75,7 @@
       // Detect new unread mails (skip first load)
       if (prevUnreadCount >= 0 && newCount > prevUnreadCount) {
         const diff = newCount - prevUnreadCount;
-        info(`${diff} nouveau${diff > 1 ? 'x' : ''} mail${diff > 1 ? 's' : ''} non lu${diff > 1 ? 's' : ''}`);
+        toastMail(`${diff} nouveau${diff > 1 ? 'x' : ''} mail${diff > 1 ? 's' : ''} non lu${diff > 1 ? 's' : ''}`);
       }
       prevUnreadCount = newCount;
       unreadCount = newCount;
@@ -130,7 +130,7 @@
       // Detect new critical problems (skip first load)
       if (prevProblemCount >= 0 && problemCount > prevProblemCount) {
         const diff = problemCount - prevProblemCount;
-        toastError(`${diff} nouvelle${diff > 1 ? 's' : ''} alerte${diff > 1 ? 's' : ''} monitoring !`);
+        toastCritical(`${diff} nouvelle${diff > 1 ? 's' : ''} alerte${diff > 1 ? 's' : ''} monitoring !`);
       }
       prevProblemCount = problemCount;
     } catch { /* monitoring not configured, ignore */ }

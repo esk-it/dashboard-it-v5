@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api } from '../api/client.js';
+  import { api, API_BASE } from '../api/client.js';
   import { settings } from '../stores/settings.js';
   import { currentPage } from '../stores/navigation.js';
   import { success } from '../stores/toast.js';
@@ -62,7 +62,7 @@
 
   async function loadWeather() {
     try {
-      const res = await fetch('/api/dashboard/weather');
+      const res = await fetch(`${API_BASE}/api/dashboard/weather`);
       weatherData = await res.json();
       if (!weatherData.temperature && weatherData.temperature !== 0) weatherData = null;
     } catch { weatherData = null; }

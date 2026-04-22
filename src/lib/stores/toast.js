@@ -15,3 +15,5 @@ export function success(msg) { addToast('success', msg); }
 export function error(msg) { addToast('error', msg); }
 export function warning(msg) { addToast('warning', msg); }
 export function info(msg) { addToast('info', msg); }
+export function mail(msg) { addToast('mail', msg, 6000); }
+export function alert_critical(msg) { addToast('alert_critical', msg, 8000); }

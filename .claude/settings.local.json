@@ -149,7 +149,8 @@
       "Bash(grep -E \"\\\\\\\\\\\\\\\\u\\\\{[0-9A-Fa-f]+\\\\}\")",
       "Bash(ls -la /c/Users/jdeniel/Documents/Projets/Dashboard-Web-v5/src/lib/pages/*.svelte)",
       "Bash(grep -rn '${API_BASE}' src/lib/ --include=\"*.svelte\" --include=\"*.js\")",
-      "Bash(grep -rn '${API_BASE}' src/lib/ --include=\"*.svelte\")"
+      "Bash(grep -rn '${API_BASE}' src/lib/ --include=\"*.svelte\")",
+      "Bash(grep -rn \"\\\\`_blank'\" src/lib/ --include=\"*.svelte\" --include=\"*.js\")"
     ]
   }
 }

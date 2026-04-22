@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { API_BASE } from '../../api/client.js';
   import GlassCard from '../GlassCard.svelte';
 
   let activities = [];
@@ -12,7 +13,7 @@
   async function load() {
     loading = true;
     try {
-      const res = await fetch('/api/dashboard/activity?limit=10');
+      const res = await fetch(`${API_BASE}/api/dashboard/activity?limit=10`);
       activities = await res.json();
     } catch { activities = []; }
     loading = false;

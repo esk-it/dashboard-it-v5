@@ -1,6 +1,7 @@
 <script>
   import { currentUser } from '../stores/auth.js';
   import { currentPage } from '../stores/navigation.js';
+  import { API_BASE } from '../api/client.js';
   import { Lock } from 'lucide-svelte';
 
   let newPassword = '';
@@ -16,7 +17,7 @@
 
     saving = true;
     try {
-      const res = await fetch('/api/auth/change-password', {
+      const res = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_id: $currentUser.id, new_password: newPassword }),

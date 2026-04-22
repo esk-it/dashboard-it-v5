@@ -13,7 +13,7 @@
   async function load() {
     loading = true;
     try {
-      const res = await fetch('/api/launcher');
+      const res = await fetch(`${API_BASE}/api/launcher`);
       const all = await res.json();
       favorites = all.filter(l => l.favorite);
     } catch { favorites = []; }

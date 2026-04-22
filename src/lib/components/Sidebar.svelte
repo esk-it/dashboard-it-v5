@@ -4,6 +4,7 @@
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
   import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Lock, ChevronLeft, Menu } from 'lucide-svelte';
+  import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
   import nomB from '../../assets/nomB.png';
 
@@ -31,13 +32,13 @@
 
   async function loadBadges() {
     try {
-      const res = await fetch('/api/tasks?status=open');
+      const res = await fetch(`${API_BASE}/api/tasks?status=open`);
       const tasks = await res.json();
       const today = new Date().toISOString().slice(0, 10);
       overdueCount = tasks.filter(t => t.due_date && t.due_date < today && !t.done).length;
     } catch { /* ignore */ }
     try {
-      const res = await fetch('/api/gmail/unread-count');
+      const res = await fetch(`${API_BASE}/api/gmail/unread-count`);
       const data = await res.json();
       unreadMailCount = data.count || 0;
     } catch { /* ignore */ }

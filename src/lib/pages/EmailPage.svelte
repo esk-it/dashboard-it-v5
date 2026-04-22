@@ -282,7 +282,7 @@
         fd.append('bcc', '');
         fd.append('reply_to_message_id', replyToId || '');
         for (const f of composeFiles) fd.append('files', f);
-        await fetch('/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+        await fetch(`${API_BASE}/api/gmail/send-with-attachments`, { method: 'POST', body: fd });
       } else {
         const payload = { ...composeForm, signature_html: gmailSignature || '' };
         if (replyToId) payload.reply_to_message_id = replyToId;
@@ -320,7 +320,7 @@
         fd.append('bcc', '');
         fd.append('reply_to_message_id', selectedMessage.id);
         for (const f of inlineReplyFiles) fd.append('files', f);
-        await fetch('/api/gmail/send-with-attachments', { method: 'POST', body: fd });
+        await fetch(`${API_BASE}/api/gmail/send-with-attachments`, { method: 'POST', body: fd });
       } else {
         await api.post('/api/gmail/send', {
           to: parseFromEmail(selectedMessage.from),
@@ -589,7 +589,7 @@
   }
 
   // ── Lifecycle ──
-  const APP_VERSION = '5.9.1';
+  const APP_VERSION = '5.17.2';
 
   onMount(async () => {
     await requestNotificationPermission();

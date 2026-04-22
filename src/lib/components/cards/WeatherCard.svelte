@@ -1,5 +1,6 @@
 <script>
   import { onMount } from 'svelte';
+  import { API_BASE } from '../../api/client.js';
   import GlassCard from '../GlassCard.svelte';
 
   let weather = null;
@@ -12,7 +13,7 @@
   async function loadWeather() {
     loading = true;
     try {
-      const res = await fetch('/api/dashboard/weather');
+      const res = await fetch(`${API_BASE}/api/dashboard/weather`);
       weather = await res.json();
     } catch { weather = null; }
     loading = false;
