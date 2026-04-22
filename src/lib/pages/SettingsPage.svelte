@@ -181,12 +181,14 @@
   }
 
   async function saveGeneral() {
-    await fetch(`${API}/general`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(general),
-    });
-    showSaved();
+    try {
+      await fetch(`${API}/general`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(general),
+      });
+      showSaved();
+    } catch { /* backend not ready */ }
   }
 
   function showSaved() {

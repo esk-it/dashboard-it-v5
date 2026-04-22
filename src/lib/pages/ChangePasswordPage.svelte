@@ -67,11 +67,12 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+    background: var(--bg-base, #E8ECF2);
   }
   .change-pw-card {
-    background: var(--bg-card, #1a1a2e);
-    border: 1px solid var(--border-card, rgba(255,255,255,0.08));
+    background: var(--bg-card, #fff);
+    border: 1px solid var(--border-card, #E6E6E6);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.08);
     border-radius: 1rem;
     padding: 2.5rem;
     width: 90vw;

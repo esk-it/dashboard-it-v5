@@ -80,7 +80,7 @@
       prevUnreadCount = newCount;
       unreadCount = newCount;
       if (unreadCount > 0) {
-        const data = await api.get('/api/gmail/messages?folder=inbox&max_results=5');
+        const data = await api.get('/api/gmail/messages?folder=inbox&max_results=20');
         unreadMails = (data.messages || []).filter(m => m.unread).slice(0, 5);
       } else {
         unreadMails = [];

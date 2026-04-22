@@ -601,7 +601,7 @@
       // Auto full sync after update (one-shot, re-downloads all messages with fixed parsing)
       const lastSyncVersion = localStorage.getItem('email_sync_version');
       if (lastSyncVersion !== APP_VERSION) {
-        console.log(`[Email] Version changed (${lastSyncVersion} → ${APP_VERSION}), triggering full sync...`);
+        // Version changed — trigger full sync to refresh cache
         await triggerSync(true);
         localStorage.setItem('email_sync_version', APP_VERSION);
       } else {
