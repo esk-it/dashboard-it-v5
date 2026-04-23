@@ -169,13 +169,15 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     # Get linked documents (safely)
     try:
         doc_rows = await db.execute_fetchall(
-            """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference
+            """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference,
+                      COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0), COALESCE(pd.status, '')
                FROM documents d JOIN project_documents pd ON d.id = pd.document_id
                WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
             (project_id,),
         )
         project["documents"] = [
-            {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4]}
+            {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
+             "amount": r[5], "amount_accepted": r[6], "status": r[7]}
             for r in doc_rows
         ]
     except Exception:
@@ -184,13 +186,13 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     # Get linked suppliers (safely)
     try:
         sup_rows = await db.execute_fetchall(
-            """SELECT s.id, s.name, s.contact_name, s.phone, s.email
+            """SELECT s.id, s.name, s.contact, s.phone, s.email
                FROM suppliers s JOIN project_suppliers ps ON s.id = ps.supplier_id
                WHERE ps.project_id=? ORDER BY s.name""",
             (project_id,),
         )
         project["suppliers"] = [
-            {"id": r[0], "name": r[1], "contact_name": r[2], "phone": r[3], "email": r[4]}
+            {"id": r[0], "name": r[1], "contact": r[2], "phone": r[3], "email": r[4]}
             for r in sup_rows
         ]
     except Exception:
@@ -290,11 +292,40 @@ async def link_document(project_id: int, body: dict = Body(...), db=Depends(get_
     doc_id = body.get("document_id")
     if not doc_id:
         raise HTTPException(400, "document_id requis")
+    amount = float(body.get("amount", 0))
+    amount_accepted = float(body.get("amount_accepted", 0))
+    status = body.get("status", "")
     try:
-        await db.execute("INSERT INTO project_documents (project_id, document_id) VALUES (?,?)", (project_id, doc_id))
+        await db.execute(
+            "INSERT INTO project_documents (project_id, document_id, amount, amount_accepted, status) VALUES (?,?,?,?,?)",
+            (project_id, int(doc_id), amount, amount_accepted, status),
+        )
         await db.commit()
     except Exception:
-        pass  # Already linked
+        # Already linked — update amounts
+        try:
+            await db.execute(
+                "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
+                (amount, amount_accepted, status, project_id, int(doc_id)),
+            )
+            await db.commit()
+        except Exception:
+            pass
+    return {"ok": True}
+
+
+@router.put("/{project_id}/documents/{document_id}")
+async def update_document_link(project_id: int, document_id: int, body: dict = Body(...), db=Depends(get_raw_db)):
+    """Update amount/status of a linked document."""
+    try:
+        await db.execute(
+            "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
+            (float(body.get("amount", 0)), float(body.get("amount_accepted", 0)),
+             body.get("status", ""), project_id, document_id),
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning(f"Failed to update doc link: {e}")
     return {"ok": True}
 
 

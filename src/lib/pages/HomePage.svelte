@@ -255,7 +255,7 @@
       </div>
     </div>
 
-    <!-- Card 4: Radial progress — Ma Progression -->
+    <!-- Card 4: Parc summary -->
     <div class="col-3 ya-card ya-card--progress">
       <div class="ya-card__body ya-card__body--center">
         <div class="ya-radial">
@@ -264,21 +264,21 @@
             <circle
               cx="60" cy="60" r="52"
               fill="none"
-              stroke="var(--accent)"
+              stroke="#3A9B94"
               stroke-width="8"
               stroke-linecap="round"
               stroke-dasharray="{2 * Math.PI * 52}"
-              stroke-dashoffset="{2 * Math.PI * 52 * (1 - (kpiWeekPercent / 100))}"
+              stroke-dashoffset="{2 * Math.PI * 52 * 0.3}"
               transform="rotate(-90 60 60)"
               class="ya-radial__arc"
             />
-            <text x="60" y="56" text-anchor="middle" class="ya-radial__text">{kpiWeekPercent}%</text>
-            <text x="60" y="72" text-anchor="middle" class="ya-radial__sub">complete</text>
+            <text x="60" y="56" text-anchor="middle" class="ya-radial__text">{kpiParc}</text>
+            <text x="60" y="72" text-anchor="middle" class="ya-radial__sub">postes</text>
           </svg>
         </div>
-        <span class="ya-card__label ya-card__label--center">Ma Progression</span>
-        <p class="ya-card__desc ya-card__desc--sm">Suivi hebdomadaire des taches assignees.</p>
-        <button class="ya-card__details-btn" on:click={() => currentPage.set('/tasks')}>Plus de details</button>
+        <span class="ya-card__label ya-card__label--center">Parc IT</span>
+        <p class="ya-card__desc ya-card__desc--sm">Equipements geres et supervises.</p>
+        <button class="ya-card__details-btn" on:click={() => currentPage.set('/parc')}>Voir le parc</button>
       </div>
     </div>
   </div>
@@ -328,9 +328,9 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 3: Active Projects (col-8) + Donut (col-4) ═══ -->
+  <!-- ═══ ROW 3: Active Tasks (col-12) ═══ -->
   <div class="row">
-    <div class="col-8">
+    <div class="col-12">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Taches actives</h4>
@@ -342,16 +342,6 @@
         </div>
         <div class="w-card__body w-card__body--flush">
           <ActiveProjectsCard bind:this={activeProjectsCard} />
-        </div>
-      </div>
-    </div>
-    <div class="col-4">
-      <div class="w-card">
-        <div class="w-card__header">
-          <h4 class="w-card__title">Repartition</h4>
-        </div>
-        <div class="w-card__body w-card__body--flush">
-          <DonutChart bind:this={donutChart} />
         </div>
       </div>
     </div>
@@ -386,20 +376,6 @@
         </div>
         <div class="w-card__body w-card__body--flush">
           <ProjectsCard bind:this={projectsCard} />
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ ROW 5: Completion du mois (col-12) ═══ -->
-  <div class="row">
-    <div class="col-12">
-      <div class="w-card">
-        <div class="w-card__header">
-          <h4 class="w-card__title">Completion du mois</h4>
-        </div>
-        <div class="w-card__body" style="display:flex;justify-content:center;">
-          <GaugeChart bind:this={gaugeChart} />
         </div>
       </div>
     </div>

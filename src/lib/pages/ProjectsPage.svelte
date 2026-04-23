@@ -137,15 +137,34 @@
   }
 
   // ── Documents ──
+  let docLinkForm = { document_id: null, amount: 0, amount_accepted: 0, status: '' };
+  let showDocAmountDialog = false;
+
   async function fetchAllDocuments() {
     try { allDocuments = await api.get('/api/documents'); } catch { allDocuments = []; }
   }
 
-  async function linkDocument(docId) {
+  function selectDocToLink(docId) {
+    docLinkForm = { document_id: docId, amount: 0, amount_accepted: 0, status: '' };
+    showLinkDocDialog = false;
+    showDocAmountDialog = true;
+  }
+
+  async function confirmLinkDocument() {
     try {
-      await api.post(`/api/projects/${selectedProject.id}/documents`, { document_id: docId });
-      showLinkDocDialog = false;
+      await api.post(`/api/projects/${selectedProject.id}/documents`, docLinkForm);
+      showDocAmountDialog = false;
       await openProject(selectedProject);
+      success('Document lie');
+    } catch (e) { toastError('Erreur: ' + e.message); }
+  }
+
+  async function updateDocLink(doc) {
+    try {
+      await api.put(`/api/projects/${selectedProject.id}/documents/${doc.id}`, {
+        amount: doc.amount, amount_accepted: doc.amount_accepted, status: doc.status,
+      });
+      success('Montant mis a jour');
     } catch {}
   }
 
@@ -163,10 +182,11 @@
 
   async function linkSupplier(supId) {
     try {
-      await api.post(`/api/projects/${selectedProject.id}/suppliers`, { supplier_id: supId });
+      await api.post(`/api/projects/${selectedProject.id}/suppliers`, { supplier_id: parseInt(supId) });
       showLinkSupDialog = false;
       await openProject(selectedProject);
-    } catch {}
+      success('Prestataire lie');
+    } catch (e) { toastError('Erreur liaison prestataire: ' + e.message); }
   }
 
   async function unlinkSupplier(supId) {
@@ -415,16 +435,46 @@
     <!-- Documents -->
     <div class="section-card">
       <div class="section-header">
-        <h3 class="section-title">Documents ({selectedProject.documents?.length || 0})</h3>
+        <h3 class="section-title">Documents et budget ({selectedProject.documents?.length || 0})</h3>
         <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => { fetchAllDocuments(); showLinkDocDialog = true; }}>+ Lier un document</button>
       </div>
       {#if selectedProject.documents?.length > 0}
+        {@const totalInitial = selectedProject.documents.reduce((s, d) => s + (d.amount || 0), 0)}
+        {@const totalValide = selectedProject.documents.reduce((s, d) => s + (d.amount_accepted || 0), 0)}
+        {#if totalInitial > 0 || totalValide > 0}
+          <div class="budget-summary">
+            <div class="budget-stat">
+              <span class="budget-stat-val">{totalInitial.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Montant initial</span>
+            </div>
+            <div class="budget-stat">
+              <span class="budget-stat-val" style="color:#22C55E">{totalValide.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Valide</span>
+            </div>
+            <div class="budget-stat">
+              <span class="budget-stat-val" style="color:{totalInitial - totalValide > 0 ? '#F59E0B' : '#22C55E'}">{(totalInitial - totalValide).toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Ecart</span>
+            </div>
+          </div>
+        {/if}
         <div class="doc-list">
           {#each selectedProject.documents as doc}
-            <div class="doc-item">
-              <span class="doc-type">{doc.doc_type}</span>
-              <span class="doc-title">{doc.title}</span>
-              {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
+            <div class="doc-item-rich">
+              <div class="doc-item-main">
+                <span class="doc-type">{doc.doc_type}</span>
+                <span class="doc-title">{doc.title}</span>
+                {#if doc.status}
+                  <span class="doc-status" class:doc-accepted={doc.status === 'accepte'} class:doc-refused={doc.status === 'refuse'}>{doc.status}</span>
+                {/if}
+              </div>
+              <div class="doc-item-amounts">
+                {#if doc.amount > 0}
+                  <span class="doc-amount">{doc.amount.toLocaleString('fr-FR')} EUR</span>
+                {/if}
+                {#if doc.amount_accepted > 0}
+                  <span class="doc-amount-ok">{doc.amount_accepted.toLocaleString('fr-FR')} EUR valide</span>
+                {/if}
+              </div>
               <button class="task-unlink" on:click={() => unlinkDocument(doc.id)}>✕</button>
             </div>
           {/each}
@@ -445,7 +495,7 @@
           {#each selectedProject.suppliers as sup}
             <div class="sup-item">
               <strong>{sup.name}</strong>
-              {#if sup.contact_name}<span>{sup.contact_name}</span>{/if}
+              {#if sup.contact}<span>{sup.contact}</span>{/if}
               {#if sup.phone}<span>{sup.phone}</span>{/if}
               {#if sup.email}<span>{sup.email}</span>{/if}
               <button class="task-unlink" on:click={() => unlinkSupplier(sup.id)}>✕</button>
@@ -559,7 +609,7 @@
     </div>
     <div class="ya-dialog__body" style="max-height:400px;overflow-y:auto">
       {#each allDocuments.filter(d => !(selectedProject.documents || []).some(pd => pd.id === d.id)) as doc}
-        <div class="link-item" on:click={() => linkDocument(doc.id)}>
+        <div class="link-item" on:click={() => selectDocToLink(doc.id)}>
           <span class="link-type">{doc.doc_type}</span>
           <span>{doc.title}</span>
         </div>
@@ -581,7 +631,7 @@
       {#each allSuppliers.filter(s => !(selectedProject.suppliers || []).some(ps => ps.id === s.id)) as sup}
         <div class="link-item" on:click={() => linkSupplier(sup.id)}>
           <strong>{sup.name}</strong>
-          {#if sup.contact_name}<span style="color:var(--text-muted);margin-left:0.5rem">{sup.contact_name}</span>{/if}
+          {#if sup.contact}<span style="color:var(--text-muted);margin-left:0.5rem">{sup.contact}</span>{/if}
         </div>
       {/each}
       {#if allSuppliers.length === 0}<p class="empty-text">Aucun prestataire disponible</p>{/if}
@@ -600,6 +650,36 @@
     <div class="ya-dialog__footer">
       <button class="ya-btn ya-btn--ghost" on:click={() => confirmDeleteId = null}>Annuler</button>
       <button class="ya-btn ya-btn--danger" on:click={() => deleteProject(confirmDeleteId)}>Supprimer</button>
+    </div>
+  </div>
+</div>
+{/if}
+
+{#if showDocAmountDialog}
+<div class="ya-dialog-overlay" on:mousedown|self={() => showDocAmountDialog = false}>
+  <div class="ya-dialog" style="max-width:420px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Montant du document</h2>
+      <button class="ya-dialog__close" on:click={() => showDocAmountDialog = false}>x</button>
+    </div>
+    <div class="ya-dialog__body">
+      <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.75rem">Renseignez les montants si ce document a une valeur financiere (devis, facture, BPA, proposition...).</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <label>Montant initial (EUR) <input type="number" bind:value={docLinkForm.amount} min="0" step="0.01" /></label>
+        <label>Montant valide (EUR) <input type="number" bind:value={docLinkForm.amount_accepted} min="0" step="0.01" /></label>
+      </div>
+      <label>Statut
+        <select bind:value={docLinkForm.status}>
+          <option value="">Non defini</option>
+          <option value="en attente">En attente</option>
+          <option value="accepte">Accepte</option>
+          <option value="refuse">Refuse</option>
+        </select>
+      </label>
+    </div>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => { showDocAmountDialog = false; }}>Passer</button>
+      <button class="ya-btn ya-btn--primary" on:click={confirmLinkDocument}>Lier le document</button>
     </div>
   </div>
 </div>
@@ -724,11 +804,24 @@
   .task-unlink { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; }
   .task-unlink:hover { color: #EF4444; }
 
+  /* Budget summary */
+  .budget-summary { display: flex; gap: 1.5rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.5rem; }
+  .budget-stat { text-align: center; }
+  .budget-stat-val { display: block; font-size: 1rem; font-weight: 700; color: var(--text-heading); }
+  .budget-stat-label { font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; }
+
   /* Documents */
   .doc-list { display: flex; flex-direction: column; gap: 0.375rem; }
-  .doc-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle); font-size: 0.8125rem; }
-  .doc-type { padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.625rem; font-weight: 600; background: rgba(139,92,246,0.1); color: #8B5CF6; }
-  .doc-title { flex: 1; color: var(--text-heading); }
+  .doc-item-rich { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0; border-bottom: 1px solid var(--border-subtle); }
+  .doc-item-main { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; }
+  .doc-type { padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.625rem; font-weight: 600; background: rgba(139,92,246,0.1); color: #8B5CF6; flex-shrink: 0; }
+  .doc-title { font-size: 0.8125rem; color: var(--text-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .doc-status { padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.5625rem; font-weight: 600; background: rgba(148,163,184,0.1); color: #94A3B8; }
+  .doc-accepted { background: rgba(34,197,94,0.1) !important; color: #22C55E !important; }
+  .doc-refused { background: rgba(239,68,68,0.1) !important; color: #EF4444 !important; }
+  .doc-item-amounts { display: flex; gap: 0.75rem; flex-shrink: 0; }
+  .doc-amount { font-size: 0.6875rem; color: var(--text-muted); }
+  .doc-amount-ok { font-size: 0.6875rem; color: #22C55E; font-weight: 600; }
   .doc-date { font-size: 0.6875rem; color: var(--text-muted); }
 
   /* Suppliers */

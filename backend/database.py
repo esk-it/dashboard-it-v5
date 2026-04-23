@@ -87,6 +87,9 @@ async def init_db():
         """CREATE TABLE IF NOT EXISTS project_documents (
             project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
             document_id INTEGER NOT NULL,
+            amount REAL NOT NULL DEFAULT 0,
+            amount_accepted REAL NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT '',
             PRIMARY KEY (project_id, document_id)
         )""",
         # --- Tasks ---
