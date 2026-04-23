@@ -12,6 +12,7 @@
   import ActivityCard from '../components/cards/ActivityCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
   import ZabbixCard from '../components/cards/ZabbixCard.svelte';
+  import ProjectsCard from '../components/cards/ProjectsCard.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
@@ -37,6 +38,7 @@
   let activityCard;
   let gaugeChart;
   let zabbixCard;
+  let projectsCard;
 
   $: greeting = getGreeting();
   $: username = $settings.username || 'Utilisateur';
@@ -355,7 +357,7 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 4: Systeme (col-4) + Zabbix (col-4) + Completion (col-4) ═══ -->
+  <!-- ═══ ROW 4: Systeme (col-4) + Monitoring (col-4) + Projets (col-4) ═══ -->
   <div class="row">
     <div class="col-4">
       <div class="w-card">
@@ -378,6 +380,20 @@
       </div>
     </div>
     <div class="col-4">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Projets</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <ProjectsCard bind:this={projectsCard} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 5: Completion du mois (col-12) ═══ -->
+  <div class="row">
+    <div class="col-12">
       <div class="w-card">
         <div class="w-card__header">
           <h4 class="w-card__title">Completion du mois</h4>

@@ -351,7 +351,24 @@ async def get_document(doc_id: int, db=Depends(get_raw_db)):
         for r in link_rows
     ]
 
-    return DocumentDetailResponse(**doc, tags=tags, links=links)
+    # Fetch linked projects
+    linked_projects = []
+    try:
+        proj_rows = await db.execute_fetchall(
+            """SELECT p.id, p.title, p.color FROM projects p
+               JOIN project_documents pd ON p.id = pd.project_id
+               WHERE pd.document_id = ?""",
+            (doc_id,),
+        )
+        linked_projects = [{"id": r[0], "title": r[1], "color": r[2]} for r in proj_rows]
+    except Exception:
+        pass
+
+    result = DocumentDetailResponse(**doc, tags=tags, links=links)
+    # Add projects as extra field (not in Pydantic model, use dict)
+    result_dict = result.model_dump()
+    result_dict["projects"] = linked_projects
+    return result_dict
 
 
 @router.get("/{doc_id}/preview")

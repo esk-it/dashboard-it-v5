@@ -12,7 +12,7 @@
   // Dialog
   let showDialog = false;
   let editingProject = null;
-  let form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '' };
+  let form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0 };
   let saving = false;
 
   // Task dialog
@@ -68,7 +68,7 @@
   // ── CRUD ──
   function openNewDialog() {
     editingProject = null;
-    form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '' };
+    form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0 };
     showDialog = true;
   }
 
@@ -79,6 +79,7 @@
       title: selectedProject.title, description: selectedProject.description,
       status: selectedProject.status, color: selectedProject.color,
       start_date: selectedProject.start_date, end_date: selectedProject.end_date,
+      budget: selectedProject.budget || 0, budget_spent: selectedProject.budget_spent || 0,
     };
     showDialog = true;
   }
@@ -333,7 +334,17 @@
         <div class="progress-sub">{selectedProject.done_tasks}/{selectedProject.total_tasks} taches</div>
       </div>
     </div>
-    <div class="progress-bar" style="margin-bottom:1.25rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
+    <div class="progress-bar" style="margin-bottom:0.75rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
+
+    {#if selectedProject.budget > 0}
+      <div class="budget-bar-section">
+        <div class="budget-info">
+          <span>Budget: {selectedProject.budget_spent.toLocaleString('fr-FR')} EUR / {selectedProject.budget.toLocaleString('fr-FR')} EUR</span>
+          <span class="budget-pct" class:budget-over={selectedProject.budget_spent > selectedProject.budget}>{Math.round((selectedProject.budget_spent / selectedProject.budget) * 100)}%</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, (selectedProject.budget_spent / selectedProject.budget) * 100)}%;background:{selectedProject.budget_spent > selectedProject.budget ? '#EF4444' : '#F59E0B'}"></div></div>
+      </div>
+    {/if}
 
     <!-- Gantt -->
     {@const gd = ganttData(selectedProject)}
@@ -483,6 +494,10 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
         <label>Date debut <input type="date" bind:value={form.start_date} /></label>
         <label>Date fin <input type="date" bind:value={form.end_date} /></label>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <label>Budget prevu (EUR) <input type="number" bind:value={form.budget} min="0" step="0.01" /></label>
+        <label>Depense (EUR) <input type="number" bind:value={form.budget_spent} min="0" step="0.01" /></label>
       </div>
       <label>Statut
         <select bind:value={form.status}>
@@ -635,6 +650,12 @@
   .section-card { background: var(--bg-card); border: 1px solid var(--border-card); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1rem; }
   .section-header { display: flex; justify-content: space-between; align-items: center; }
   .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-heading); margin: 0 0 0.75rem; }
+
+  /* Budget */
+  .budget-bar-section { margin-bottom: 1.25rem; }
+  .budget-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .budget-pct { font-weight: 700; color: #F59E0B; }
+  .budget-over { color: #EF4444 !important; }
 
   /* Gantt */
   .gantt-card { padding: 1.25rem 1.25rem 0.75rem; }

@@ -22,6 +22,8 @@ class ProjectCreate(BaseModel):
     color: str = "#3B82F6"
     start_date: str = ""
     end_date: str = ""
+    budget: float = 0
+    budget_spent: float = 0
 
 
 class ProjectUpdate(BaseModel):
@@ -31,6 +33,8 @@ class ProjectUpdate(BaseModel):
     color: str | None = None
     start_date: str | None = None
     end_date: str | None = None
+    budget: float | None = None
+    budget_spent: float | None = None
 
 
 class NoteCreate(BaseModel):
@@ -91,6 +95,8 @@ async def _project_dict(db, row) -> dict:
         "progress": progress,
         "document_count": doc_count,
         "supplier_count": sup_count,
+        "budget": row[9] if len(row) > 9 else 0,
+        "budget_spent": row[10] if len(row) > 10 else 0,
     }
 
 
@@ -118,7 +124,7 @@ async def project_stats(db=Depends(get_raw_db)):
 @router.get("")
 async def list_projects(db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at "
+        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0) "
         "FROM projects ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'not_started' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, updated_at DESC"
     )
     return [await _project_dict(db, r) for r in rows]
@@ -128,8 +134,8 @@ async def list_projects(db=Depends(get_raw_db)):
 async def create_project(body: ProjectCreate, db=Depends(get_raw_db)):
     now = _now()
     cursor = await db.execute(
-        "INSERT INTO projects (title, description, status, color, start_date, end_date, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
-        (body.title, body.description, body.status, body.color, body.start_date, body.end_date, now, now),
+        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (body.title, body.description, body.status, body.color, body.start_date, body.end_date, body.budget, body.budget_spent, now, now),
     )
     await db.commit()
     return {"ok": True, "id": cursor.lastrowid}
@@ -138,7 +144,7 @@ async def create_project(body: ProjectCreate, db=Depends(get_raw_db)):
 @router.get("/{project_id}")
 async def get_project(project_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at FROM projects WHERE id=?",
+        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0) FROM projects WHERE id=?",
         (project_id,),
     )
     if not rows:
@@ -209,7 +215,7 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
 @router.put("/{project_id}")
 async def update_project(project_id: int, body: ProjectUpdate, db=Depends(get_raw_db)):
     updates, params = [], []
-    for field in ("title", "description", "status", "color", "start_date", "end_date"):
+    for field in ("title", "description", "status", "color", "start_date", "end_date", "budget", "budget_spent"):
         val = getattr(body, field)
         if val is not None:
             updates.append(f"{field}=?")
@@ -307,10 +313,10 @@ async def link_supplier(project_id: int, body: dict = Body(...), db=Depends(get_
     if not sup_id:
         raise HTTPException(400, "supplier_id requis")
     try:
-        await db.execute("INSERT INTO project_suppliers (project_id, supplier_id) VALUES (?,?)", (project_id, sup_id))
+        await db.execute("INSERT INTO project_suppliers (project_id, supplier_id) VALUES (?,?)", (project_id, int(sup_id)))
         await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to link supplier {sup_id} to project {project_id}: {e}")
     return {"ok": True}
 
 

@@ -398,7 +398,20 @@
     expandedDocId = expandedDocId === id ? null : id;
     if (expandedDocId === id) {
       fetchLinks(id);
+      fetchDocProjects(id);
     }
+  }
+
+  async function fetchDocProjects(docId) {
+    try {
+      const detail = await api.get(`/api/documents/${docId}`);
+      // Merge projects into the doc in the list
+      const doc = documents.find(d => d.id === docId);
+      if (doc && detail.projects) {
+        doc.projects = detail.projects;
+        documents = documents; // trigger reactivity
+      }
+    } catch {}
   }
 
   function openPreview(doc) {
@@ -806,6 +819,17 @@
                     <div class="tags-list">
                       {#each doc.tags.split(',').map(t => t.trim()).filter(Boolean) as tag}
                         <span class="tag-chip">{tag}</span>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                {#if doc.projects?.length > 0}
+                  <div class="expanded-section">
+                    <div class="expanded-label">Projets lies</div>
+                    <div class="tags-list">
+                      {#each doc.projects as proj}
+                        <span class="tag-chip" style="background:{proj.color}20;color:{proj.color};border-color:{proj.color}40">Projet: {proj.title}</span>
                       {/each}
                     </div>
                   </div>

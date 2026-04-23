@@ -68,6 +68,8 @@ async def init_db():
             color TEXT NOT NULL DEFAULT '#3B82F6',
             start_date TEXT NOT NULL DEFAULT '',
             end_date TEXT NOT NULL DEFAULT '',
+            budget REAL NOT NULL DEFAULT 0,
+            budget_spent REAL NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL DEFAULT '',
             updated_at TEXT NOT NULL DEFAULT ''
         )""",
@@ -506,6 +508,17 @@ async def _run_migrations(db):
         await db.execute(
             "ALTER TABLE parc_equipment ADD COLUMN last_user TEXT NOT NULL DEFAULT ''"
         )
+
+    # Project budget columns
+    try:
+        cursor = await db.execute("PRAGMA table_info(projects)")
+        proj_cols = [row[1] for row in await cursor.fetchall()]
+        if "budget" not in proj_cols:
+            await db.execute("ALTER TABLE projects ADD COLUMN budget REAL NOT NULL DEFAULT 0")
+            await db.execute("ALTER TABLE projects ADD COLUMN budget_spent REAL NOT NULL DEFAULT 0")
+            await db.commit()
+    except Exception:
+        pass
 
     # Project link on tasks
     cursor = await db.execute("PRAGMA table_info(tasks)")
