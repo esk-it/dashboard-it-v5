@@ -22,6 +22,17 @@
   // Note
   let noteText = '';
 
+  // Budget panel
+  let showBudgetPanel = false;
+
+  // Budget computed values
+  $: budgetDocs = (selectedProject?.documents || []).filter(d => d.amount > 0 || d.amount_accepted > 0);
+  $: budgetTotalInit = budgetDocs.reduce((s, d) => s + (d.amount || 0), 0);
+  $: budgetTotalVal = budgetDocs.reduce((s, d) => s + (d.amount_accepted || 0), 0);
+  $: budgetNbAccepte = budgetDocs.filter(d => d.status === 'accepte').length;
+  $: budgetNbRefuse = budgetDocs.filter(d => d.status === 'refuse').length;
+  $: budgetNbAttente = budgetDocs.filter(d => d.status === 'en attente' || !d.status).length;
+
   // Link dialogs
   let showLinkDocDialog = false;
   let showLinkSupDialog = false;
@@ -356,13 +367,40 @@
     </div>
     <div class="progress-bar" style="margin-bottom:0.75rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
 
-    {#if selectedProject.budget > 0}
-      <div class="budget-bar-section">
-        <div class="budget-info">
-          <span>Budget: {selectedProject.budget_spent.toLocaleString('fr-FR')} EUR / {selectedProject.budget.toLocaleString('fr-FR')} EUR</span>
-          <span class="budget-pct" class:budget-over={selectedProject.budget_spent > selectedProject.budget}>{Math.round((selectedProject.budget_spent / selectedProject.budget) * 100)}%</span>
+    {#if selectedProject.budget > 0 || selectedProject.documents?.some(d => d.amount > 0)}
+      <div class="budget-compact">
+        <div class="budget-compact-cards">
+          <div class="budget-mini-card">
+            <div class="budget-mini-icon" style="background:rgba(139,92,246,0.1)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </div>
+            <div>
+              <div class="budget-mini-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</div>
+              <div class="budget-mini-label">Montant initial</div>
+            </div>
+          </div>
+          <div class="budget-mini-card">
+            <div class="budget-mini-icon" style="background:rgba(34,197,94,0.1)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <div class="budget-mini-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</div>
+              <div class="budget-mini-label">Valide</div>
+            </div>
+          </div>
+          {#if selectedProject.budget > 0}
+            <div class="budget-mini-card">
+              <div class="budget-mini-icon" style="background:rgba(245,158,11,0.1)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+              </div>
+              <div>
+                <div class="budget-mini-val" style="color:#F59E0B">{selectedProject.budget.toLocaleString('fr-FR')} EUR</div>
+                <div class="budget-mini-label">Budget prevu</div>
+              </div>
+            </div>
+          {/if}
         </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, (selectedProject.budget_spent / selectedProject.budget) * 100)}%;background:{selectedProject.budget_spent > selectedProject.budget ? '#EF4444' : '#F59E0B'}"></div></div>
+        <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => showBudgetPanel = true}>Voir le detail</button>
       </div>
     {/if}
 
@@ -439,20 +477,18 @@
         <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => { fetchAllDocuments(); showLinkDocDialog = true; }}>+ Lier un document</button>
       </div>
       {#if selectedProject.documents?.length > 0}
-        {@const totalInitial = selectedProject.documents.reduce((s, d) => s + (d.amount || 0), 0)}
-        {@const totalValide = selectedProject.documents.reduce((s, d) => s + (d.amount_accepted || 0), 0)}
-        {#if totalInitial > 0 || totalValide > 0}
+        {#if budgetTotalInit > 0 || budgetTotalVal > 0}
           <div class="budget-summary">
             <div class="budget-stat">
-              <span class="budget-stat-val">{totalInitial.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</span>
               <span class="budget-stat-label">Montant initial</span>
             </div>
             <div class="budget-stat">
-              <span class="budget-stat-val" style="color:#22C55E">{totalValide.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</span>
               <span class="budget-stat-label">Valide</span>
             </div>
             <div class="budget-stat">
-              <span class="budget-stat-val" style="color:{totalInitial - totalValide > 0 ? '#F59E0B' : '#22C55E'}">{(totalInitial - totalValide).toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-val" style="color:{budgetTotalInit - budgetTotalVal > 0 ? '#F59E0B' : '#22C55E'}">{(budgetTotalInit - budgetTotalVal).toLocaleString('fr-FR')} EUR</span>
               <span class="budget-stat-label">Ecart</span>
             </div>
           </div>
@@ -655,6 +691,110 @@
 </div>
 {/if}
 
+{#if showBudgetPanel && selectedProject}
+<div class="ya-dialog-overlay" on:mousedown|self={() => showBudgetPanel = false}>
+  <div class="ya-dialog" style="max-width:650px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Budget — {selectedProject.title}</h2>
+      <button class="ya-dialog__close" on:click={() => showBudgetPanel = false}>x</button>
+    </div>
+    <div class="ya-dialog__body">
+      <!-- Summary cards -->
+      <div class="budget-detail-cards">
+        <div class="bd-card">
+          <div class="bd-card-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          </div>
+          <div class="bd-card-info">
+            <span class="bd-card-label">Montant total</span>
+            <span class="bd-card-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</span>
+          </div>
+        </div>
+        <div class="bd-card">
+          <div class="bd-card-icon" style="background:rgba(34,197,94,0.1);color:#22C55E">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div class="bd-card-info">
+            <span class="bd-card-label">Valide</span>
+            <span class="bd-card-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</span>
+          </div>
+        </div>
+        <div class="bd-card">
+          <div class="bd-card-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          </div>
+          <div class="bd-card-info">
+            <span class="bd-card-label">Ecart</span>
+            <span class="bd-card-val" style="color:#F59E0B">{(budgetTotalInit - budgetTotalVal).toLocaleString('fr-FR')} EUR</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status summary -->
+      <div class="budget-status-row">
+        <span class="bs-chip bs-accepted">{budgetNbAccepte} accepte{budgetNbAccepte > 1 ? 's' : ''}</span>
+        <span class="bs-chip bs-pending">{budgetNbAttente} en attente</span>
+        <span class="bs-chip bs-refused">{budgetNbRefuse} refuse{budgetNbRefuse > 1 ? 's' : ''}</span>
+      </div>
+
+      <!-- Table of documents -->
+      {#if budgetDocs.length > 0}
+        <table class="budget-table">
+          <thead>
+            <tr>
+              <th>Document</th>
+              <th>Type</th>
+              <th>Montant</th>
+              <th>Valide</th>
+              <th>Statut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each budgetDocs as doc}
+              <tr>
+                <td class="bt-title">{doc.title}</td>
+                <td><span class="doc-type">{doc.doc_type}</span></td>
+                <td class="bt-amount">{doc.amount.toLocaleString('fr-FR')} EUR</td>
+                <td class="bt-amount" style="color:#22C55E">{doc.amount_accepted > 0 ? doc.amount_accepted.toLocaleString('fr-FR') + ' EUR' : '—'}</td>
+                <td>
+                  {#if doc.status === 'accepte'}<span class="doc-status doc-accepted">Accepte</span>
+                  {:else if doc.status === 'refuse'}<span class="doc-status doc-refused">Refuse</span>
+                  {:else if doc.status === 'en attente'}<span class="doc-status">En attente</span>
+                  {:else}<span class="doc-status">—</span>{/if}
+                </td>
+              </tr>
+            {/each}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="2" style="font-weight:700">Total</td>
+              <td class="bt-amount" style="font-weight:700">{budgetTotalInit.toLocaleString('fr-FR')} EUR</td>
+              <td class="bt-amount" style="font-weight:700;color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      {:else}
+        <p class="empty-text">Aucun document avec montant</p>
+      {/if}
+
+      {#if selectedProject.budget > 0}
+        <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-subtle)">
+          <div class="budget-info" style="margin-bottom:0.25rem">
+            <span>Budget prevu: {selectedProject.budget.toLocaleString('fr-FR')} EUR</span>
+            <span class="budget-pct" class:budget-over={budgetTotalVal > selectedProject.budget}>{selectedProject.budget > 0 ? Math.round((budgetTotalVal / selectedProject.budget) * 100) : 0}% utilise</span>
+          </div>
+          <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, selectedProject.budget > 0 ? (budgetTotalVal / selectedProject.budget) * 100 : 0)}%;background:{budgetTotalVal > selectedProject.budget ? '#EF4444' : '#22C55E'}"></div></div>
+        </div>
+      {/if}
+    </div>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => showBudgetPanel = false}>Fermer</button>
+    </div>
+  </div>
+</div>
+{/if}
+
 {#if showDocAmountDialog}
 <div class="ya-dialog-overlay" on:mousedown|self={() => showDocAmountDialog = false}>
   <div class="ya-dialog" style="max-width:420px">
@@ -731,9 +871,36 @@
   .section-header { display: flex; justify-content: space-between; align-items: center; }
   .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-heading); margin: 0 0 0.75rem; }
 
-  /* Budget */
-  .budget-bar-section { margin-bottom: 1.25rem; }
-  .budget-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+  /* Budget compact */
+  .budget-compact { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; gap: 1rem; flex-wrap: wrap; }
+  .budget-compact-cards { display: flex; gap: 1rem; }
+  .budget-mini-card { display: flex; align-items: center; gap: 0.5rem; }
+  .budget-mini-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .budget-mini-val { font-size: 0.875rem; font-weight: 700; color: var(--text-heading); }
+  .budget-mini-label { font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; }
+
+  /* Budget detail panel */
+  .budget-detail-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+  .bd-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-base); border-radius: 0.625rem; }
+  .bd-card-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .bd-card-info { display: flex; flex-direction: column; }
+  .bd-card-label { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; }
+  .bd-card-val { font-size: 1.125rem; font-weight: 700; color: var(--text-heading); }
+
+  .budget-status-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .bs-chip { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.6875rem; font-weight: 600; }
+  .bs-accepted { background: rgba(34,197,94,0.1); color: #22C55E; }
+  .bs-pending { background: rgba(245,158,11,0.1); color: #F59E0B; }
+  .bs-refused { background: rgba(239,68,68,0.1); color: #EF4444; }
+
+  .budget-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+  .budget-table th { padding: 0.5rem 0.75rem; text-align: left; font-size: 0.6875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid var(--border-subtle); }
+  .budget-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border-subtle); }
+  .budget-table tfoot td { border-bottom: none; border-top: 2px solid var(--border-subtle); }
+  .bt-title { font-weight: 500; color: var(--text-heading); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bt-amount { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+
+  .budget-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
   .budget-pct { font-weight: 700; color: #F59E0B; }
   .budget-over { color: #EF4444 !important; }
 

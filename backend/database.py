@@ -523,6 +523,18 @@ async def _run_migrations(db):
     except Exception:
         pass
 
+    # Project document amount columns
+    try:
+        cursor = await db.execute("PRAGMA table_info(project_documents)")
+        pd_cols = [row[1] for row in await cursor.fetchall()]
+        if "amount" not in pd_cols:
+            await db.execute("ALTER TABLE project_documents ADD COLUMN amount REAL NOT NULL DEFAULT 0")
+            await db.execute("ALTER TABLE project_documents ADD COLUMN amount_accepted REAL NOT NULL DEFAULT 0")
+            await db.execute("ALTER TABLE project_documents ADD COLUMN status TEXT NOT NULL DEFAULT ''")
+            await db.commit()
+    except Exception:
+        pass
+
     # Project link on tasks
     cursor = await db.execute("PRAGMA table_info(tasks)")
     task_cols = [row[1] for row in await cursor.fetchall()]

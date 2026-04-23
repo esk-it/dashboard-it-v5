@@ -168,18 +168,33 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
 
     # Get linked documents (safely)
     try:
-        doc_rows = await db.execute_fetchall(
-            """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference,
-                      COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0), COALESCE(pd.status, '')
-               FROM documents d JOIN project_documents pd ON d.id = pd.document_id
-               WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
-            (project_id,),
-        )
-        project["documents"] = [
-            {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
-             "amount": r[5], "amount_accepted": r[6], "status": r[7]}
-            for r in doc_rows
-        ]
+        # Try with amount columns first
+        try:
+            doc_rows = await db.execute_fetchall(
+                """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference,
+                          COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0), COALESCE(pd.status, '')
+                   FROM documents d JOIN project_documents pd ON d.id = pd.document_id
+                   WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
+                (project_id,),
+            )
+            project["documents"] = [
+                {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
+                 "amount": r[5], "amount_accepted": r[6], "status": r[7]}
+                for r in doc_rows
+            ]
+        except Exception:
+            # Fallback without amount columns
+            doc_rows = await db.execute_fetchall(
+                """SELECT d.id, d.title, d.doc_type, d.doc_date, d.reference
+                   FROM documents d JOIN project_documents pd ON d.id = pd.document_id
+                   WHERE pd.project_id=? ORDER BY d.doc_date DESC""",
+                (project_id,),
+            )
+            project["documents"] = [
+                {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
+                 "amount": 0, "amount_accepted": 0, "status": ""}
+                for r in doc_rows
+            ]
     except Exception:
         project["documents"] = []
 
@@ -294,19 +309,28 @@ async def link_document(project_id: int, body: dict = Body(...), db=Depends(get_
         raise HTTPException(400, "document_id requis")
     amount = float(body.get("amount", 0))
     amount_accepted = float(body.get("amount_accepted", 0))
-    status = body.get("status", "")
+    doc_status = body.get("status", "")
     try:
+        # Basic insert first (compatible with any schema)
         await db.execute(
-            "INSERT INTO project_documents (project_id, document_id, amount, amount_accepted, status) VALUES (?,?,?,?,?)",
-            (project_id, int(doc_id), amount, amount_accepted, status),
+            "INSERT INTO project_documents (project_id, document_id) VALUES (?,?)",
+            (project_id, int(doc_id)),
         )
-        await db.commit()
-    except Exception:
-        # Already linked — update amounts
+        # Then update amounts if columns exist
         try:
             await db.execute(
                 "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
-                (amount, amount_accepted, status, project_id, int(doc_id)),
+                (amount, amount_accepted, doc_status, project_id, int(doc_id)),
+            )
+        except Exception:
+            pass  # Columns may not exist yet
+        await db.commit()
+    except Exception:
+        # Already linked — try updating amounts
+        try:
+            await db.execute(
+                "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
+                (amount, amount_accepted, doc_status, project_id, int(doc_id)),
             )
             await db.commit()
         except Exception:
