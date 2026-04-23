@@ -93,6 +93,15 @@
     { value: 'completed', label: 'Termine', color: '#22C55E' },
   ];
 
+  // Keep in sync with TasksPage.SITES
+  const SITES = [
+    { value: '', label: '— Aucun —' },
+    { value: 'NDK', label: '\u{1F3EB} NDK' },
+    { value: 'NDE', label: '\u{1F3EB} NDE' },
+    { value: 'SU', label: '\u{1F3EB} SU' },
+    { value: 'Global', label: '\u{1F310} Global' },
+  ];
+
   const COLORS = ['#3B82F6', '#8B5CF6', '#22C55E', '#F59E0B', '#EF4444', '#EC4899', '#06B6D4', '#8869e1'];
 
   function statusInfo(s) { return STATUSES.find(st => st.value === s) || STATUSES[0]; }
@@ -269,19 +278,31 @@
   }
 
   // ── Gantt helpers ──
+  // Parse a date-ish string to a LOCAL midnight timestamp, so that
+  // "2026-04-23" and "2026-04-23T14:30:00" both resolve to the same day boundary.
+  // Mixing UTC-parsed "YYYY-MM-DD" with local-parsed ISO timestamps causes the
+  // bar to shift by ~12h from the "today" line on timezones like CEST.
+  function dayMs(s) {
+    if (!s) return null;
+    const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    if (ymd) return new Date(+ymd[1], +ymd[2] - 1, +ymd[3]).getTime();
+    const d = new Date(s);
+    if (isNaN(d)) return null;
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  }
+
   function taskStartMs(task) {
     // Priority: explicit start_date > due_date - 3 days > created_at
-    if (task.start_date) return new Date(task.start_date).getTime();
-    if (task.due_date) return new Date(task.due_date).getTime() - 3 * 86400000;
-    if (task.created_at) return new Date(task.created_at).getTime();
+    if (task.start_date) return dayMs(task.start_date);
+    if (task.due_date) return dayMs(task.due_date) - 3 * 86400000;
+    if (task.created_at) return dayMs(task.created_at);
     return null;
   }
 
   function taskEndMs(task) {
-    if (task.due_date) return new Date(task.due_date).getTime();
-    // No due date: use start_date + 3 days if we have one, else created_at + 3 days
+    if (task.due_date) return dayMs(task.due_date);
     const startRef = task.start_date || task.created_at;
-    return startRef ? new Date(startRef).getTime() + 3 * 86400000 : null;
+    return startRef ? dayMs(startRef) + 3 * 86400000 : null;
   }
 
   function ganttData(project) {
@@ -289,7 +310,7 @@
     const tasks = project.tasks.filter(t => t.start_date || t.due_date || t.created_at);
     if (!tasks.length) return { tasks: project.tasks, months: [], weeks: [], startMs: 0, totalMs: 1 };
 
-    // Determine project timeline
+    // Determine project timeline (all values already local-midnight normalized)
     const allDates = [];
     tasks.forEach(t => {
       const s = taskStartMs(t);
@@ -297,8 +318,10 @@
       if (s !== null) allDates.push(new Date(s));
       if (e !== null) allDates.push(new Date(e));
     });
-    if (project.start_date) allDates.push(new Date(project.start_date));
-    if (project.end_date) allDates.push(new Date(project.end_date));
+    const projStart = dayMs(project.start_date);
+    const projEnd = dayMs(project.end_date);
+    if (projStart !== null) allDates.push(new Date(projStart));
+    if (projEnd !== null) allDates.push(new Date(projEnd));
 
     const pStart = new Date(Math.min(...allDates));
     const pEnd = new Date(Math.max(...allDates));
@@ -355,8 +378,10 @@
   }
 
   function todayPos(startMs, totalMs) {
-    const now = Date.now();
-    return Math.max(0, Math.min(100, ((now - startMs) / totalMs) * 100));
+    // Align to local midnight so a task with start_date=today lines up exactly with the "Aujourd'hui" line
+    const d = new Date();
+    const today = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    return Math.max(0, Math.min(100, ((today - startMs) / totalMs) * 100));
   }
 
   function formatDate(d) {
@@ -726,7 +751,11 @@
         <label>Date debut <input type="date" bind:value={taskForm.start_date} /></label>
         <label>Echeance <input type="date" bind:value={taskForm.due_date} /></label>
       </div>
-      <label>Site <input type="text" bind:value={taskForm.site} placeholder="Ex: NDK, SU, NDE..." /></label>
+      <label>Site
+        <select bind:value={taskForm.site}>
+          {#each SITES as s}<option value={s.value}>{s.label}</option>{/each}
+        </select>
+      </label>
       <label>Notes <textarea bind:value={taskForm.notes} rows="2" placeholder="Notes..."></textarea></label>
     </div>
     <div class="ya-dialog__footer">

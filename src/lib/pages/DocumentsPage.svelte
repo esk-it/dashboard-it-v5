@@ -43,6 +43,7 @@
   let documents = [];
   let docTypes = [];
   let docTags = [];
+  let suppliers = [];
   let loading = true;
 
   // Filters
@@ -90,7 +91,13 @@
   let importForm = defaultForm();
 
   // ── Derived ────────────────────────────────────────────────
-  $: supplierList = [...new Set(documents.map(d => d.supplier_name || '').filter(Boolean))].sort();
+  // Union of registered suppliers + any legacy free-text supplier strings
+  // found on existing documents, so old entries still work but new ones pick
+  // from the supplier module.
+  $: supplierList = [...new Set([
+    ...suppliers.map(s => s.name).filter(Boolean),
+    ...documents.map(d => d.supplier_name || d.supplier || '').filter(Boolean),
+  ])].sort((a, b) => a.localeCompare(b, 'fr'));
 
   $: filteredDocs = documents.filter(d => {
     if (filterType && d.doc_type !== filterType) return false;
@@ -541,10 +548,15 @@
     return `${API_BASE}/api/documents/${doc.id}/preview`;
   }
 
+  async function fetchSuppliers() {
+    try { suppliers = await api.get('/api/suppliers'); } catch { suppliers = []; }
+  }
+
   // ── Lifecycle ──────────────────────────────────────────────
   onMount(() => {
     fetchDocuments();
     fetchMeta();
+    fetchSuppliers();
   });
 
   onDestroy(() => {
@@ -1001,7 +1013,7 @@
             Fournisseur
             <input type="text" class="form-input" bind:value={form.supplier} placeholder="Nom du fournisseur" list="supplier-list" />
             <datalist id="supplier-list">
-              {#each [...new Set(documents.map(d => d.supplier_name || d.supplier).filter(Boolean))] as s}
+              {#each supplierList as s}
                 <option value={s} />
               {/each}
             </datalist>
@@ -1096,7 +1108,7 @@
             Fournisseur
             <input type="text" class="form-input" bind:value={importForm.supplier} placeholder="Optionnel" list="supplier-list-import" />
             <datalist id="supplier-list-import">
-              {#each [...new Set(documents.map(d => d.supplier_name || d.supplier).filter(Boolean))] as s}
+              {#each supplierList as s}
                 <option value={s} />
               {/each}
             </datalist>
