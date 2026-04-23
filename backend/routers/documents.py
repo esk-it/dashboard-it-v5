@@ -308,7 +308,7 @@ async def list_documents(
     return [DocumentResponse(**_row_to_document(r)) for r in rows]
 
 
-@router.get("/{doc_id}", response_model=DocumentDetailResponse)
+@router.get("/{doc_id}")
 async def get_document(doc_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
         """SELECT d.id, d.title, COALESCE(d.doc_type,''), d.supplier_id,

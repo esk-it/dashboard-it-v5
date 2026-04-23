@@ -33,6 +33,25 @@
   $: budgetNbRefuse = budgetDocs.filter(d => d.status === 'refuse').length;
   $: budgetNbAttente = budgetDocs.filter(d => d.status === 'en attente' || !d.status).length;
 
+  // Edit document amounts
+  let editingDocLink = null;
+  let editDocForm = { amount: 0, amount_accepted: 0, status: '' };
+
+  function openEditDocLink(doc) {
+    editingDocLink = doc;
+    editDocForm = { amount: doc.amount || 0, amount_accepted: doc.amount_accepted || 0, status: doc.status || '' };
+  }
+
+  async function saveEditDocLink() {
+    if (!editingDocLink) return;
+    try {
+      await api.put(`/api/projects/${selectedProject.id}/documents/${editingDocLink.id}`, editDocForm);
+      editingDocLink = null;
+      await openProject(selectedProject);
+      success('Montant mis a jour');
+    } catch (e) { toastError('Erreur: ' + e.message); }
+  }
+
   // Link dialogs
   let showLinkDocDialog = false;
   let showLinkSupDialog = false;
@@ -226,13 +245,21 @@
 
   // ── Gantt helpers ──
   function ganttData(project) {
-    if (!project?.tasks?.length) return { tasks: [], months: [], startMs: 0, totalMs: 1 };
-    const tasks = project.tasks.filter(t => t.due_date);
-    if (!tasks.length) return { tasks: project.tasks, months: [], startMs: 0, totalMs: 1 };
+    if (!project?.tasks?.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1 };
+    const tasks = project.tasks.filter(t => t.due_date || t.created_at);
+    if (!tasks.length) return { tasks: project.tasks, months: [], weeks: [], startMs: 0, totalMs: 1 };
 
-    const pStart = project.start_date ? new Date(project.start_date) : new Date(Math.min(...tasks.map(t => new Date(t.due_date))));
-    const pEnd = project.end_date ? new Date(project.end_date) : new Date(Math.max(...tasks.map(t => new Date(t.due_date))));
-    // Add padding
+    // Determine project timeline
+    const allDates = [];
+    tasks.forEach(t => {
+      if (t.created_at) allDates.push(new Date(t.created_at));
+      if (t.due_date) allDates.push(new Date(t.due_date));
+    });
+    if (project.start_date) allDates.push(new Date(project.start_date));
+    if (project.end_date) allDates.push(new Date(project.end_date));
+
+    const pStart = new Date(Math.min(...allDates));
+    const pEnd = new Date(Math.max(...allDates));
     pStart.setDate(pStart.getDate() - 7);
     pEnd.setDate(pEnd.getDate() + 14);
     const startMs = pStart.getTime();
@@ -244,21 +271,44 @@
     cur.setDate(1);
     while (cur <= pEnd) {
       const pos = ((cur.getTime() - startMs) / totalMs) * 100;
-      months.push({ label: cur.toLocaleDateString('fr-FR', { month: 'short' }), pos: Math.max(0, pos) });
+      months.push({
+        label: cur.toLocaleDateString('fr-FR', { month: 'short', year: '2-digit' }),
+        pos: Math.max(0, pos),
+      });
       cur.setMonth(cur.getMonth() + 1);
     }
 
-    return { tasks: project.tasks, months, startMs, totalMs };
+    // Generate week markers
+    const weeks = [];
+    const wCur = new Date(pStart);
+    wCur.setDate(wCur.getDate() - wCur.getDay() + 1); // Start on Monday
+    while (wCur <= pEnd) {
+      const pos = ((wCur.getTime() - startMs) / totalMs) * 100;
+      if (pos >= 0 && pos <= 100) {
+        weeks.push({ pos });
+      }
+      wCur.setDate(wCur.getDate() + 7);
+    }
+
+    return { tasks: project.tasks, months, weeks, startMs, totalMs };
   }
 
   function ganttBarStyle(task, startMs, totalMs) {
-    if (!task.due_date) return '';
-    const dueMs = new Date(task.due_date).getTime();
-    // Estimate start as 14 days before due
-    const taskStartMs = dueMs - 14 * 86400000;
-    const left = Math.max(0, ((taskStartMs - startMs) / totalMs) * 100);
-    const width = Math.min(100 - left, (14 * 86400000 / totalMs) * 100);
-    return `left:${left}%;width:${Math.max(3, width)}%`;
+    if (!task.due_date && !task.created_at) return '';
+    // Use created_at as start, due_date as end
+    const taskStart = task.created_at ? new Date(task.created_at).getTime() : (task.due_date ? new Date(task.due_date).getTime() - 7 * 86400000 : startMs);
+    const taskEnd = task.due_date ? new Date(task.due_date).getTime() : taskStart + 14 * 86400000;
+    const left = Math.max(0, ((taskStart - startMs) / totalMs) * 100);
+    const right = Math.min(100, ((taskEnd - startMs) / totalMs) * 100);
+    const width = Math.max(2, right - left);
+    return `left:${left}%;width:${width}%`;
+  }
+
+  function ganttBarDates(task) {
+    const parts = [];
+    if (task.created_at) parts.push(new Date(task.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
+    if (task.due_date) parts.push(new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
+    return parts.join(' → ');
   }
 
   function todayPos(startMs, totalMs) {
@@ -417,15 +467,22 @@
           </div>
         </div>
         <div class="gantt">
+          <!-- Month headers -->
           <div class="gantt-months">
             {#each gd.months as m}
               <span style="left:{m.pos}%">{m.label}</span>
             {/each}
           </div>
           <div class="gantt-body">
+            <!-- Week grid lines -->
+            {#each gd.weeks || [] as w}
+              <div class="gantt-week-line" style="left:{w.pos}%"></div>
+            {/each}
+            <!-- Today line -->
             <div class="gantt-today-line" style="left:{todayPos(gd.startMs, gd.totalMs)}%">
               <span class="gantt-today-label">Aujourd'hui</span>
             </div>
+            <!-- Task rows -->
             {#each gd.tasks as task, idx}
               <div class="gantt-row" class:gantt-row-alt={idx % 2 === 1}>
                 <div class="gantt-task-name" class:done={task.done}>
@@ -433,10 +490,9 @@
                   {task.title}
                 </div>
                 <div class="gantt-bar-area">
-                  {#if task.due_date}
-                    {@const barColor = task.done ? '#22C55E' : '#94A3B8'}
-                    <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{barColor}" title="{task.title} — {task.due_date}">
-                      {#if task.done}<span class="gantt-bar-check">✓</span>{/if}
+                  {#if task.due_date || task.created_at}
+                    <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{task.done ? '#22C55E' : '#94A3B8'}" title="{task.title} — {ganttBarDates(task)}">
+                      <span class="gantt-bar-text">{task.done ? '✓' : ''} {ganttBarDates(task)}</span>
                     </div>
                   {/if}
                 </div>
@@ -511,6 +567,7 @@
                   <span class="doc-amount-ok">{doc.amount_accepted.toLocaleString('fr-FR')} EUR valide</span>
                 {/if}
               </div>
+              <button class="task-unlink" on:click={() => openEditDocLink(doc)} title="Modifier montant" style="color:var(--primary)">✏️</button>
               <button class="task-unlink" on:click={() => unlinkDocument(doc.id)}>✕</button>
             </div>
           {/each}
@@ -795,6 +852,35 @@
 </div>
 {/if}
 
+{#if editingDocLink}
+<div class="ya-dialog-overlay" on:mousedown|self={() => editingDocLink = null}>
+  <div class="ya-dialog" style="max-width:420px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Modifier — {editingDocLink.title}</h2>
+      <button class="ya-dialog__close" on:click={() => editingDocLink = null}>x</button>
+    </div>
+    <div class="ya-dialog__body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <label>Montant initial (EUR) <input type="number" bind:value={editDocForm.amount} min="0" step="0.01" /></label>
+        <label>Montant valide (EUR) <input type="number" bind:value={editDocForm.amount_accepted} min="0" step="0.01" /></label>
+      </div>
+      <label>Statut
+        <select bind:value={editDocForm.status}>
+          <option value="">Non defini</option>
+          <option value="en attente">En attente</option>
+          <option value="accepte">Accepte</option>
+          <option value="refuse">Refuse</option>
+        </select>
+      </label>
+    </div>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => editingDocLink = null}>Annuler</button>
+      <button class="ya-btn ya-btn--primary" on:click={saveEditDocLink}>Enregistrer</button>
+    </div>
+  </div>
+</div>
+{/if}
+
 {#if showDocAmountDialog}
 <div class="ya-dialog-overlay" on:mousedown|self={() => showDocAmountDialog = false}>
   <div class="ya-dialog" style="max-width:420px">
@@ -949,11 +1035,19 @@
     flex: 1; height: 22px; position: relative; background: var(--bg-base);
     border-radius: 4px; overflow: hidden;
   }
+  .gantt-week-line {
+    position: absolute; top: 0; bottom: 0; width: 1px;
+    background: var(--border-subtle); opacity: 0.3;
+  }
   .gantt-bar {
     position: absolute; height: 16px; top: 3px; border-radius: 4px;
-    transition: width 0.3s ease; display: flex; align-items: center; padding-left: 4px;
+    transition: width 0.3s ease; display: flex; align-items: center; padding: 0 4px;
+    overflow: hidden; cursor: default;
   }
-  .gantt-bar-check { font-size: 0.5625rem; color: #fff; font-weight: 700; }
+  .gantt-bar-text {
+    font-size: 0.5rem; color: #fff; font-weight: 600; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
 
   /* Tasks */
   .task-list { display: flex; flex-direction: column; }

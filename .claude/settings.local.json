@@ -161,7 +161,8 @@
       "Bash(curl -s -X POST http://localhost:8010/api/projects/1/tasks -H \"Content-Type: application/json\" -d '{\"title\":\"Test tache\",\"priority\":2}')",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/documents.py', encoding='utf-8'\\).read\\(\\)\\); print\\('documents OK'\\)\")",
       "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/documents.py', encoding='utf-8'\\).read\\(\\)\\); print\\('docs OK'\\)\")",
-      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/database.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/database.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('backend/routers/documents.py', encoding='utf-8'\\).read\\(\\)\\); print\\('OK'\\)\")"
     ]
   }
 }
