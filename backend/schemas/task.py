@@ -8,6 +8,7 @@ class TaskCreate(BaseModel):
     category: str = ""
     priority: int = 2
     due_date: str | None = None
+    start_date: str | None = None
     notes: str = ""
     site: str = ""
     recurrence: str = ""
@@ -23,6 +24,7 @@ class TaskResponse(BaseModel):
     category: str
     priority: int
     due_date: str | None
+    start_date: str | None = None
     done: bool
     created_at: str
     notes: str

@@ -31,7 +31,13 @@ def _row_to_task(r) -> dict:
         "notes": r[7] or "",
         "site": r[8] or "",
         "recurrence": r[9] or "",
+        "start_date": r[10] if len(r) > 10 else None,
     }
+
+
+_TASK_SELECT = """SELECT id, title, COALESCE(category,''), priority, due_date,
+                         done, COALESCE(created_at,''), COALESCE(notes,''),
+                         COALESCE(site,''), COALESCE(recurrence,''), start_date"""
 
 
 @router.get("/categories")
@@ -50,10 +56,7 @@ async def list_tasks(
     category: str = Query(""),
     db=Depends(get_raw_db),
 ):
-    query = """SELECT id, title, COALESCE(category,''), priority, due_date,
-                      done, COALESCE(created_at,''), COALESCE(notes,''),
-                      COALESCE(site,''), COALESCE(recurrence,'')
-               FROM tasks WHERE 1=1"""
+    query = _TASK_SELECT + " FROM tasks WHERE 1=1"
     params: list = []
 
     if status == "open":
@@ -82,10 +85,7 @@ async def list_tasks(
 @router.get("/{task_id}", response_model=TaskResponse)
 async def get_task(task_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        """SELECT id, title, COALESCE(category,''), priority, due_date,
-                  done, COALESCE(created_at,''), COALESCE(notes,''),
-                  COALESCE(site,''), COALESCE(recurrence,'')
-           FROM tasks WHERE id = ?""",
+        _TASK_SELECT + " FROM tasks WHERE id = ?",
         (task_id,),
     )
     if not rows:
@@ -97,8 +97,8 @@ async def get_task(task_id: int, db=Depends(get_raw_db)):
 async def create_task(body: TaskCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
     cursor = await db.execute(
-        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)""",
+        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, start_date)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.category,
@@ -108,15 +108,13 @@ async def create_task(body: TaskCreate, db=Depends(get_raw_db)):
             body.notes,
             body.site,
             body.recurrence,
+            body.start_date,
         ),
     )
     await db.commit()
     task_id = cursor.lastrowid
     rows = await db.execute_fetchall(
-        """SELECT id, title, COALESCE(category,''), priority, due_date,
-                  done, COALESCE(created_at,''), COALESCE(notes,''),
-                  COALESCE(site,''), COALESCE(recurrence,'')
-           FROM tasks WHERE id = ?""",
+        _TASK_SELECT + " FROM tasks WHERE id = ?",
         (task_id,),
     )
     return TaskResponse(**_row_to_task(rows[0]))
@@ -129,7 +127,7 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
         raise HTTPException(status_code=404, detail="Task not found")
 
     await db.execute(
-        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?
+        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?, start_date=?
            WHERE id=?""",
         (
             body.title,
@@ -139,6 +137,7 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
             body.notes,
             body.site,
             body.recurrence,
+            body.start_date,
             task_id,
         ),
     )
@@ -281,8 +280,8 @@ async def use_template(template_id: int, body: TemplateUse | None = None, db=Dep
     due_date = body.due_date if body and body.due_date else None
     now = datetime.now().isoformat(timespec="seconds")
     cursor = await db.execute(
-        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?)""",
+        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, start_date)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, NULL)""",
         (t[2], t[3], t[4], due_date, now, t[5], t[6], t[7]),
     )
     await db.commit()
@@ -303,10 +302,7 @@ async def use_template(template_id: int, body: TemplateUse | None = None, db=Dep
         await db.commit()
 
     task_rows = await db.execute_fetchall(
-        """SELECT id, title, COALESCE(category,''), priority, due_date,
-                  done, COALESCE(created_at,''), COALESCE(notes,''),
-                  COALESCE(site,''), COALESCE(recurrence,'')
-           FROM tasks WHERE id = ?""",
+        _TASK_SELECT + " FROM tasks WHERE id = ?",
         (task_id,),
     )
     return TaskResponse(**_row_to_task(task_rows[0]))

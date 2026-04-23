@@ -104,7 +104,8 @@ async def init_db():
             notes TEXT NOT NULL DEFAULT '',
             site TEXT NOT NULL DEFAULT '',
             recurrence TEXT NOT NULL DEFAULT '',
-            project_id INTEGER NULL
+            project_id INTEGER NULL,
+            start_date TEXT NULL
         )""",
         """CREATE TABLE IF NOT EXISTS task_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -535,11 +536,14 @@ async def _run_migrations(db):
     except Exception:
         pass
 
-    # Project link on tasks
+    # Project link on tasks + start_date for Gantt
     cursor = await db.execute("PRAGMA table_info(tasks)")
     task_cols = [row[1] for row in await cursor.fetchall()]
     if "project_id" not in task_cols:
         await db.execute("ALTER TABLE tasks ADD COLUMN project_id INTEGER")
+        await db.commit()
+    if "start_date" not in task_cols:
+        await db.execute("ALTER TABLE tasks ADD COLUMN start_date TEXT")
         await db.commit()
 
     # Google Calendar sync columns on planning_events

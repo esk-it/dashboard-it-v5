@@ -153,15 +153,27 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
 
     # Get tasks (safely — project_id column may not exist)
     try:
-        task_rows = await db.execute_fetchall(
-            "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
-            (project_id,),
-        )
-        project["tasks"] = [
-            {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
-             "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8]}
-            for r in task_rows
-        ]
+        try:
+            task_rows = await db.execute_fetchall(
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+                (project_id,),
+            )
+            project["tasks"] = [
+                {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
+                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8], "start_date": r[9]}
+                for r in task_rows
+            ]
+        except Exception:
+            # Fallback without start_date column
+            task_rows = await db.execute_fetchall(
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+                (project_id,),
+            )
+            project["tasks"] = [
+                {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
+                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8], "start_date": None}
+                for r in task_rows
+            ]
     except Exception as e:
         logger.warning(f"Failed to get tasks for project {project_id}: {e}")
         project["tasks"] = []
@@ -280,11 +292,17 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
                  body.get("due_date") or None, now, body.get("notes", ""), body.get("site", "")),
             )
             task_id = cursor.lastrowid
-            # Then link to project (will work even if project_id column was added via migration)
+            # Then link to project + optional start_date (will work even if columns were added via migration)
             try:
                 await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
             except Exception:
                 logger.warning(f"Could not set project_id on task {task_id} — column may not exist")
+            start_date = body.get("start_date") or None
+            if start_date:
+                try:
+                    await db.execute("UPDATE tasks SET start_date=? WHERE id=?", (start_date, task_id))
+                except Exception:
+                    logger.warning(f"Could not set start_date on task {task_id} — column may not exist")
         await db.commit()
         return {"ok": True, "task_id": task_id}
     except Exception as e:

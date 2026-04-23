@@ -17,7 +17,7 @@
 
   // Task dialog
   let showTaskDialog = false;
-  let taskForm = { title: '', priority: 2, due_date: '', notes: '', site: '' };
+  let taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '' };
 
   // Note
   let noteText = '';
@@ -26,12 +26,37 @@
   let showBudgetPanel = false;
 
   // Budget computed values
+  // Classification: factures → Facturé (argent dû) ; devis/BPA/proposition acceptés → Engagé (argent promis)
+  function isFacture(doc) {
+    const t = (doc.doc_type || '').toLowerCase();
+    return t === 'facture';
+  }
+  function isEngageable(doc) {
+    const t = (doc.doc_type || '').toLowerCase();
+    return t === 'devis' || t === 'bpa' || t === 'proposition';
+  }
+  function docValue(doc) {
+    // Validated amount if set (after negotiation), fallback to initial
+    return doc.amount_accepted > 0 ? doc.amount_accepted : (doc.amount || 0);
+  }
+
   $: budgetDocs = (selectedProject?.documents || []).filter(d => d.amount > 0 || d.amount_accepted > 0);
-  $: budgetTotalInit = budgetDocs.reduce((s, d) => s + (d.amount || 0), 0);
-  $: budgetTotalVal = budgetDocs.reduce((s, d) => s + (d.amount_accepted || 0), 0);
-  $: budgetNbAccepte = budgetDocs.filter(d => d.status === 'accepte').length;
+  // Factures = real money owed (count all, regardless of status)
+  $: budgetFactureDocs = budgetDocs.filter(isFacture);
+  $: budgetFacture = budgetFactureDocs.reduce((s, d) => s + docValue(d), 0);
+  // Engagé = accepted quotes/BPA/proposals (money committed)
+  $: budgetEngageDocs = budgetDocs.filter(d => isEngageable(d) && d.status === 'accepte');
+  $: budgetEngage = budgetEngageDocs.reduce((s, d) => s + docValue(d), 0);
+  // Pending quotes (informational)
+  $: budgetAttenteDocs = budgetDocs.filter(d => isEngageable(d) && (d.status === 'en attente' || !d.status));
+  $: budgetAttente = budgetAttenteDocs.reduce((s, d) => s + docValue(d), 0);
+  // Refused (informational, not counted)
   $: budgetNbRefuse = budgetDocs.filter(d => d.status === 'refuse').length;
-  $: budgetNbAttente = budgetDocs.filter(d => d.status === 'en attente' || !d.status).length;
+  // Consumed budget = max(Engagé, Facturé) to avoid double-counting a quote + its invoice
+  $: budgetConsomme = Math.max(budgetEngage, budgetFacture);
+  $: budgetPrevu = selectedProject?.budget || 0;
+  $: budgetResteAEngager = Math.max(0, budgetPrevu - budgetEngage);
+  $: budgetResteAFacturer = Math.max(0, budgetEngage - budgetFacture);
 
   // Edit document amounts
   let editingDocLink = null;
@@ -147,7 +172,7 @@
     try {
       await api.post(`/api/projects/${selectedProject.id}/tasks`, taskForm);
       showTaskDialog = false;
-      taskForm = { title: '', priority: 2, due_date: '', notes: '', site: '' };
+      taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '' };
       await openProject(selectedProject);
     } catch (e) { toastError('Erreur: ' + e.message); }
   }
@@ -244,16 +269,33 @@
   }
 
   // ── Gantt helpers ──
+  function taskStartMs(task) {
+    // Priority: explicit start_date > due_date - 3 days > created_at
+    if (task.start_date) return new Date(task.start_date).getTime();
+    if (task.due_date) return new Date(task.due_date).getTime() - 3 * 86400000;
+    if (task.created_at) return new Date(task.created_at).getTime();
+    return null;
+  }
+
+  function taskEndMs(task) {
+    if (task.due_date) return new Date(task.due_date).getTime();
+    // No due date: use start_date + 3 days if we have one, else created_at + 3 days
+    const startRef = task.start_date || task.created_at;
+    return startRef ? new Date(startRef).getTime() + 3 * 86400000 : null;
+  }
+
   function ganttData(project) {
     if (!project?.tasks?.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1 };
-    const tasks = project.tasks.filter(t => t.due_date || t.created_at);
+    const tasks = project.tasks.filter(t => t.start_date || t.due_date || t.created_at);
     if (!tasks.length) return { tasks: project.tasks, months: [], weeks: [], startMs: 0, totalMs: 1 };
 
     // Determine project timeline
     const allDates = [];
     tasks.forEach(t => {
-      if (t.created_at) allDates.push(new Date(t.created_at));
-      if (t.due_date) allDates.push(new Date(t.due_date));
+      const s = taskStartMs(t);
+      const e = taskEndMs(t);
+      if (s !== null) allDates.push(new Date(s));
+      if (e !== null) allDates.push(new Date(e));
     });
     if (project.start_date) allDates.push(new Date(project.start_date));
     if (project.end_date) allDates.push(new Date(project.end_date));
@@ -294,10 +336,9 @@
   }
 
   function ganttBarStyle(task, startMs, totalMs) {
-    if (!task.due_date && !task.created_at) return '';
-    // Use created_at as start, due_date as end
-    const taskStart = task.created_at ? new Date(task.created_at).getTime() : (task.due_date ? new Date(task.due_date).getTime() - 7 * 86400000 : startMs);
-    const taskEnd = task.due_date ? new Date(task.due_date).getTime() : taskStart + 14 * 86400000;
+    const taskStart = taskStartMs(task);
+    const taskEnd = taskEndMs(task);
+    if (taskStart === null || taskEnd === null) return '';
     const left = Math.max(0, ((taskStart - startMs) / totalMs) * 100);
     const right = Math.min(100, ((taskEnd - startMs) / totalMs) * 100);
     const width = Math.max(2, right - left);
@@ -305,9 +346,11 @@
   }
 
   function ganttBarDates(task) {
+    const s = task.start_date || (task.due_date ? null : task.created_at);
+    const e = task.due_date;
     const parts = [];
-    if (task.created_at) parts.push(new Date(task.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
-    if (task.due_date) parts.push(new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
+    if (s) parts.push(new Date(s).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
+    if (e) parts.push(new Date(e).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }));
     return parts.join(' → ');
   }
 
@@ -417,38 +460,38 @@
     </div>
     <div class="progress-bar" style="margin-bottom:0.75rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
 
-    {#if selectedProject.budget > 0 || selectedProject.documents?.some(d => d.amount > 0)}
+    {#if budgetPrevu > 0 || budgetDocs.length > 0}
       <div class="budget-compact">
         <div class="budget-compact-cards">
-          <div class="budget-mini-card">
-            <div class="budget-mini-icon" style="background:rgba(139,92,246,0.1)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </div>
-            <div>
-              <div class="budget-mini-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</div>
-              <div class="budget-mini-label">Montant initial</div>
-            </div>
-          </div>
-          <div class="budget-mini-card">
-            <div class="budget-mini-icon" style="background:rgba(34,197,94,0.1)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-            </div>
-            <div>
-              <div class="budget-mini-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</div>
-              <div class="budget-mini-label">Valide</div>
-            </div>
-          </div>
-          {#if selectedProject.budget > 0}
+          {#if budgetPrevu > 0}
             <div class="budget-mini-card">
               <div class="budget-mini-icon" style="background:rgba(245,158,11,0.1)">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
               </div>
               <div>
-                <div class="budget-mini-val" style="color:#F59E0B">{selectedProject.budget.toLocaleString('fr-FR')} EUR</div>
+                <div class="budget-mini-val" style="color:#F59E0B">{budgetPrevu.toLocaleString('fr-FR')} EUR</div>
                 <div class="budget-mini-label">Budget prevu</div>
               </div>
             </div>
           {/if}
+          <div class="budget-mini-card">
+            <div class="budget-mini-icon" style="background:rgba(139,92,246,0.1)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </div>
+            <div>
+              <div class="budget-mini-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</div>
+              <div class="budget-mini-label">Engage (devis accepte)</div>
+            </div>
+          </div>
+          <div class="budget-mini-card">
+            <div class="budget-mini-icon" style="background:rgba(34,197,94,0.1)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+            </div>
+            <div>
+              <div class="budget-mini-val" style="color:#22C55E">{budgetFacture.toLocaleString('fr-FR')} EUR</div>
+              <div class="budget-mini-label">Facture</div>
+            </div>
+          </div>
         </div>
         <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => showBudgetPanel = true}>Voir le detail</button>
       </div>
@@ -490,7 +533,7 @@
                   {task.title}
                 </div>
                 <div class="gantt-bar-area">
-                  {#if task.due_date || task.created_at}
+                  {#if task.start_date || task.due_date || task.created_at}
                     <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{task.done ? '#22C55E' : '#94A3B8'}" title="{task.title} — {ganttBarDates(task)}">
                       <span class="gantt-bar-text">{task.done ? '✓' : ''} {ganttBarDates(task)}</span>
                     </div>
@@ -533,19 +576,19 @@
         <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => { fetchAllDocuments(); showLinkDocDialog = true; }}>+ Lier un document</button>
       </div>
       {#if selectedProject.documents?.length > 0}
-        {#if budgetTotalInit > 0 || budgetTotalVal > 0}
+        {#if budgetEngage > 0 || budgetFacture > 0}
           <div class="budget-summary">
             <div class="budget-stat">
-              <span class="budget-stat-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</span>
-              <span class="budget-stat-label">Montant initial</span>
+              <span class="budget-stat-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Engage</span>
             </div>
             <div class="budget-stat">
-              <span class="budget-stat-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</span>
-              <span class="budget-stat-label">Valide</span>
+              <span class="budget-stat-val" style="color:#22C55E">{budgetFacture.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Facture</span>
             </div>
             <div class="budget-stat">
-              <span class="budget-stat-val" style="color:{budgetTotalInit - budgetTotalVal > 0 ? '#F59E0B' : '#22C55E'}">{(budgetTotalInit - budgetTotalVal).toLocaleString('fr-FR')} EUR</span>
-              <span class="budget-stat-label">Ecart</span>
+              <span class="budget-stat-val" style="color:#F59E0B">{budgetResteAFacturer.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Reste a facturer</span>
             </div>
           </div>
         {/if}
@@ -674,12 +717,13 @@
     </div>
     <div class="ya-dialog__body">
       <label>Titre <input type="text" bind:value={taskForm.title} placeholder="Titre de la tache..." /></label>
+      <label>Priorite
+        <select bind:value={taskForm.priority}>
+          <option value={1}>Basse</option><option value={2}>Normale</option><option value={3}>Haute</option>
+        </select>
+      </label>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
-        <label>Priorite
-          <select bind:value={taskForm.priority}>
-            <option value={1}>Basse</option><option value={2}>Normale</option><option value={3}>Haute</option>
-          </select>
-        </label>
+        <label>Date debut <input type="date" bind:value={taskForm.start_date} /></label>
         <label>Echeance <input type="date" bind:value={taskForm.due_date} /></label>
       </div>
       <label>Site <input type="text" bind:value={taskForm.site} placeholder="Ex: NDK, SU, NDE..." /></label>
@@ -756,45 +800,58 @@
       <button class="ya-dialog__close" on:click={() => showBudgetPanel = false}>x</button>
     </div>
     <div class="ya-dialog__body">
-      <!-- Summary cards -->
+      <!-- 3-level summary cards: Prévu / Engagé / Facturé -->
       <div class="budget-detail-cards">
         <div class="bd-card">
-          <div class="bd-card-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+          <div class="bd-card-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
           </div>
           <div class="bd-card-info">
-            <span class="bd-card-label">Montant total</span>
-            <span class="bd-card-val">{budgetTotalInit.toLocaleString('fr-FR')} EUR</span>
+            <span class="bd-card-label">Budget prevu</span>
+            <span class="bd-card-val" style="color:#F59E0B">{budgetPrevu.toLocaleString('fr-FR')} EUR</span>
+          </div>
+        </div>
+        <div class="bd-card">
+          <div class="bd-card-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+          <div class="bd-card-info">
+            <span class="bd-card-label">Engage</span>
+            <span class="bd-card-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</span>
           </div>
         </div>
         <div class="bd-card">
           <div class="bd-card-icon" style="background:rgba(34,197,94,0.1);color:#22C55E">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </div>
           <div class="bd-card-info">
-            <span class="bd-card-label">Valide</span>
-            <span class="bd-card-val" style="color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</span>
-          </div>
-        </div>
-        <div class="bd-card">
-          <div class="bd-card-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <div class="bd-card-info">
-            <span class="bd-card-label">Ecart</span>
-            <span class="bd-card-val" style="color:#F59E0B">{(budgetTotalInit - budgetTotalVal).toLocaleString('fr-FR')} EUR</span>
+            <span class="bd-card-label">Facture</span>
+            <span class="bd-card-val" style="color:#22C55E">{budgetFacture.toLocaleString('fr-FR')} EUR</span>
           </div>
         </div>
       </div>
 
-      <!-- Status summary -->
+      <!-- Secondary indicators -->
       <div class="budget-status-row">
-        <span class="bs-chip bs-accepted">{budgetNbAccepte} accepte{budgetNbAccepte > 1 ? 's' : ''}</span>
-        <span class="bs-chip bs-pending">{budgetNbAttente} en attente</span>
-        <span class="bs-chip bs-refused">{budgetNbRefuse} refuse{budgetNbRefuse > 1 ? 's' : ''}</span>
+        <span class="bs-chip bs-accepted" title="Ce qu'il reste a commander sur le budget prevu">Reste a engager : {budgetResteAEngager.toLocaleString('fr-FR')} EUR</span>
+        <span class="bs-chip bs-pending" title="Devis acceptes non encore factures">Reste a facturer : {budgetResteAFacturer.toLocaleString('fr-FR')} EUR</span>
+        {#if budgetAttente > 0}
+          <span class="bs-chip" style="background:rgba(148,163,184,0.1);color:#94A3B8" title="Devis en attente de validation">{budgetAttenteDocs.length} devis en attente ({budgetAttente.toLocaleString('fr-FR')} EUR)</span>
+        {/if}
+        {#if budgetNbRefuse > 0}
+          <span class="bs-chip bs-refused">{budgetNbRefuse} refuse{budgetNbRefuse > 1 ? 's' : ''}</span>
+        {/if}
       </div>
 
-      <!-- Table of documents -->
+      <!-- Alert: facture without matching quote -->
+      {#if budgetFacture > budgetEngage && budgetEngage > 0}
+        <div class="budget-alert">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>Le montant facture depasse l'engagement : des factures n'ont pas de devis associe.</span>
+        </div>
+      {/if}
+
+      <!-- Table of documents, grouped by type -->
       {#if budgetDocs.length > 0}
         <table class="budget-table">
           <thead>
@@ -804,6 +861,7 @@
               <th>Montant</th>
               <th>Valide</th>
               <th>Statut</th>
+              <th>Compte en</th>
             </tr>
           </thead>
           <tbody>
@@ -811,12 +869,17 @@
               <tr>
                 <td class="bt-title">{doc.title}</td>
                 <td><span class="doc-type">{doc.doc_type}</span></td>
-                <td class="bt-amount">{doc.amount.toLocaleString('fr-FR')} EUR</td>
-                <td class="bt-amount" style="color:#22C55E">{doc.amount_accepted > 0 ? doc.amount_accepted.toLocaleString('fr-FR') + ' EUR' : '—'}</td>
+                <td class="bt-amount">{(doc.amount || 0).toLocaleString('fr-FR')} EUR</td>
+                <td class="bt-amount">{doc.amount_accepted > 0 ? doc.amount_accepted.toLocaleString('fr-FR') + ' EUR' : '—'}</td>
                 <td>
                   {#if doc.status === 'accepte'}<span class="doc-status doc-accepted">Accepte</span>
                   {:else if doc.status === 'refuse'}<span class="doc-status doc-refused">Refuse</span>
                   {:else if doc.status === 'en attente'}<span class="doc-status">En attente</span>
+                  {:else}<span class="doc-status">—</span>{/if}
+                </td>
+                <td>
+                  {#if isFacture(doc)}<span class="doc-status" style="background:rgba(34,197,94,0.15);color:#22C55E">Facture</span>
+                  {:else if isEngageable(doc) && doc.status === 'accepte'}<span class="doc-status" style="background:rgba(139,92,246,0.15);color:#8B5CF6">Engage</span>
                   {:else}<span class="doc-status">—</span>{/if}
                 </td>
               </tr>
@@ -824,10 +887,12 @@
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="2" style="font-weight:700">Total</td>
-              <td class="bt-amount" style="font-weight:700">{budgetTotalInit.toLocaleString('fr-FR')} EUR</td>
-              <td class="bt-amount" style="font-weight:700;color:#22C55E">{budgetTotalVal.toLocaleString('fr-FR')} EUR</td>
-              <td></td>
+              <td colspan="5" style="font-weight:700;text-align:right">Engage</td>
+              <td class="bt-amount" style="font-weight:700;color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</td>
+            </tr>
+            <tr>
+              <td colspan="5" style="font-weight:700;text-align:right">Facture</td>
+              <td class="bt-amount" style="font-weight:700;color:#22C55E">{budgetFacture.toLocaleString('fr-FR')} EUR</td>
             </tr>
           </tfoot>
         </table>
@@ -835,13 +900,13 @@
         <p class="empty-text">Aucun document avec montant</p>
       {/if}
 
-      {#if selectedProject.budget > 0}
+      {#if budgetPrevu > 0}
         <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-subtle)">
           <div class="budget-info" style="margin-bottom:0.25rem">
-            <span>Budget prevu: {selectedProject.budget.toLocaleString('fr-FR')} EUR</span>
-            <span class="budget-pct" class:budget-over={budgetTotalVal > selectedProject.budget}>{selectedProject.budget > 0 ? Math.round((budgetTotalVal / selectedProject.budget) * 100) : 0}% utilise</span>
+            <span>Consommation du budget (max engage/facture)</span>
+            <span class="budget-pct" class:budget-over={budgetConsomme > budgetPrevu}>{Math.round((budgetConsomme / budgetPrevu) * 100)}% ({budgetConsomme.toLocaleString('fr-FR')} / {budgetPrevu.toLocaleString('fr-FR')} EUR)</span>
           </div>
-          <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, selectedProject.budget > 0 ? (budgetTotalVal / selectedProject.budget) * 100 : 0)}%;background:{budgetTotalVal > selectedProject.budget ? '#EF4444' : '#22C55E'}"></div></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, (budgetConsomme / budgetPrevu) * 100)}%;background:{budgetConsomme > budgetPrevu ? '#EF4444' : '#22C55E'}"></div></div>
         </div>
       {/if}
     </div>
@@ -973,11 +1038,18 @@
   .bd-card-label { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; }
   .bd-card-val { font-size: 1.125rem; font-weight: 700; color: var(--text-heading); }
 
-  .budget-status-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-  .bs-chip { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.6875rem; font-weight: 600; }
+  .budget-status-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .bs-chip { padding: 0.25rem 0.75rem; border-radius: 1rem; font-size: 0.6875rem; font-weight: 600; cursor: default; }
   .bs-accepted { background: rgba(34,197,94,0.1); color: #22C55E; }
   .bs-pending { background: rgba(245,158,11,0.1); color: #F59E0B; }
   .bs-refused { background: rgba(239,68,68,0.1); color: #EF4444; }
+
+  .budget-alert {
+    display: flex; align-items: center; gap: 0.5rem;
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+    color: #EF4444; padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+    font-size: 0.75rem; margin-bottom: 1rem;
+  }
 
   .budget-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
   .budget-table th { padding: 0.5rem 0.75rem; text-align: left; font-size: 0.6875rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; border-bottom: 2px solid var(--border-subtle); }
