@@ -246,10 +246,14 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
             await db.execute("UPDATE tasks SET project_id=? WHERE id=?", (project_id, task_id))
         else:
             now = _now()
-            # First create the task without project_id (compatible with any schema)
+            # Get project name for the category tag
+            proj_rows = await db.execute_fetchall("SELECT title FROM projects WHERE id=?", (project_id,))
+            proj_name = proj_rows[0][0] if proj_rows else ""
+            category = body.get("category", "") or f"Projet: {proj_name}"
+
             cursor = await db.execute(
                 "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence) VALUES (?,?,?,?,0,?,?,?,'') ",
-                (body.get("title", ""), body.get("category", ""), int(body.get("priority", 2)),
+                (body.get("title", ""), category, int(body.get("priority", 2)),
                  body.get("due_date") or None, now, body.get("notes", ""), body.get("site", "")),
             )
             task_id = cursor.lastrowid

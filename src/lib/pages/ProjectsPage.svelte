@@ -17,7 +17,7 @@
 
   // Task dialog
   let showTaskDialog = false;
-  let taskForm = { title: '', priority: 2, due_date: '', notes: '' };
+  let taskForm = { title: '', priority: 2, due_date: '', notes: '', site: '' };
 
   // Note
   let noteText = '';
@@ -116,16 +116,16 @@
     try {
       await api.post(`/api/projects/${selectedProject.id}/tasks`, taskForm);
       showTaskDialog = false;
-      taskForm = { title: '', priority: 2, due_date: '', notes: '' };
+      taskForm = { title: '', priority: 2, due_date: '', notes: '', site: '' };
       await openProject(selectedProject);
     } catch (e) { toastError('Erreur: ' + e.message); }
   }
 
   async function toggleTask(task) {
     try {
-      await api.patch(`/api/tasks/${task.id}`, { done: !task.done });
+      await api.patch(`/api/tasks/${task.id}/done`);
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { console.error('Toggle task failed:', e); }
   }
 
   async function unlinkTask(taskId) {
@@ -338,8 +338,15 @@
     <!-- Gantt -->
     {@const gd = ganttData(selectedProject)}
     {#if gd.months.length > 0}
-      <div class="section-card">
-        <h3 class="section-title">Diagramme de Gantt</h3>
+      <div class="section-card gantt-card">
+        <div class="gantt-header">
+          <h3 class="section-title" style="margin:0">Diagramme de Gantt</h3>
+          <div class="gantt-legend">
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#22C55E"></span>Termine</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:{selectedProject.color}"></span>En cours</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#94A3B8"></span>A faire</span>
+          </div>
+        </div>
         <div class="gantt">
           <div class="gantt-months">
             {#each gd.months as m}
@@ -347,13 +354,21 @@
             {/each}
           </div>
           <div class="gantt-body">
-            <div class="gantt-today" style="left:{todayPos(gd.startMs, gd.totalMs)}%"></div>
-            {#each gd.tasks as task}
-              <div class="gantt-row">
-                <div class="gantt-task-name" class:done={task.done}>{task.title}</div>
+            <div class="gantt-today-line" style="left:{todayPos(gd.startMs, gd.totalMs)}%">
+              <span class="gantt-today-label">Aujourd'hui</span>
+            </div>
+            {#each gd.tasks as task, idx}
+              <div class="gantt-row" class:gantt-row-alt={idx % 2 === 1}>
+                <div class="gantt-task-name" class:done={task.done}>
+                  <span class="gantt-task-num">{idx + 1}</span>
+                  {task.title}
+                </div>
                 <div class="gantt-bar-area">
                   {#if task.due_date}
-                    <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{task.done ? '#22C55E' : selectedProject.color}"></div>
+                    {@const barColor = task.done ? '#22C55E' : '#94A3B8'}
+                    <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{barColor}" title="{task.title} — {task.due_date}">
+                      {#if task.done}<span class="gantt-bar-check">✓</span>{/if}
+                    </div>
                   {/if}
                 </div>
               </div>
@@ -509,6 +524,7 @@
         </label>
         <label>Echeance <input type="date" bind:value={taskForm.due_date} /></label>
       </div>
+      <label>Site <input type="text" bind:value={taskForm.site} placeholder="Ex: NDK, SU, NDE..." /></label>
       <label>Notes <textarea bind:value={taskForm.notes} rows="2" placeholder="Notes..."></textarea></label>
     </div>
     <div class="ya-dialog__footer">
@@ -621,16 +637,55 @@
   .section-title { font-size: 0.9375rem; font-weight: 700; color: var(--text-heading); margin: 0 0 0.75rem; }
 
   /* Gantt */
-  .gantt { overflow-x: auto; }
-  .gantt-months { display: flex; position: relative; height: 20px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.5rem; }
-  .gantt-months span { position: absolute; font-size: 0.625rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-  .gantt-body { position: relative; min-height: 100px; }
-  .gantt-today { position: absolute; top: 0; bottom: 0; width: 2px; background: #EF4444; z-index: 2; opacity: 0.7; }
-  .gantt-row { display: flex; align-items: center; margin-bottom: 0.375rem; }
-  .gantt-task-name { width: 160px; font-size: 0.6875rem; color: var(--text-secondary); flex-shrink: 0; padding-right: 0.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .gantt-card { padding: 1.25rem 1.25rem 0.75rem; }
+  .gantt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .gantt-legend { display: flex; gap: 1rem; }
+  .gantt-legend-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.6875rem; color: var(--text-muted); }
+  .gantt-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .gantt { overflow-x: auto; padding-bottom: 0.5rem; }
+  .gantt-months {
+    display: flex; position: relative; height: 24px;
+    border-bottom: 2px solid var(--border-subtle); margin-bottom: 0.25rem;
+  }
+  .gantt-months span {
+    position: absolute; font-size: 0.6875rem; color: var(--text-muted);
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .gantt-body { position: relative; min-height: 80px; }
+  .gantt-today-line {
+    position: absolute; top: 0; bottom: 0; width: 2px; background: #EF4444; z-index: 2;
+  }
+  .gantt-today-label {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    font-size: 0.5625rem; color: #EF4444; font-weight: 700; white-space: nowrap;
+    background: rgba(239,68,68,0.1); padding: 1px 4px; border-radius: 2px;
+  }
+  .gantt-row {
+    display: flex; align-items: center; padding: 0.25rem 0;
+    border-bottom: 1px solid rgba(128,128,128,0.06);
+  }
+  .gantt-row-alt { background: rgba(128,128,128,0.03); }
+  .gantt-task-name {
+    width: 180px; font-size: 0.75rem; color: var(--text-secondary); flex-shrink: 0;
+    padding-right: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: flex; align-items: center; gap: 0.375rem;
+  }
   .gantt-task-name.done { text-decoration: line-through; color: var(--text-muted); }
-  .gantt-bar-area { flex: 1; height: 18px; position: relative; background: var(--bg-base); border-radius: 3px; }
-  .gantt-bar { position: absolute; height: 14px; top: 2px; border-radius: 3px; opacity: 0.85; }
+  .gantt-task-num {
+    width: 18px; height: 18px; border-radius: 50%; background: var(--bg-base);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.5625rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0;
+  }
+  .gantt-bar-area {
+    flex: 1; height: 22px; position: relative; background: var(--bg-base);
+    border-radius: 4px; overflow: hidden;
+  }
+  .gantt-bar {
+    position: absolute; height: 16px; top: 3px; border-radius: 4px;
+    transition: width 0.3s ease; display: flex; align-items: center; padding-left: 4px;
+  }
+  .gantt-bar-check { font-size: 0.5625rem; color: #fff; font-weight: 700; }
 
   /* Tasks */
   .task-list { display: flex; flex-direction: column; }
