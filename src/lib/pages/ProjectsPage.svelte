@@ -367,9 +367,13 @@
   }
 
   function ganttData(project, zoom = 'auto') {
-    if (!project?.tasks?.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1 };
-    const tasks = project.tasks.filter(t => t.start_date || t.due_date || t.created_at);
-    if (!tasks.length) return { tasks: project.tasks, months: [], weeks: [], startMs: 0, totalMs: 1 };
+    if (!project?.tasks?.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1, hiddenCount: 0 };
+    // Only show tasks that have a real schedule (start or due). Falling back to created_at
+    // would invent a position for dateless tasks — this is what made duplicated projects
+    // look weird on the Gantt.
+    const tasks = project.tasks.filter(t => t.start_date || t.due_date);
+    const hiddenCount = project.tasks.length - tasks.length;
+    if (!tasks.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1, hiddenCount };
 
     let pStart, pEnd;
     if (zoom !== 'auto') {
@@ -466,21 +470,15 @@
     todo: '#94A3B8',
   };
 
+  // Progress is *only* meaningful when there's real completion data:
+  //   - task marked done  → 100%
+  //   - task has a checklist → share of items checked
+  //   - otherwise → null (don't show a percentage at all; time-based guessing was misleading)
   function taskProgress(task) {
     if (task.done) return 100;
-    // 1st choice: checklist-based (if the task has a checklist, use real completion)
     const total = task.checklist_total || 0;
-    if (total > 0) {
-      return Math.round(((task.checklist_done || 0) / total) * 100);
-    }
-    // Fallback: time-based — how much of the task window has elapsed
-    const start = taskStartMs(task);
-    const end = taskEndMs(task);
-    if (start === null || end === null || end <= start) return 0;
-    const now = Date.now();
-    if (now <= start) return 0;
-    if (now >= end) return 100;
-    return Math.round(((now - start) / (end - start)) * 100);
+    if (total > 0) return Math.round(((task.checklist_done || 0) / total) * 100);
+    return null;
   }
 
   function ganttBarDates(task) {
@@ -497,6 +495,53 @@
     const d = new Date();
     const today = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     return Math.max(0, Math.min(100, ((today - startMs) / totalMs) * 100));
+  }
+
+  // ── Gantt dependency arrows (GanttProject-style elbow lines) ──
+  // Match CSS: .gantt-task-name { width:180px } and row height ≈ 31px (0.25rem padding top+bottom + 22px bar + 1px border)
+  const GANTT_NAME_W = 180;
+  const GANTT_ROW_H = 31;
+  let ganttBodyWidth = 0;
+
+  // Reactive so the template can use them as plain expressions (Svelte 5 restricts {@const} placement).
+  $: gd = selectedProject ? ganttData(selectedProject, ganttZoom) : { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1, hiddenCount: 0 };
+  $: arrows = computeArrows(gd.tasks, ganttBodyWidth, gd.startMs, gd.totalMs);
+
+  function computeArrows(tasks, bodyWidth, startMs, totalMs) {
+    if (!bodyWidth || bodyWidth <= GANTT_NAME_W + 20 || !tasks?.length) return [];
+    const barAreaW = bodyWidth - GANTT_NAME_W;
+    const rowIdxById = new Map(tasks.map((t, i) => [t.id, i]));
+    const arrows = [];
+    const elbow = 8; // px overshoot out of the source bar before turning
+
+    for (let i = 0; i < tasks.length; i++) {
+      const task = tasks[i];
+      const deps = task.dependencies || [];
+      if (!deps.length) continue;
+      const targetStart = taskStartMs(task);
+      if (targetStart === null) continue;
+      const tLeftPct = Math.max(0, Math.min(100, ((targetStart - startMs) / totalMs) * 100));
+      const targetX = GANTT_NAME_W + (tLeftPct / 100) * barAreaW;
+      const targetY = i * GANTT_ROW_H + GANTT_ROW_H / 2;
+
+      for (const dep of deps) {
+        const depIdx = rowIdxById.get(dep.id);
+        if (depIdx === undefined) continue;
+        const depTask = tasks[depIdx];
+        const depEnd = taskEndMs(depTask);
+        if (depEnd === null) continue;
+        const dRightPct = Math.max(0, Math.min(100, ((depEnd - startMs) / totalMs) * 100));
+        const srcX = GANTT_NAME_W + (dRightPct / 100) * barAreaW;
+        const srcY = depIdx * GANTT_ROW_H + GANTT_ROW_H / 2;
+
+        // Elbow path: out from source → vertical to target row → into target bar (arrow)
+        const midX = Math.max(srcX + elbow, targetX - elbow);
+        const d = `M ${srcX} ${srcY} L ${midX} ${srcY} L ${midX} ${targetY} L ${targetX - 1} ${targetY}`;
+        const resolved = dep.done;
+        arrows.push({ d, resolved });
+      }
+    }
+    return arrows;
   }
 
   function formatDate(d) {
@@ -654,7 +699,13 @@
     {/if}
 
     <!-- Gantt -->
-    {@const gd = ganttData(selectedProject, ganttZoom)}
+    {#if gd.months.length === 0 && gd.hiddenCount > 0}
+      <div class="section-card">
+        <p class="gantt-hidden-note" style="margin:0">
+          {gd.hiddenCount} tâche{gd.hiddenCount > 1 ? 's' : ''} sans date — renseignez une date de début ou d'échéance pour les voir sur le Gantt.
+        </p>
+      </div>
+    {/if}
     {#if gd.months.length > 0}
       <div class="section-card gantt-card">
         <div class="gantt-header">
@@ -683,7 +734,7 @@
               <span style="left:{m.pos}%">{m.label}</span>
             {/each}
           </div>
-          <div class="gantt-body">
+          <div class="gantt-body" bind:clientWidth={ganttBodyWidth}>
             <!-- Week grid lines -->
             {#each gd.weeks || [] as w}
               <div class="gantt-week-line" style="left:{w.pos}%"></div>
@@ -700,31 +751,54 @@
                   {task.title}
                 </div>
                 <div class="gantt-bar-area">
-                  {#if task.start_date || task.due_date || task.created_at}
+                  {#if task.start_date || task.due_date}
                     {@const status = taskStatus(task)}
                     {@const color = STATUS_COLORS[status]}
                     {@const pct = taskProgress(task)}
                     {@const blocked = task.blocked && !task.done}
                     <div class="gantt-bar gantt-bar--{status}" class:gantt-bar--blocked={blocked}
                          style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
-                         title="{task.title} — {ganttBarDates(task)}{task.checklist_total > 0 ? ` — ${task.checklist_done}/${task.checklist_total} checklist` : ''} — {pct}%{blocked ? ' — Bloquee' : ''}">
-                      {#if pct > 0 && !task.done}
+                         data-task-id={task.id}
+                         title="{task.title} — {ganttBarDates(task)}{pct !== null ? ` — ${pct}%` : ''}{task.checklist_total > 0 ? ` (${task.checklist_done}/${task.checklist_total})` : ''}{blocked ? ' — Bloquee' : ''}">
+                      {#if pct !== null && pct > 0 && !task.done}
                         <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
                       {/if}
                       {#if task.done}
                         <div class="gantt-bar-fill gantt-bar-fill--full" style="background:{color}"></div>
                       {/if}
-                      <span class="gantt-bar-text" style="color:{task.done || pct >= 50 ? '#fff' : color}">
-                        {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}{pct}%
-                        {#if task.checklist_total > 0}· {task.checklist_done}/{task.checklist_total}{/if}
+                      <span class="gantt-bar-text" style="color:{task.done || (pct !== null && pct >= 50) ? '#fff' : color}">
+                        {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}
+                        {#if pct !== null}{pct}%{:else}{ganttBarDates(task)}{/if}
                       </span>
                     </div>
                   {/if}
                 </div>
               </div>
             {/each}
+
+            <!-- Dependency arrows (elbow lines between dependent tasks) -->
+            {#if arrows.length > 0}
+              <svg class="gantt-arrows" width={ganttBodyWidth} height={gd.tasks.length * GANTT_ROW_H}>
+                <defs>
+                  <marker id="gantt-arrowhead" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M 0 0 L 6 3 L 0 6 z" fill="#94A3B8" />
+                  </marker>
+                  <marker id="gantt-arrowhead-done" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M 0 0 L 6 3 L 0 6 z" fill="#22C55E" />
+                  </marker>
+                </defs>
+                {#each arrows as a}
+                  <path d={a.d} stroke={a.resolved ? '#22C55E' : '#94A3B8'} stroke-width="1.5" fill="none"
+                        stroke-dasharray={a.resolved ? 'none' : '4 3'}
+                        marker-end="url(#{a.resolved ? 'gantt-arrowhead-done' : 'gantt-arrowhead'})" />
+                {/each}
+              </svg>
+            {/if}
           </div>
         </div>
+        {#if gd.hiddenCount > 0}
+          <p class="gantt-hidden-note">{gd.hiddenCount} tache{gd.hiddenCount > 1 ? 's' : ''} sans date non affichée{gd.hiddenCount > 1 ? 's' : ''} sur le Gantt</p>
+        {/if}
       </div>
     {/if}
 
@@ -739,15 +813,33 @@
           {#each selectedProject.tasks as task}
             <div class="task-item" class:task-item--blocked={task.blocked && !task.done}>
               <div class="task-check" class:done={task.done} on:click={() => toggleTask(task)}></div>
-              <span class="task-title" class:done={task.done}>{task.title}</span>
-              {#if task.blocked && !task.done}
-                <span class="task-blocked-badge" title={(task.dependencies || []).filter(d => !d.done).map(d => d.title).join(', ')}>🔒 Bloquee</span>
-              {/if}
+              <div class="task-main">
+                <div class="task-title-row">
+                  <span class="task-title" class:done={task.done}>{task.title}</span>
+                  {#if task.blocked && !task.done}
+                    <span class="task-blocked-badge">🔒 Bloquee</span>
+                  {/if}
+                </div>
+                {#if (task.dependencies || []).length > 0}
+                  <div class="task-deps-inline">
+                    <span class="task-deps-inline__label">Depend de :</span>
+                    {#each task.dependencies as d, i}
+                      <span class="task-deps-inline__chip" class:task-deps-inline__chip--done={d.done}>
+                        {d.done ? '\u2713 ' : ''}{d.title}
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
               <span class="task-priority p{task.priority}">{task.priority === 3 ? 'Haute' : task.priority === 1 ? 'Basse' : 'Normale'}</span>
-              {#if task.due_date}<span class="task-date">{formatDate(task.due_date)}</span>{/if}
-              <button class="task-deps-btn" on:click={() => openDepsDialog(task)} title="Dependances">
-                🔗{#if (task.dependencies || []).length > 0}<span class="task-deps-count">{task.dependencies.length}</span>{/if}
-              </button>
+              {#if task.start_date || task.due_date}
+                <span class="task-dates">
+                  {#if task.start_date}{formatDate(task.start_date)}{:else}…{/if}
+                  <span class="task-dates__arrow">{'\u2192'}</span>
+                  {#if task.due_date}{formatDate(task.due_date)}{:else}…{/if}
+                </span>
+              {/if}
+              <button class="task-deps-btn" on:click={() => openDepsDialog(task)} title="Gérer les dépendances">🔗</button>
               <button class="task-unlink" on:click={() => unlinkTask(task.id)} title="Retirer du projet">✕</button>
             </div>
           {/each}
@@ -1335,6 +1427,14 @@
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
   }
   .gantt-body { position: relative; min-height: 80px; }
+  .gantt-arrows {
+    position: absolute; top: 0; left: 0; pointer-events: none; overflow: visible;
+    z-index: 3;
+  }
+  .gantt-hidden-note {
+    font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+    padding: 0.5rem 0 0; margin: 0;
+  }
   .gantt-today-line {
     position: absolute; top: 0; bottom: 0; width: 2px; background: #EF4444; z-index: 2;
   }
@@ -1386,18 +1486,39 @@
 
   /* Tasks */
   .task-list { display: flex; flex-direction: column; }
-  .task-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle); }
+  .task-item { display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle); }
   .task-item:last-child { border-bottom: none; }
-  .task-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border-subtle); cursor: pointer; flex-shrink: 0; }
+  .task-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border-subtle); cursor: pointer; flex-shrink: 0; margin-top: 0.125rem; }
   .task-check.done { background: #22C55E; border-color: #22C55E; }
-  .task-title { flex: 1; font-size: 0.8125rem; color: var(--text-heading); }
+  .task-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .task-title-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+  .task-title { font-size: 0.8125rem; color: var(--text-heading); }
   .task-title.done { text-decoration: line-through; color: var(--text-muted); }
-  .task-priority { padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.625rem; font-weight: 600; }
+  .task-priority { padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.625rem; font-weight: 600; align-self: center; }
   .p3 { background: rgba(239,68,68,0.1); color: #EF4444; }
   .p2 { background: rgba(59,130,246,0.1); color: #3B82F6; }
   .p1 { background: rgba(34,197,94,0.1); color: #22C55E; }
   .task-date { font-size: 0.6875rem; color: var(--text-muted); }
-  .task-unlink { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; }
+  .task-dates {
+    display: inline-flex; align-items: center; gap: 0.25rem;
+    font-size: 0.6875rem; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+    align-self: center; white-space: nowrap;
+  }
+  .task-dates__arrow { opacity: 0.5; }
+
+  .task-deps-inline {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem;
+    font-size: 0.6875rem;
+  }
+  .task-deps-inline__label { color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; font-size: 0.625rem; }
+  .task-deps-inline__chip {
+    padding: 0.0625rem 0.375rem; border-radius: 0.25rem;
+    background: rgba(148,163,184,0.12); color: var(--text-secondary);
+    border: 1px solid var(--border-subtle); font-size: 0.625rem;
+  }
+  .task-deps-inline__chip--done { background: rgba(34,197,94,0.1); color: #22C55E; border-color: rgba(34,197,94,0.25); }
+
+  .task-unlink { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; align-self: center; }
   .task-unlink:hover { color: #EF4444; }
 
   .task-item--blocked { background: rgba(148,163,184,0.06); }
@@ -1408,13 +1529,9 @@
   }
   .task-deps-btn {
     background: none; border: none; color: var(--text-muted); cursor: pointer;
-    font-size: 0.75rem; padding: 0.25rem; position: relative; display: inline-flex; gap: 0.125rem;
+    font-size: 0.875rem; padding: 0.25rem; align-self: center;
   }
   .task-deps-btn:hover { color: var(--primary); }
-  .task-deps-count {
-    background: var(--primary); color: #fff; font-size: 0.5625rem; font-weight: 700;
-    border-radius: 0.625rem; padding: 0 0.375rem; min-width: 1rem; text-align: center;
-  }
 
   .deps-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
   .deps-item {
