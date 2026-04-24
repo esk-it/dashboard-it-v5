@@ -377,16 +377,33 @@ async def preview_document(doc_id: int, db=Depends(get_raw_db)):
     return await _serve_preview(db, doc_id)
 
 
+async def _resolve_supplier_id(db, supplier_id, supplier_name):
+    """If supplier_id not given but a name is, look it up (exact first, then LIKE)."""
+    if supplier_id is not None:
+        return supplier_id
+    name = (supplier_name or "").strip()
+    if not name:
+        return None
+    rows = await db.execute_fetchall("SELECT id FROM suppliers WHERE name = ?", (name,))
+    if rows:
+        return rows[0][0]
+    rows = await db.execute_fetchall("SELECT id FROM suppliers WHERE name LIKE ? ORDER BY length(name) ASC LIMIT 1", (f"%{name}%",))
+    if rows:
+        return rows[0][0]
+    return None
+
+
 @router.post("", response_model=DocumentResponse, status_code=201)
 async def create_document(body: DocumentCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
+    supplier_id = await _resolve_supplier_id(db, body.supplier_id, body.supplier)
     cursor = await db.execute(
         """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, file_path, file_hash, notes, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.doc_type,
-            body.supplier_id,
+            supplier_id,
             body.doc_date,
             body.reference,
             body.file_path,
@@ -416,13 +433,14 @@ async def update_document(doc_id: int, body: DocumentUpdate, db=Depends(get_raw_
     if not rows:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    supplier_id = await _resolve_supplier_id(db, body.supplier_id, body.supplier)
     await db.execute(
         """UPDATE documents SET title=?, doc_type=?, supplier_id=?, doc_date=?, reference=?, file_path=?, file_hash=?, notes=?
            WHERE id=?""",
         (
             body.title,
             body.doc_type,
-            body.supplier_id,
+            supplier_id,
             body.doc_date,
             body.reference,
             body.file_path,

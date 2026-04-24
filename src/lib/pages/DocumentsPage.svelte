@@ -386,7 +386,7 @@
     form = {
       title: doc.title || '',
       doc_type: doc.doc_type || 'AUTRE',
-      supplier: doc.supplier || '',
+      supplier: doc.supplier_name || doc.supplier || '',
       doc_date: doc.doc_date || '',
       reference: doc.reference || '',
       notes: doc.notes || '',

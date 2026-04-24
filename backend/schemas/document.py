@@ -7,6 +7,7 @@ class DocumentCreate(BaseModel):
     title: str
     doc_type: str = ""
     supplier_id: int | None = None
+    supplier: str | None = None  # Free-text supplier name; backend resolves to supplier_id if match found
     doc_date: str | None = None
     reference: str = ""
     file_path: str = ""

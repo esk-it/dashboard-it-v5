@@ -27,13 +27,14 @@
 
   // Budget computed values
   // Classification: factures → Facturé (argent dû) ; devis/BPA/proposition acceptés → Engagé (argent promis)
+  // Doc types in DB are uppercase: DEVIS / FACTURE / CONTRAT / BON (Bon pour accord = BPA) / RAPPORT / AUTRE
   function isFacture(doc) {
     const t = (doc.doc_type || '').toLowerCase();
     return t === 'facture';
   }
   function isEngageable(doc) {
     const t = (doc.doc_type || '').toLowerCase();
-    return t === 'devis' || t === 'bpa' || t === 'proposition';
+    return t === 'devis' || t === 'bon' || t === 'bpa' || t === 'proposition';
   }
   function docValue(doc) {
     // Validated amount if set (after negotiation), fallback to initial
@@ -368,6 +369,35 @@
     return `left:${left}%;width:${width}%`;
   }
 
+  // Status-based color so a glance at the Gantt tells the user what needs attention.
+  // Keyed by taskStatus(): done=green, late=red, soon=orange, in-progress=blue, todo=gray.
+  function taskStatus(task) {
+    if (task.done) return 'done';
+    const today = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); })();
+    const start = taskStartMs(task);
+    const end = taskEndMs(task);
+    if (end !== null && end < today) return 'late';              // due date passed, not done
+    if (start !== null && start > today) return 'todo';          // scheduled for the future
+    // In or approaching the task window
+    if (end !== null && end - today <= 3 * 86400000) return 'soon'; // due within 3 days
+    return 'in-progress';
+  }
+
+  const STATUS_COLORS = {
+    done: '#22C55E',
+    late: '#EF4444',
+    soon: '#F59E0B',
+    'in-progress': '#3B82F6',
+    todo: '#94A3B8',
+  };
+
+  function taskProgress(task) {
+    if (task.done) return 100;
+    const total = task.checklist_total || 0;
+    if (total <= 0) return 0;
+    return Math.round(((task.checklist_done || 0) / total) * 100);
+  }
+
   function ganttBarDates(task) {
     const s = task.start_date || (task.due_date ? null : task.created_at);
     const e = task.due_date;
@@ -435,6 +465,8 @@
   {:else}
     <div class="projects-grid">
       {#each projects as p (p.id)}
+        {@const bPct = p.budget > 0 ? Math.min(100, Math.round((p.budget_consumed || 0) / p.budget * 100)) : 0}
+        {@const bOver = p.budget > 0 && (p.budget_consumed || 0) > p.budget}
         <div class="project-card" style="border-left-color:{p.color}" on:click={() => openProject(p)}>
           <div class="project-card__header">
             <h3>{p.title}</h3>
@@ -450,6 +482,17 @@
             <span>{p.done_tasks}/{p.total_tasks} terminees</span>
             <span style="font-weight:700;color:{p.color}">{p.progress}%</span>
           </div>
+          {#if p.budget > 0}
+            <div class="card-budget" class:card-budget--over={bOver}>
+              <div class="card-budget__label">
+                <span>Budget</span>
+                <span class="card-budget__val">{(p.budget_consumed || 0).toLocaleString('fr-FR')} / {p.budget.toLocaleString('fr-FR')} EUR</span>
+              </div>
+              <div class="card-budget__bar">
+                <div class="card-budget__fill" style="width:{bPct}%;background:{bOver ? '#EF4444' : bPct > 80 ? '#F59E0B' : '#22C55E'}"></div>
+              </div>
+            </div>
+          {/if}
         </div>
       {/each}
     </div>
@@ -530,7 +573,9 @@
           <h3 class="section-title" style="margin:0">Diagramme de Gantt</h3>
           <div class="gantt-legend">
             <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#22C55E"></span>Termine</span>
-            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:{selectedProject.color}"></span>En cours</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#3B82F6"></span>En cours</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#F59E0B"></span>Bientot du</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#EF4444"></span>En retard</span>
             <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#94A3B8"></span>A faire</span>
           </div>
         </div>
@@ -559,8 +604,21 @@
                 </div>
                 <div class="gantt-bar-area">
                   {#if task.start_date || task.due_date || task.created_at}
-                    <div class="gantt-bar" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{task.done ? '#22C55E' : '#94A3B8'}" title="{task.title} — {ganttBarDates(task)}">
-                      <span class="gantt-bar-text">{task.done ? '✓' : ''} {ganttBarDates(task)}</span>
+                    {@const status = taskStatus(task)}
+                    {@const color = STATUS_COLORS[status]}
+                    {@const pct = taskProgress(task)}
+                    <div class="gantt-bar gantt-bar--{status}" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
+                         title="{task.title} — {ganttBarDates(task)}{task.checklist_total > 0 ? ` — ${task.checklist_done}/${task.checklist_total} (${pct}%)` : ''}">
+                      {#if pct > 0 && !task.done}
+                        <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
+                      {/if}
+                      {#if task.done}
+                        <div class="gantt-bar-fill gantt-bar-fill--full" style="background:{color}"></div>
+                      {/if}
+                      <span class="gantt-bar-text" style="color:{task.done || pct >= 50 ? '#fff' : color}">
+                        {#if task.done}{'\u2713 '}{/if}{ganttBarDates(task)}
+                        {#if task.checklist_total > 0}· {task.checklist_done}/{task.checklist_total}{/if}
+                      </span>
                     </div>
                   {/if}
                 </div>
@@ -1028,6 +1086,13 @@
   .project-card__meta { display: flex; gap: 1rem; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem; }
   .project-card__footer { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
 
+  .card-budget { margin-top: 0.625rem; padding-top: 0.625rem; border-top: 1px dashed var(--border-subtle); }
+  .card-budget__label { display: flex; justify-content: space-between; font-size: 0.6875rem; color: var(--text-muted); margin-bottom: 0.25rem; }
+  .card-budget__val { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--text-heading); }
+  .card-budget__bar { background: var(--bg-base); height: 4px; border-radius: 2px; overflow: hidden; }
+  .card-budget__fill { height: 100%; transition: width 0.3s; }
+  .card-budget--over .card-budget__val { color: #EF4444; }
+
   .status-badge { display: inline-block; padding: 0.2rem 0.625rem; border-radius: 1rem; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
 
   .progress-bar { background: var(--bg-base); height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 0.375rem; }
@@ -1143,11 +1208,17 @@
   .gantt-bar {
     position: absolute; height: 16px; top: 3px; border-radius: 4px;
     transition: width 0.3s ease; display: flex; align-items: center; padding: 0 4px;
-    overflow: hidden; cursor: default;
+    overflow: hidden; cursor: default; border: 1.5px solid;
   }
+  .gantt-bar--late { box-shadow: 0 0 0 1px rgba(239,68,68,0.35); }
+  .gantt-bar-fill {
+    position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px 0 0 3px;
+    opacity: 0.9; transition: width 0.3s ease; z-index: 0;
+  }
+  .gantt-bar-fill--full { width: 100%; border-radius: 3px; }
   .gantt-bar-text {
-    font-size: 0.5rem; color: #fff; font-weight: 600; white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
+    font-size: 0.5rem; font-weight: 600; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; position: relative; z-index: 1;
   }
 
   /* Tasks */

@@ -80,6 +80,34 @@ async def _project_dict(db, row) -> dict:
 
     progress = round((done_tasks / total_tasks * 100) if total_tasks > 0 else 0)
 
+    # Budget consumption derived from linked documents. Same rule as the detail view:
+    # engaged = accepted quote-like documents, invoiced = factures, consumed = max(engaged, invoiced).
+    budget_engaged = 0.0
+    budget_invoiced = 0.0
+    try:
+        pd_rows = await db.execute_fetchall(
+            """SELECT COALESCE(d.doc_type, ''),
+                      COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0),
+                      COALESCE(pd.status, '')
+               FROM project_documents pd
+               LEFT JOIN documents d ON d.id = pd.document_id
+               WHERE pd.project_id = ?""",
+            (pid,),
+        )
+        for r in pd_rows:
+            dtype = (r[0] or "").lower()
+            amount = r[1] or 0
+            accepted = r[2] or 0
+            pstatus = (r[3] or "").lower()
+            value = accepted if accepted > 0 else amount
+            if dtype == "facture":
+                budget_invoiced += value
+            elif dtype in ("devis", "bon", "bpa", "proposition") and pstatus == "accepte":
+                budget_engaged += value
+    except Exception:
+        pass
+    budget_consumed = max(budget_engaged, budget_invoiced)
+
     return {
         "id": pid,
         "title": row[1],
@@ -97,6 +125,9 @@ async def _project_dict(db, row) -> dict:
         "supplier_count": sup_count,
         "budget": row[9] if len(row) > 9 else 0,
         "budget_spent": row[10] if len(row) > 10 else 0,
+        "budget_engaged": budget_engaged,
+        "budget_invoiced": budget_invoiced,
+        "budget_consumed": budget_consumed,
     }
 
 
@@ -174,6 +205,26 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
                  "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8], "start_date": None}
                 for r in task_rows
             ]
+        # Attach checklist counts so the Gantt can show per-task progress
+        try:
+            cl_rows = await db.execute_fetchall(
+                """SELECT task_id,
+                          COUNT(*) AS total,
+                          SUM(CASE WHEN done=1 THEN 1 ELSE 0 END) AS done
+                   FROM task_checklist
+                   WHERE task_id IN (SELECT id FROM tasks WHERE project_id=?)
+                   GROUP BY task_id""",
+                (project_id,),
+            )
+            counts = {r[0]: (int(r[1] or 0), int(r[2] or 0)) for r in cl_rows}
+            for t in project["tasks"]:
+                total, done = counts.get(t["id"], (0, 0))
+                t["checklist_total"] = total
+                t["checklist_done"] = done
+        except Exception:
+            for t in project["tasks"]:
+                t["checklist_total"] = 0
+                t["checklist_done"] = 0
     except Exception as e:
         logger.warning(f"Failed to get tasks for project {project_id}: {e}")
         project["tasks"] = []
