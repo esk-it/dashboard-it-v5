@@ -12,6 +12,7 @@ class TaskCreate(BaseModel):
     notes: str = ""
     site: str = ""
     recurrence: str = ""
+    is_milestone: bool = False
 
 
 class TaskUpdate(TaskCreate):
@@ -30,6 +31,7 @@ class TaskResponse(BaseModel):
     notes: str
     site: str
     recurrence: str
+    is_milestone: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -105,7 +105,8 @@ async def init_db():
             site TEXT NOT NULL DEFAULT '',
             recurrence TEXT NOT NULL DEFAULT '',
             project_id INTEGER NULL,
-            start_date TEXT NULL
+            start_date TEXT NULL,
+            is_milestone INTEGER NOT NULL DEFAULT 0
         )""",
         """CREATE TABLE IF NOT EXISTS task_categories (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -551,6 +552,9 @@ async def _run_migrations(db):
         await db.commit()
     if "start_date" not in task_cols:
         await db.execute("ALTER TABLE tasks ADD COLUMN start_date TEXT")
+        await db.commit()
+    if "is_milestone" not in task_cols:
+        await db.execute("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER NOT NULL DEFAULT 0")
         await db.commit()
 
     # Additional supplier contacts (multiple named contacts per supplier)

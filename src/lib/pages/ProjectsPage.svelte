@@ -15,9 +15,10 @@
   let form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0 };
   let saving = false;
 
-  // Task dialog
+  // Task dialog (shared between create and edit)
   let showTaskDialog = false;
-  let taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '' };
+  let editingTaskId = null; // null = create; number = edit
+  let taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false };
 
   // Note
   let noteText = '';
@@ -202,12 +203,50 @@
   }
 
   // ── Tasks ──
-  async function addTask() {
+  function openNewTaskDialog() {
+    editingTaskId = null;
+    taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false };
+    showTaskDialog = true;
+  }
+
+  function openEditTaskDialog(task) {
+    editingTaskId = task.id;
+    taskForm = {
+      title: task.title || '',
+      priority: task.priority ?? 2,
+      start_date: task.start_date || '',
+      due_date: task.due_date || '',
+      notes: task.notes || '',
+      site: task.site || '',
+      is_milestone: !!task.is_milestone,
+    };
+    showTaskDialog = true;
+  }
+
+  async function saveTask() {
     if (!taskForm.title.trim()) return;
     try {
-      await api.post(`/api/projects/${selectedProject.id}/tasks`, taskForm);
+      if (editingTaskId) {
+        // Update existing: PUT /api/tasks/{id} — needs category/recurrence (send empty to keep)
+        const existing = (selectedProject.tasks || []).find(t => t.id === editingTaskId) || {};
+        await api.put(`/api/tasks/${editingTaskId}`, {
+          title: taskForm.title,
+          category: existing.category || '',
+          priority: taskForm.priority,
+          due_date: taskForm.due_date || null,
+          start_date: taskForm.start_date || null,
+          notes: taskForm.notes,
+          site: taskForm.site,
+          recurrence: existing.recurrence || '',
+          is_milestone: taskForm.is_milestone,
+        });
+        success('Tache modifiee');
+      } else {
+        await api.post(`/api/projects/${selectedProject.id}/tasks`, taskForm);
+        success('Tache ajoutee');
+      }
       showTaskDialog = false;
-      taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '' };
+      editingTaskId = null;
       await openProject(selectedProject);
     } catch (e) { toastError('Erreur: ' + e.message); }
   }
@@ -435,7 +474,21 @@
       wCur.setDate(wCur.getDate() + 7);
     }
 
-    return { tasks: project.tasks, months, weeks, startMs, totalMs };
+    // Day ticks: one label per few days depending on timeline length. Keeps the header readable.
+    const days = [];
+    const spanDays = Math.max(1, totalMs / 86400000);
+    const stepDays = spanDays <= 21 ? 1 : spanDays <= 60 ? 3 : spanDays <= 120 ? 7 : 14;
+    const dCur = new Date(pStart);
+    dCur.setHours(0, 0, 0, 0);
+    while (dCur <= pEnd) {
+      const pos = ((dCur.getTime() - startMs) / totalMs) * 100;
+      if (pos >= 0 && pos <= 100) {
+        days.push({ pos, label: dCur.getDate() });
+      }
+      dCur.setDate(dCur.getDate() + stepDays);
+    }
+
+    return { tasks, months, weeks, days, startMs, totalMs, hiddenCount };
   }
 
   function ganttBarStyle(task, startMs, totalMs) {
@@ -597,6 +650,7 @@
       {#each projects as p (p.id)}
         {@const bPct = p.budget > 0 ? Math.min(100, Math.round((p.budget_consumed || 0) / p.budget * 100)) : 0}
         {@const bOver = p.budget > 0 && (p.budget_consumed || 0) > p.budget}
+        {@const hasBudgetInfo = p.budget > 0 || (p.budget_consumed || 0) > 0 || (p.budget_engaged || 0) > 0 || (p.budget_invoiced || 0) > 0}
         <div class="project-card" style="border-left-color:{p.color}" on:click={() => openProject(p)}>
           <div class="project-card__header">
             <h3>{p.title}</h3>
@@ -612,15 +666,27 @@
             <span>{p.done_tasks}/{p.total_tasks} terminees</span>
             <span style="font-weight:700;color:{p.color}">{p.progress}%</span>
           </div>
-          {#if p.budget > 0}
+          {#if hasBudgetInfo}
             <div class="card-budget" class:card-budget--over={bOver}>
-              <div class="card-budget__label">
-                <span>Budget</span>
-                <span class="card-budget__val">{(p.budget_consumed || 0).toLocaleString('fr-FR')} / {p.budget.toLocaleString('fr-FR')} EUR</span>
-              </div>
-              <div class="card-budget__bar">
-                <div class="card-budget__fill" style="width:{bPct}%;background:{bOver ? '#EF4444' : bPct > 80 ? '#F59E0B' : '#22C55E'}"></div>
-              </div>
+              {#if p.budget > 0}
+                <div class="card-budget__label">
+                  <span>Budget</span>
+                  <span class="card-budget__val">{(p.budget_consumed || 0).toLocaleString('fr-FR')} / {p.budget.toLocaleString('fr-FR')} EUR</span>
+                </div>
+                <div class="card-budget__bar">
+                  <div class="card-budget__fill" style="width:{bPct}%;background:{bOver ? '#EF4444' : bPct > 80 ? '#F59E0B' : '#22C55E'}"></div>
+                </div>
+              {:else}
+                <!-- No planned budget: just show what's been spent so far -->
+                <div class="card-budget__label">
+                  <span>Depenses</span>
+                  <span class="card-budget__val">{(p.budget_consumed || 0).toLocaleString('fr-FR')} EUR</span>
+                </div>
+                <div class="card-budget__split">
+                  <span>Engage : {(p.budget_engaged || 0).toLocaleString('fr-FR')}</span>
+                  <span>Facture : {(p.budget_invoiced || 0).toLocaleString('fr-FR')}</span>
+                </div>
+              {/if}
             </div>
           {/if}
         </div>
@@ -661,7 +727,7 @@
     </div>
     <div class="progress-bar" style="margin-bottom:0.75rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
 
-    {#if budgetPrevu > 0 || budgetDocs.length > 0}
+    {#if budgetPrevu > 0 || budgetDocs.length > 0 || budgetEngage > 0 || budgetFacture > 0}
       <div class="budget-compact">
         <div class="budget-compact-cards">
           {#if budgetPrevu > 0}
@@ -672,6 +738,16 @@
               <div>
                 <div class="budget-mini-val" style="color:#F59E0B">{budgetPrevu.toLocaleString('fr-FR')} EUR</div>
                 <div class="budget-mini-label">Budget prevu</div>
+              </div>
+            </div>
+          {:else}
+            <div class="budget-mini-card">
+              <div class="budget-mini-icon" style="background:rgba(148,163,184,0.12)">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div>
+                <div class="budget-mini-val" style="color:#64748B">Sans budget prevu</div>
+                <div class="budget-mini-label">Suivi des depenses uniquement</div>
               </div>
             </div>
           {/if}
@@ -728,19 +804,26 @@
           </div>
         </div>
         <div class="gantt">
-          <!-- Month headers -->
+          <!-- Month + day headers (offset by the task-name column so they align with bars below) -->
           <div class="gantt-months">
             {#each gd.months as m}
-              <span style="left:{m.pos}%">{m.label}</span>
+              <span style="left:calc(180px + (100% - 180px) * {m.pos} / 100)">{m.label}</span>
             {/each}
           </div>
+          {#if gd.days && gd.days.length > 0}
+            <div class="gantt-days">
+              {#each gd.days as d}
+                <span class="gantt-day-tick" style="left:calc(180px + (100% - 180px) * {d.pos} / 100)">{d.label}</span>
+              {/each}
+            </div>
+          {/if}
           <div class="gantt-body" bind:clientWidth={ganttBodyWidth}>
-            <!-- Week grid lines -->
+            <!-- Week grid lines (inside the bar-area portion, offset 180px via calc) -->
             {#each gd.weeks || [] as w}
-              <div class="gantt-week-line" style="left:{w.pos}%"></div>
+              <div class="gantt-week-line" style="left:calc(180px + (100% - 180px) * {w.pos} / 100)"></div>
             {/each}
-            <!-- Today line -->
-            <div class="gantt-today-line" style="left:{todayPos(gd.startMs, gd.totalMs)}%">
+            <!-- Today line — same offset so it lines up exactly with bars -->
+            <div class="gantt-today-line" style="left:calc(180px + (100% - 180px) * {todayPos(gd.startMs, gd.totalMs)} / 100)">
               <span class="gantt-today-label">Aujourd'hui</span>
             </div>
             <!-- Task rows -->
@@ -756,21 +839,30 @@
                     {@const color = STATUS_COLORS[status]}
                     {@const pct = taskProgress(task)}
                     {@const blocked = task.blocked && !task.done}
-                    <div class="gantt-bar gantt-bar--{status}" class:gantt-bar--blocked={blocked}
-                         style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
-                         data-task-id={task.id}
-                         title="{task.title} — {ganttBarDates(task)}{pct !== null ? ` — ${pct}%` : ''}{task.checklist_total > 0 ? ` (${task.checklist_done}/${task.checklist_total})` : ''}{blocked ? ' — Bloquee' : ''}">
-                      {#if pct !== null && pct > 0 && !task.done}
-                        <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
-                      {/if}
-                      {#if task.done}
-                        <div class="gantt-bar-fill gantt-bar-fill--full" style="background:{color}"></div>
-                      {/if}
-                      <span class="gantt-bar-text" style="color:{task.done || (pct !== null && pct >= 50) ? '#fff' : color}">
-                        {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}
-                        {#if pct !== null}{pct}%{:else}{ganttBarDates(task)}{/if}
-                      </span>
-                    </div>
+                    {#if task.is_milestone}
+                      <!-- Milestone: diamond shape at the due_date (or start_date fallback) position -->
+                      {@const mkMs = taskEndMs(task) ?? taskStartMs(task)}
+                      {@const mkPct = mkMs !== null ? Math.max(0, Math.min(100, ((mkMs - gd.startMs) / gd.totalMs) * 100)) : 0}
+                      <div class="gantt-milestone" class:gantt-milestone--done={task.done}
+                           style="left:{mkPct}%;background:{color};border-color:{color}"
+                           title="{task.title} — Jalon {ganttBarDates(task)}{blocked ? ' — Bloquee' : ''}"></div>
+                    {:else}
+                      <div class="gantt-bar gantt-bar--{status}" class:gantt-bar--blocked={blocked}
+                           style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
+                           data-task-id={task.id}
+                           title="{task.title} — {ganttBarDates(task)}{pct !== null ? ` — ${pct}%` : ''}{task.checklist_total > 0 ? ` (${task.checklist_done}/${task.checklist_total})` : ''}{blocked ? ' — Bloquee' : ''}">
+                        {#if pct !== null && pct > 0 && !task.done}
+                          <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
+                        {/if}
+                        {#if task.done}
+                          <div class="gantt-bar-fill gantt-bar-fill--full" style="background:{color}"></div>
+                        {/if}
+                        <span class="gantt-bar-text" style="color:{task.done || (pct !== null && pct >= 50) ? '#fff' : color}">
+                          {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}
+                          {#if pct !== null}{pct}%{:else}{ganttBarDates(task)}{/if}
+                        </span>
+                      </div>
+                    {/if}
                   {/if}
                 </div>
               </div>
@@ -806,7 +898,7 @@
     <div class="section-card">
       <div class="section-header">
         <h3 class="section-title">Taches ({selectedProject.tasks?.length || 0})</h3>
-        <button class="ya-btn ya-btn--primary ya-btn--sm" on:click={() => { showTaskDialog = true; }}>+ Ajouter</button>
+        <button class="ya-btn ya-btn--primary ya-btn--sm" on:click={openNewTaskDialog}>+ Ajouter</button>
       </div>
       {#if selectedProject.tasks?.length > 0}
         <div class="task-list">
@@ -815,6 +907,7 @@
               <div class="task-check" class:done={task.done} on:click={() => toggleTask(task)}></div>
               <div class="task-main">
                 <div class="task-title-row">
+                  {#if task.is_milestone}<span class="task-milestone-badge" title="Jalon">{'\u25C6'}</span>{/if}
                   <span class="task-title" class:done={task.done}>{task.title}</span>
                   {#if task.blocked && !task.done}
                     <span class="task-blocked-badge">🔒 Bloquee</span>
@@ -839,6 +932,7 @@
                   {#if task.due_date}{formatDate(task.due_date)}{:else}…{/if}
                 </span>
               {/if}
+              <button class="task-edit-btn" on:click={() => openEditTaskDialog(task)} title="Modifier">{'\u270F\uFE0F'}</button>
               <button class="task-deps-btn" on:click={() => openDepsDialog(task)} title="Gérer les dépendances">🔗</button>
               <button class="task-unlink" on:click={() => unlinkTask(task.id)} title="Retirer du projet">✕</button>
             </div>
@@ -992,7 +1086,7 @@
 <div class="ya-dialog-overlay" on:mousedown|self={() => showTaskDialog = false}>
   <div class="ya-dialog" style="max-width:450px">
     <div class="ya-dialog__header">
-      <h2 class="ya-dialog__title">Nouvelle tache</h2>
+      <h2 class="ya-dialog__title">{editingTaskId ? 'Modifier la tache' : 'Nouvelle tache'}</h2>
       <button class="ya-dialog__close" on:click={() => showTaskDialog = false}>x</button>
     </div>
     <div class="ya-dialog__body">
@@ -1006,6 +1100,10 @@
         <label>Date debut <input type="date" bind:value={taskForm.start_date} /></label>
         <label>Echeance <input type="date" bind:value={taskForm.due_date} /></label>
       </div>
+      <label class="checkbox-inline">
+        <input type="checkbox" bind:checked={taskForm.is_milestone} />
+        <span>Cette tache est un jalon ({'\u25C6'}) — affichage ponctuel sur le Gantt</span>
+      </label>
       <label>Site
         <select bind:value={taskForm.site}>
           {#each SITES as s}<option value={s.value}>{s.label}</option>{/each}
@@ -1015,7 +1113,9 @@
     </div>
     <div class="ya-dialog__footer">
       <button class="ya-btn ya-btn--ghost" on:click={() => showTaskDialog = false}>Annuler</button>
-      <button class="ya-btn ya-btn--primary" on:click={addTask} disabled={!taskForm.title.trim()}>Ajouter</button>
+      <button class="ya-btn ya-btn--primary" on:click={saveTask} disabled={!taskForm.title.trim()}>
+        {editingTaskId ? 'Enregistrer' : 'Ajouter'}
+      </button>
     </div>
   </div>
 </div>
@@ -1192,6 +1292,11 @@
           </div>
           <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, (budgetConsomme / budgetPrevu) * 100)}%;background:{budgetConsomme > budgetPrevu ? '#EF4444' : '#22C55E'}"></div></div>
         </div>
+      {:else if budgetConsomme > 0}
+        <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-subtle);font-size:0.75rem;color:var(--text-muted)">
+          Pas de budget prevu pour ce projet — suivi des depenses uniquement.
+          Total engage/facture : <strong style="color:var(--text-heading)">{budgetConsomme.toLocaleString('fr-FR')} EUR</strong>
+        </div>
       {/if}
     </div>
     <div class="ya-dialog__footer">
@@ -1336,6 +1441,10 @@
   .card-budget__bar { background: var(--bg-base); height: 4px; border-radius: 2px; overflow: hidden; }
   .card-budget__fill { height: 100%; transition: width 0.3s; }
   .card-budget--over .card-budget__val { color: #EF4444; }
+  .card-budget__split {
+    display: flex; justify-content: space-between; font-size: 0.625rem;
+    color: var(--text-muted); font-family: 'JetBrains Mono', monospace;
+  }
 
   .status-badge { display: inline-block; padding: 0.2rem 0.625rem; border-radius: 1rem; font-size: 0.6875rem; font-weight: 600; white-space: nowrap; }
 
@@ -1419,12 +1528,19 @@
 
   .gantt { overflow-x: auto; padding-bottom: 0.5rem; }
   .gantt-months {
-    display: flex; position: relative; height: 24px;
-    border-bottom: 2px solid var(--border-subtle); margin-bottom: 0.25rem;
+    display: block; position: relative; height: 20px;
   }
   .gantt-months span {
     position: absolute; font-size: 0.6875rem; color: var(--text-muted);
     font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .gantt-days {
+    display: block; position: relative; height: 18px;
+    border-bottom: 2px solid var(--border-subtle); margin-bottom: 0.25rem;
+  }
+  .gantt-day-tick {
+    position: absolute; font-size: 0.5625rem; color: var(--text-muted);
+    transform: translateX(-50%);
   }
   .gantt-body { position: relative; min-height: 80px; }
   .gantt-arrows {
@@ -1474,6 +1590,15 @@
   }
   .gantt-bar--late { box-shadow: 0 0 0 1px rgba(239,68,68,0.35); }
   .gantt-bar--blocked { border-style: dashed !important; opacity: 0.85; }
+
+  /* Milestone diamond — drawn via a rotated square centered on the milestone date */
+  .gantt-milestone {
+    position: absolute; top: 4px; width: 14px; height: 14px;
+    transform: translateX(-50%) rotate(45deg);
+    border-radius: 2px; border: 1.5px solid;
+    z-index: 1;
+  }
+  .gantt-milestone--done { opacity: 0.7; }
   .gantt-bar-fill {
     position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px 0 0 3px;
     opacity: 0.9; transition: width 0.3s ease; z-index: 0;
@@ -1527,11 +1652,23 @@
     padding: 0.125rem 0.5rem; border-radius: 0.75rem; font-size: 0.625rem; font-weight: 600;
     display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;
   }
-  .task-deps-btn {
+  .task-deps-btn, .task-edit-btn {
     background: none; border: none; color: var(--text-muted); cursor: pointer;
     font-size: 0.875rem; padding: 0.25rem; align-self: center;
   }
   .task-deps-btn:hover { color: var(--primary); }
+  .task-edit-btn:hover { color: var(--primary); }
+
+  .task-milestone-badge {
+    color: #F59E0B; font-size: 0.75rem; font-weight: 700;
+  }
+
+  .checkbox-inline {
+    display: flex !important; align-items: center; gap: 0.5rem;
+    flex-direction: row !important; font-size: 0.8125rem; color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .checkbox-inline input { width: auto !important; margin: 0; }
 
   .deps-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
   .deps-item {

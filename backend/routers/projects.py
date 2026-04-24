@@ -186,23 +186,25 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     try:
         try:
             task_rows = await db.execute_fetchall(
-                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date, COALESCE(is_milestone,0) FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
                 (project_id,),
             )
             project["tasks"] = [
                 {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
-                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8], "start_date": r[9]}
+                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8],
+                 "start_date": r[9], "is_milestone": bool(r[10])}
                 for r in task_rows
             ]
         except Exception:
-            # Fallback without start_date column
+            # Fallback without start_date / is_milestone columns
             task_rows = await db.execute_fetchall(
                 "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
                 (project_id,),
             )
             project["tasks"] = [
                 {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
-                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8], "start_date": None}
+                 "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8],
+                 "start_date": None, "is_milestone": False}
                 for r in task_rows
             ]
         # Attach checklist counts so the Gantt can show per-task progress
@@ -350,19 +352,33 @@ async def duplicate_project(project_id: int, body: dict = Body(default={}), db=D
     )
     new_id = cursor.lastrowid
 
-    # Copy tasks (reset done, clear due/start dates, copy checklist)
+    # Copy tasks (reset done, clear due/start dates, copy checklist + milestone flag)
     try:
-        task_rows = await db.execute_fetchall(
-            "SELECT id, title, category, priority, notes, site, COALESCE(recurrence,'') FROM tasks WHERE project_id=?",
-            (project_id,),
-        )
+        try:
+            task_rows = await db.execute_fetchall(
+                "SELECT id, title, category, priority, notes, site, COALESCE(recurrence,''), COALESCE(is_milestone,0) FROM tasks WHERE project_id=?",
+                (project_id,),
+            )
+            has_ms = True
+        except Exception:
+            task_rows = await db.execute_fetchall(
+                "SELECT id, title, category, priority, notes, site, COALESCE(recurrence,'') FROM tasks WHERE project_id=?",
+                (project_id,),
+            )
+            has_ms = False
         for t in task_rows:
             src_task_id = t[0]
+            is_ms = t[7] if has_ms else 0
             tc = await db.execute(
                 "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,NULL,0,?,?,?,?,?)",
                 (t[1], t[2], t[3], now, t[4], t[5], t[6], new_id),
             )
             new_task_id = tc.lastrowid
+            if is_ms:
+                try:
+                    await db.execute("UPDATE tasks SET is_milestone=1 WHERE id=?", (new_task_id,))
+                except Exception:
+                    pass
             # Copy checklist items (all un-done)
             try:
                 cl_rows = await db.execute_fetchall(
@@ -455,6 +471,11 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
                     await db.execute("UPDATE tasks SET start_date=? WHERE id=?", (start_date, task_id))
                 except Exception:
                     logger.warning(f"Could not set start_date on task {task_id} — column may not exist")
+            if body.get("is_milestone"):
+                try:
+                    await db.execute("UPDATE tasks SET is_milestone=1 WHERE id=?", (task_id,))
+                except Exception:
+                    logger.warning(f"Could not set is_milestone on task {task_id} — column may not exist")
         await db.commit()
         return {"ok": True, "task_id": task_id}
     except Exception as e:

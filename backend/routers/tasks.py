@@ -32,12 +32,14 @@ def _row_to_task(r) -> dict:
         "site": r[8] or "",
         "recurrence": r[9] or "",
         "start_date": r[10] if len(r) > 10 else None,
+        "is_milestone": bool(r[11]) if len(r) > 11 else False,
     }
 
 
 _TASK_SELECT = """SELECT id, title, COALESCE(category,''), priority, due_date,
                          done, COALESCE(created_at,''), COALESCE(notes,''),
-                         COALESCE(site,''), COALESCE(recurrence,''), start_date"""
+                         COALESCE(site,''), COALESCE(recurrence,''), start_date,
+                         COALESCE(is_milestone, 0)"""
 
 
 @router.get("/categories")
@@ -97,8 +99,8 @@ async def get_task(task_id: int, db=Depends(get_raw_db)):
 async def create_task(body: TaskCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
     cursor = await db.execute(
-        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, start_date)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
+        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, start_date, is_milestone)
+           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.category,
@@ -109,6 +111,7 @@ async def create_task(body: TaskCreate, db=Depends(get_raw_db)):
             body.site,
             body.recurrence,
             body.start_date,
+            1 if body.is_milestone else 0,
         ),
     )
     await db.commit()
@@ -127,7 +130,7 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
         raise HTTPException(status_code=404, detail="Task not found")
 
     await db.execute(
-        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?, start_date=?
+        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?, start_date=?, is_milestone=?
            WHERE id=?""",
         (
             body.title,
@@ -138,6 +141,7 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
             body.site,
             body.recurrence,
             body.start_date,
+            1 if body.is_milestone else 0,
             task_id,
         ),
     )
