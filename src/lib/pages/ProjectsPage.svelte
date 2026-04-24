@@ -25,6 +25,15 @@
   // Budget panel
   let showBudgetPanel = false;
 
+  // Gantt zoom: 'auto' lets the data pick the span; 'day'/'week'/'month' force a window centered on today
+  let ganttZoom = 'auto';
+  const GANTT_ZOOMS = [
+    { value: 'auto',  label: 'Auto'     },
+    { value: 'day',   label: 'Jour'     },
+    { value: 'week',  label: 'Semaine'  },
+    { value: 'month', label: 'Mois'     },
+  ];
+
   // Budget computed values
   // Classification: factures → Facturé (argent dû) ; devis/BPA/proposition acceptés → Engagé (argent promis)
   // Doc types in DB are uppercase: DEVIS / FACTURE / CONTRAT / BON (Bon pour accord = BPA) / RAPPORT / AUTRE
@@ -176,6 +185,22 @@
     } catch (e) { toastError('Erreur: ' + e.message); }
   }
 
+  // Duplicate: ask for a title and create a clone (tasks reset, document links pending)
+  let duplicating = false;
+  async function duplicateProject() {
+    if (!selectedProject || duplicating) return;
+    const suggested = `${selectedProject.title} (copie)`;
+    const title = window.prompt('Titre du projet dupliqué :', suggested);
+    if (title === null) return; // user cancelled
+    duplicating = true;
+    try {
+      const res = await api.post(`/api/projects/${selectedProject.id}/duplicate`, { title: title.trim() || suggested });
+      success('Projet duplique');
+      await openProject({ id: res.id });
+    } catch (e) { toastError('Erreur: ' + e.message); }
+    duplicating = false;
+  }
+
   // ── Tasks ──
   async function addTask() {
     if (!taskForm.title.trim()) return;
@@ -188,6 +213,12 @@
   }
 
   async function toggleTask(task) {
+    // Warn (but don't block) if the task has unresolved dependencies and is being marked done
+    if (!task.done && task.blocked) {
+      const pending = (task.dependencies || []).filter(d => !d.done).map(d => d.title).join(', ');
+      const ok = window.confirm(`Cette tache est bloquee par des dependances non terminees :\n\n${pending}\n\nMarquer quand meme comme terminee ?`);
+      if (!ok) return;
+    }
     try {
       await api.patch(`/api/tasks/${task.id}/done`);
       await openProject(selectedProject);
@@ -199,6 +230,35 @@
       await api.delete(`/api/projects/${selectedProject.id}/tasks/${taskId}`);
       await openProject(selectedProject);
     } catch {}
+  }
+
+  // ── Task dependencies ──
+  let depsTask = null;      // the task currently being edited (parent)
+  let depsPickId = null;    // the task to add as dependency
+
+  function openDepsDialog(task) {
+    depsTask = task;
+    depsPickId = null;
+  }
+
+  async function addDependency() {
+    if (!depsTask || !depsPickId) return;
+    try {
+      await api.post(`/api/projects/${selectedProject.id}/tasks/${depsTask.id}/dependencies`, { depends_on_task_id: parseInt(depsPickId) });
+      await openProject(selectedProject);
+      // re-point to the refreshed task instance so dialog keeps showing current deps
+      depsTask = selectedProject.tasks.find(t => t.id === depsTask.id) || null;
+      depsPickId = null;
+    } catch (e) { toastError('Erreur: ' + e.message); }
+  }
+
+  async function removeDependency(depId) {
+    if (!depsTask) return;
+    try {
+      await api.delete(`/api/projects/${selectedProject.id}/tasks/${depsTask.id}/dependencies/${depId}`);
+      await openProject(selectedProject);
+      depsTask = selectedProject.tasks.find(t => t.id === depsTask.id) || null;
+    } catch (e) { toastError('Erreur: ' + e.message); }
   }
 
   // ── Documents ──
@@ -306,28 +366,43 @@
     return startRef ? dayMs(startRef) + 3 * 86400000 : null;
   }
 
-  function ganttData(project) {
+  function ganttData(project, zoom = 'auto') {
     if (!project?.tasks?.length) return { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1 };
     const tasks = project.tasks.filter(t => t.start_date || t.due_date || t.created_at);
     if (!tasks.length) return { tasks: project.tasks, months: [], weeks: [], startMs: 0, totalMs: 1 };
 
-    // Determine project timeline (all values already local-midnight normalized)
-    const allDates = [];
-    tasks.forEach(t => {
-      const s = taskStartMs(t);
-      const e = taskEndMs(t);
-      if (s !== null) allDates.push(new Date(s));
-      if (e !== null) allDates.push(new Date(e));
-    });
-    const projStart = dayMs(project.start_date);
-    const projEnd = dayMs(project.end_date);
-    if (projStart !== null) allDates.push(new Date(projStart));
-    if (projEnd !== null) allDates.push(new Date(projEnd));
+    let pStart, pEnd;
+    if (zoom !== 'auto') {
+      // Fixed window centered on today
+      const d = new Date();
+      const today = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const spans = {
+        day:   { before: 3,  after: 11 },   // 2 weeks, day-level readable
+        week:  { before: 14, after: 42 },   // ~2 months
+        month: { before: 30, after: 150 },  // ~6 months
+      };
+      const span = spans[zoom] || spans.week;
+      pStart = new Date(today); pStart.setDate(pStart.getDate() - span.before);
+      pEnd = new Date(today);   pEnd.setDate(pEnd.getDate() + span.after);
+    } else {
+      // Determine project timeline from data (all values already local-midnight normalized)
+      const allDates = [];
+      tasks.forEach(t => {
+        const s = taskStartMs(t);
+        const e = taskEndMs(t);
+        if (s !== null) allDates.push(new Date(s));
+        if (e !== null) allDates.push(new Date(e));
+      });
+      const projStart = dayMs(project.start_date);
+      const projEnd = dayMs(project.end_date);
+      if (projStart !== null) allDates.push(new Date(projStart));
+      if (projEnd !== null) allDates.push(new Date(projEnd));
 
-    const pStart = new Date(Math.min(...allDates));
-    const pEnd = new Date(Math.max(...allDates));
-    pStart.setDate(pStart.getDate() - 7);
-    pEnd.setDate(pEnd.getDate() + 14);
+      pStart = new Date(Math.min(...allDates));
+      pEnd = new Date(Math.max(...allDates));
+      pStart.setDate(pStart.getDate() - 7);
+      pEnd.setDate(pEnd.getDate() + 14);
+    }
     const startMs = pStart.getTime();
     const totalMs = pEnd.getTime() - startMs;
 
@@ -393,9 +468,19 @@
 
   function taskProgress(task) {
     if (task.done) return 100;
+    // 1st choice: checklist-based (if the task has a checklist, use real completion)
     const total = task.checklist_total || 0;
-    if (total <= 0) return 0;
-    return Math.round(((task.checklist_done || 0) / total) * 100);
+    if (total > 0) {
+      return Math.round(((task.checklist_done || 0) / total) * 100);
+    }
+    // Fallback: time-based — how much of the task window has elapsed
+    const start = taskStartMs(task);
+    const end = taskEndMs(task);
+    if (start === null || end === null || end <= start) return 0;
+    const now = Date.now();
+    if (now <= start) return 0;
+    if (now >= end) return 100;
+    return Math.round(((now - start) / (end - start)) * 100);
   }
 
   function ganttBarDates(task) {
@@ -503,6 +588,9 @@
   <div class="detail-header">
     <button class="ya-btn ya-btn--ghost" on:click={backToList}>← Retour</button>
     <div style="display:flex;gap:0.5rem">
+      <button class="ya-btn ya-btn--ghost" on:click={duplicateProject} disabled={duplicating} title="Créer un nouveau projet à partir de celui-ci">
+        {duplicating ? '...' : 'Dupliquer'}
+      </button>
       <button class="ya-btn ya-btn--ghost" on:click={openEditDialog}>Modifier</button>
       <button class="ya-btn ya-btn--danger" on:click={() => confirmDeleteId = selectedProject.id}>Supprimer</button>
     </div>
@@ -566,11 +654,20 @@
     {/if}
 
     <!-- Gantt -->
-    {@const gd = ganttData(selectedProject)}
+    {@const gd = ganttData(selectedProject, ganttZoom)}
     {#if gd.months.length > 0}
       <div class="section-card gantt-card">
         <div class="gantt-header">
           <h3 class="section-title" style="margin:0">Diagramme de Gantt</h3>
+          <div class="gantt-zoom">
+            {#each GANTT_ZOOMS as z}
+              <button
+                class="gantt-zoom-btn"
+                class:gantt-zoom-btn--active={ganttZoom === z.value}
+                on:click={() => ganttZoom = z.value}
+              >{z.label}</button>
+            {/each}
+          </div>
           <div class="gantt-legend">
             <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#22C55E"></span>Termine</span>
             <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#3B82F6"></span>En cours</span>
@@ -607,8 +704,10 @@
                     {@const status = taskStatus(task)}
                     {@const color = STATUS_COLORS[status]}
                     {@const pct = taskProgress(task)}
-                    <div class="gantt-bar gantt-bar--{status}" style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
-                         title="{task.title} — {ganttBarDates(task)}{task.checklist_total > 0 ? ` — ${task.checklist_done}/${task.checklist_total} (${pct}%)` : ''}">
+                    {@const blocked = task.blocked && !task.done}
+                    <div class="gantt-bar gantt-bar--{status}" class:gantt-bar--blocked={blocked}
+                         style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
+                         title="{task.title} — {ganttBarDates(task)}{task.checklist_total > 0 ? ` — ${task.checklist_done}/${task.checklist_total} checklist` : ''} — {pct}%{blocked ? ' — Bloquee' : ''}">
                       {#if pct > 0 && !task.done}
                         <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
                       {/if}
@@ -616,7 +715,7 @@
                         <div class="gantt-bar-fill gantt-bar-fill--full" style="background:{color}"></div>
                       {/if}
                       <span class="gantt-bar-text" style="color:{task.done || pct >= 50 ? '#fff' : color}">
-                        {#if task.done}{'\u2713 '}{/if}{ganttBarDates(task)}
+                        {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}{pct}%
                         {#if task.checklist_total > 0}· {task.checklist_done}/{task.checklist_total}{/if}
                       </span>
                     </div>
@@ -638,11 +737,17 @@
       {#if selectedProject.tasks?.length > 0}
         <div class="task-list">
           {#each selectedProject.tasks as task}
-            <div class="task-item">
+            <div class="task-item" class:task-item--blocked={task.blocked && !task.done}>
               <div class="task-check" class:done={task.done} on:click={() => toggleTask(task)}></div>
               <span class="task-title" class:done={task.done}>{task.title}</span>
+              {#if task.blocked && !task.done}
+                <span class="task-blocked-badge" title={(task.dependencies || []).filter(d => !d.done).map(d => d.title).join(', ')}>🔒 Bloquee</span>
+              {/if}
               <span class="task-priority p{task.priority}">{task.priority === 3 ? 'Haute' : task.priority === 1 ? 'Basse' : 'Normale'}</span>
               {#if task.due_date}<span class="task-date">{formatDate(task.due_date)}</span>{/if}
+              <button class="task-deps-btn" on:click={() => openDepsDialog(task)} title="Dependances">
+                🔗{#if (task.dependencies || []).length > 0}<span class="task-deps-count">{task.dependencies.length}</span>{/if}
+              </button>
               <button class="task-unlink" on:click={() => unlinkTask(task.id)} title="Retirer du projet">✕</button>
             </div>
           {/each}
@@ -1033,6 +1138,53 @@
 </div>
 {/if}
 
+{#if depsTask}
+<div class="ya-dialog-overlay" on:mousedown|self={() => depsTask = null}>
+  <div class="ya-dialog" style="max-width:500px">
+    <div class="ya-dialog__header">
+      <h2 class="ya-dialog__title">Dependances — {depsTask.title}</h2>
+      <button class="ya-dialog__close" on:click={() => depsTask = null}>x</button>
+    </div>
+    <div class="ya-dialog__body">
+      <p style="font-size:0.8125rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Cette tache ne peut etre consideree comme logiquement faisable que si toutes ses dependances sont terminees.
+      </p>
+
+      <div style="margin-bottom:1rem">
+        <h4 style="margin:0 0 0.5rem;font-size:0.75rem;text-transform:uppercase;color:var(--text-muted)">Depend de</h4>
+        {#if (depsTask.dependencies || []).length === 0}
+          <p class="empty-text" style="padding:0.25rem 0">Aucune dependance</p>
+        {:else}
+          <ul class="deps-list">
+            {#each depsTask.dependencies as d}
+              <li class="deps-item" class:deps-item--done={d.done}>
+                <span class="deps-check">{d.done ? '\u2713' : '\u25CB'}</span>
+                <span class="deps-title">{d.title}</span>
+                <button class="task-unlink" on:click={() => removeDependency(d.id)} title="Retirer">\u2715</button>
+              </li>
+            {/each}
+          </ul>
+        {/if}
+      </div>
+
+      <h4 style="margin:0 0 0.5rem;font-size:0.75rem;text-transform:uppercase;color:var(--text-muted)">Ajouter une dependance</h4>
+      <div style="display:flex;gap:0.5rem">
+        <select bind:value={depsPickId} style="flex:1">
+          <option value={null}>— Choisir une tache —</option>
+          {#each (selectedProject.tasks || []).filter(t => t.id !== depsTask.id && !(depsTask.dependencies || []).some(d => d.id === t.id)) as t}
+            <option value={t.id}>{t.done ? '\u2713 ' : ''}{t.title}</option>
+          {/each}
+        </select>
+        <button class="ya-btn ya-btn--primary" on:click={addDependency} disabled={!depsPickId}>Ajouter</button>
+      </div>
+    </div>
+    <div class="ya-dialog__footer">
+      <button class="ya-btn ya-btn--ghost" on:click={() => depsTask = null}>Fermer</button>
+    </div>
+  </div>
+</div>
+{/if}
+
 {#if showDocAmountDialog}
 <div class="ya-dialog-overlay" on:mousedown|self={() => showDocAmountDialog = false}>
   <div class="ya-dialog" style="max-width:420px">
@@ -1158,7 +1310,17 @@
 
   /* Gantt */
   .gantt-card { padding: 1.25rem 1.25rem 0.75rem; }
-  .gantt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+  .gantt-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; gap: 0.75rem; flex-wrap: wrap; }
+  .gantt-zoom { display: inline-flex; background: var(--bg-base); border-radius: 0.5rem; padding: 2px; gap: 2px; }
+  .gantt-zoom-btn {
+    background: transparent; border: 0; color: var(--text-muted); padding: 0.25rem 0.625rem;
+    border-radius: 0.375rem; font-size: 0.6875rem; font-weight: 600; cursor: pointer;
+  }
+  .gantt-zoom-btn:hover { color: var(--text-heading); }
+  .gantt-zoom-btn--active {
+    background: var(--bg-card); color: var(--text-heading);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  }
   .gantt-legend { display: flex; gap: 1rem; }
   .gantt-legend-item { display: flex; align-items: center; gap: 0.25rem; font-size: 0.6875rem; color: var(--text-muted); }
   .gantt-legend-dot { width: 10px; height: 10px; border-radius: 2px; }
@@ -1211,6 +1373,7 @@
     overflow: hidden; cursor: default; border: 1.5px solid;
   }
   .gantt-bar--late { box-shadow: 0 0 0 1px rgba(239,68,68,0.35); }
+  .gantt-bar--blocked { border-style: dashed !important; opacity: 0.85; }
   .gantt-bar-fill {
     position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px 0 0 3px;
     opacity: 0.9; transition: width 0.3s ease; z-index: 0;
@@ -1236,6 +1399,33 @@
   .task-date { font-size: 0.6875rem; color: var(--text-muted); }
   .task-unlink { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.875rem; padding: 0.25rem; }
   .task-unlink:hover { color: #EF4444; }
+
+  .task-item--blocked { background: rgba(148,163,184,0.06); }
+  .task-blocked-badge {
+    background: rgba(148,163,184,0.15); color: #64748B;
+    padding: 0.125rem 0.5rem; border-radius: 0.75rem; font-size: 0.625rem; font-weight: 600;
+    display: inline-flex; align-items: center; gap: 0.25rem; white-space: nowrap;
+  }
+  .task-deps-btn {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    font-size: 0.75rem; padding: 0.25rem; position: relative; display: inline-flex; gap: 0.125rem;
+  }
+  .task-deps-btn:hover { color: var(--primary); }
+  .task-deps-count {
+    background: var(--primary); color: #fff; font-size: 0.5625rem; font-weight: 700;
+    border-radius: 0.625rem; padding: 0 0.375rem; min-width: 1rem; text-align: center;
+  }
+
+  .deps-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .deps-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.375rem 0.5rem; background: var(--bg-base); border-radius: 0.375rem;
+    font-size: 0.8125rem;
+  }
+  .deps-item--done .deps-title { text-decoration: line-through; color: var(--text-muted); }
+  .deps-check { width: 16px; height: 16px; text-align: center; color: var(--text-muted); }
+  .deps-item--done .deps-check { color: #22C55E; font-weight: 700; }
+  .deps-title { flex: 1; }
 
   /* Budget summary */
   .budget-summary { display: flex; gap: 1.5rem; padding: 0.75rem 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: 0.5rem; }

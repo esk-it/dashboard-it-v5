@@ -3,6 +3,13 @@ from __future__ import annotations
 from pydantic import BaseModel, ConfigDict
 
 
+class SupplierContact(BaseModel):
+    name: str = ""
+    role: str = ""
+    phone: str = ""
+    email: str = ""
+
+
 class SupplierCreate(BaseModel):
     name: str
     domain: str = ""
@@ -10,6 +17,7 @@ class SupplierCreate(BaseModel):
     email: str = ""
     contact: str = ""
     notes: str = ""
+    contacts: list[SupplierContact] = []
 
 
 class SupplierUpdate(SupplierCreate):
@@ -26,6 +34,7 @@ class SupplierResponse(BaseModel):
     notes: str
     logo_path: str
     created_at: str
+    contacts: list[SupplierContact] = []
 
     model_config = ConfigDict(from_attributes=True)
 

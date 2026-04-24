@@ -56,7 +56,19 @@
 
   // ── Helpers ────────────────────────────────────────────────
   function defaultForm() {
-    return { name: '', domain: '', phone: '', email: '', contact: '', notes: '' };
+    return { name: '', domain: '', phone: '', email: '', contact: '', notes: '', contacts: [] };
+  }
+
+  function newContactRow() {
+    return { name: '', role: '', phone: '', email: '' };
+  }
+
+  function addContactRow() {
+    form.contacts = [...(form.contacts || []), newContactRow()];
+  }
+
+  function removeContactRow(idx) {
+    form.contacts = form.contacts.filter((_, i) => i !== idx);
   }
 
   function getInitials(name) {
@@ -141,7 +153,11 @@
   }
   function openEdit(s) {
     editingSupplier = s;
-    form = { name: s.name, domain: s.domain, phone: s.phone, email: s.email, contact: s.contact, notes: s.notes };
+    form = {
+      name: s.name, domain: s.domain, phone: s.phone, email: s.email,
+      contact: s.contact, notes: s.notes,
+      contacts: Array.isArray(s.contacts) ? s.contacts.map(c => ({ ...c })) : [],
+    };
     logoFile = null;
     logoPreview = s.logo_path ? `${API_BASE}/api/suppliers/${s.id}/logo` : null;
     showSupplierDialog = true;
@@ -302,6 +318,9 @@
               {#if s.contact}<span class="meta-item">👤 {s.contact}</span>{/if}
               {#if s.phone}<span class="meta-item">📞 {s.phone}</span>{/if}
               {#if s.email}<span class="meta-item">✉️ {s.email}</span>{/if}
+              {#if Array.isArray(s.contacts) && s.contacts.length > 0}
+                <span class="meta-item meta-item--extra" title={s.contacts.map(c => `${c.name || 'Contact'}${c.phone ? ' — ' + c.phone : ''}`).join('\n')}>👥 +{s.contacts.length} contact{s.contacts.length > 1 ? 's' : ''}</span>
+              {/if}
             </span>
           </div>
 
@@ -318,6 +337,7 @@
             {#if s.phone}
               <button class="btn-action" title="Copier téléphone" on:click|stopPropagation={() => copyToClipboard(s.phone, 'Téléphone')}>📞</button>
             {/if}
+            <button class="btn-action" title="Modifier" on:click|stopPropagation={() => openEdit(s)}>{'\u270F\uFE0F'}</button>
             <button class="btn-action danger" title="Supprimer" on:click|stopPropagation={() => confirmDeleteSupplier = s}>🗑️</button>
           </div>
         </div>
@@ -386,6 +406,43 @@
             {/if}
           </div>
         </div>
+
+        <!-- Contacts supplémentaires -->
+        {#if Array.isArray(s.contacts) && s.contacts.length > 0}
+          <div class="detail-section">
+            <h3>{'\u{1F465}'} Autres contacts</h3>
+            <div class="detail-contacts">
+              {#each s.contacts as c}
+                <div class="detail-contact">
+                  <div class="dc-head">
+                    <span class="dc-name">{c.name || 'Contact'}</span>
+                    {#if c.role}<span class="dc-role">{c.role}</span>{/if}
+                  </div>
+                  <div class="dc-rows">
+                    {#if c.phone}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div class="dc-row clickable" on:click={() => copyToClipboard(c.phone, 'Téléphone')}>
+                        <span class="df-icon">{'\u{1F4DE}'}</span>
+                        <span class="df-value">{c.phone}</span>
+                        <span class="df-copy">{'\u{1F4CB}'}</span>
+                      </div>
+                    {/if}
+                    {#if c.email}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <!-- svelte-ignore a11y_no_static_element_interactions -->
+                      <div class="dc-row clickable" on:click={() => copyToClipboard(c.email, 'Email')}>
+                        <span class="df-icon">{'\u2709\uFE0F'}</span>
+                        <span class="df-value">{c.email}</span>
+                        <span class="df-copy">{'\u{1F4CB}'}</span>
+                      </div>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          </div>
+        {/if}
 
         <!-- Notes -->
         {#if s.notes}
@@ -461,6 +518,30 @@
       <div class="form-row">
         <label class="full-width">Email<input type="email" bind:value={form.email} placeholder="contact@example.com" /></label>
       </div>
+
+      <!-- Autres contacts (personnes supplémentaires chez ce prestataire) -->
+      <div class="contacts-section">
+        <div class="contacts-section__header">
+          <h4 class="contacts-section__title">Autres contacts</h4>
+          <button class="btn-ghost contacts-section__add" type="button" on:click={addContactRow}>+ Ajouter un contact</button>
+        </div>
+        {#if (form.contacts || []).length === 0}
+          <p class="contacts-section__empty">Ajoutez d'autres personnes si ce prestataire a plusieurs numéros / interlocuteurs.</p>
+        {:else}
+          <div class="contacts-list">
+            {#each form.contacts as c, i}
+              <div class="contact-row">
+                <input type="text" bind:value={c.name} placeholder="Nom" />
+                <input type="text" bind:value={c.role} placeholder="Rôle (commercial, support…)" />
+                <input type="tel" bind:value={c.phone} placeholder="Téléphone" />
+                <input type="email" bind:value={c.email} placeholder="Email" />
+                <button type="button" class="contact-remove" on:click={() => removeContactRow(i)} title="Retirer">{'\u2715'}</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+
       <label class="full-width">Notes<textarea bind:value={form.notes} rows="3" placeholder="Notes, commentaires…"></textarea></label>
     </div>
     <div class="ya-dialog__footer">
@@ -597,6 +678,37 @@
   .supplier-name { font-weight: 600; color: #fff; font-size: 0.92rem; }
   .supplier-meta { display: flex; gap: 12px; flex-wrap: wrap; }
   .meta-item { font-size: 0.78rem; color: rgba(255,255,255,0.5); white-space: nowrap; }
+  .meta-item--extra { cursor: help; font-weight: 600; }
+
+  /* Contacts section in the dialog */
+  .contacts-section { margin: 0.5rem 0; padding-top: 0.5rem; border-top: 1px dashed var(--border-subtle); }
+  .contacts-section__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+  .contacts-section__title { margin: 0; font-size: 0.875rem; color: var(--text-heading); }
+  .contacts-section__add { font-size: 0.75rem; padding: 0.25rem 0.625rem; }
+  .contacts-section__empty { font-size: 0.75rem; color: var(--text-muted); margin: 0.25rem 0 0.5rem; }
+  .contacts-list { display: flex; flex-direction: column; gap: 0.375rem; }
+  .contact-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr auto; gap: 0.375rem; align-items: center; }
+  .contact-row input {
+    padding: 0.375rem 0.5rem; font-size: 0.8125rem; border-radius: 0.375rem;
+    border: 1px solid var(--border-subtle); background: var(--bg-base); color: var(--text-primary);
+  }
+  .contact-remove {
+    background: none; border: none; color: var(--text-muted); cursor: pointer;
+    font-size: 0.875rem; padding: 0.25rem 0.5rem;
+  }
+  .contact-remove:hover { color: #EF4444; }
+
+  /* Additional contacts in the detail panel */
+  .detail-contacts { display: flex; flex-direction: column; gap: 0.5rem; }
+  .detail-contact {
+    padding: 0.625rem 0.75rem; border-radius: 0.5rem;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border-subtle);
+  }
+  .dc-head { display: flex; gap: 0.5rem; align-items: baseline; margin-bottom: 0.25rem; }
+  .dc-name { font-weight: 600; color: var(--text-heading); font-size: 0.875rem; }
+  .dc-role { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .dc-rows { display: flex; flex-direction: column; gap: 0.25rem; }
+  .dc-row { display: flex; gap: 0.5rem; align-items: center; font-size: 0.8125rem; }
 
   .domain-badge {
     font-size: 0.75rem; font-weight: 600; padding: 3px 10px;

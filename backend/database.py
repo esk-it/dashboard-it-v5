@@ -119,6 +119,12 @@ async def init_db():
             done INTEGER NOT NULL DEFAULT 0,
             sort_order INTEGER NOT NULL DEFAULT 0
         )""",
+        """CREATE TABLE IF NOT EXISTS task_dependencies (
+            task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            depends_on_task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            PRIMARY KEY (task_id, depends_on_task_id),
+            CHECK (task_id != depends_on_task_id)
+        )""",
         """CREATE TABLE IF NOT EXISTS task_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL UNIQUE,
@@ -272,7 +278,8 @@ async def init_db():
             contact TEXT NOT NULL DEFAULT '',
             notes TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
-            logo_path TEXT NOT NULL DEFAULT ''
+            logo_path TEXT NOT NULL DEFAULT '',
+            contacts_json TEXT NOT NULL DEFAULT '[]'
         )""",
         """CREATE TABLE IF NOT EXISTS supplier_domains (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -545,6 +552,30 @@ async def _run_migrations(db):
     if "start_date" not in task_cols:
         await db.execute("ALTER TABLE tasks ADD COLUMN start_date TEXT")
         await db.commit()
+
+    # Additional supplier contacts (multiple named contacts per supplier)
+    try:
+        cursor = await db.execute("PRAGMA table_info(suppliers)")
+        sup_cols = [row[1] for row in await cursor.fetchall()]
+        if "contacts_json" not in sup_cols:
+            await db.execute("ALTER TABLE suppliers ADD COLUMN contacts_json TEXT NOT NULL DEFAULT '[]'")
+            await db.commit()
+    except Exception:
+        pass
+
+    # Task dependencies table (may not exist on pre-v6.4 databases)
+    try:
+        await db.execute(
+            """CREATE TABLE IF NOT EXISTS task_dependencies (
+                task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                depends_on_task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+                PRIMARY KEY (task_id, depends_on_task_id),
+                CHECK (task_id != depends_on_task_id)
+            )"""
+        )
+        await db.commit()
+    except Exception:
+        pass
 
     # Google Calendar sync columns on planning_events
     cursor = await db.execute("PRAGMA table_info(planning_events)")

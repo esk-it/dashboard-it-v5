@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -30,6 +31,27 @@ LOGO_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp"}
 
 
+def _parse_contacts(s) -> list[dict]:
+    """Decode contacts_json, tolerant of null/legacy empty values."""
+    if not s:
+        return []
+    try:
+        data = json.loads(s)
+        if isinstance(data, list):
+            return [
+                {
+                    "name": str(c.get("name", "")),
+                    "role": str(c.get("role", "")),
+                    "phone": str(c.get("phone", "")),
+                    "email": str(c.get("email", "")),
+                }
+                for c in data if isinstance(c, dict)
+            ]
+    except Exception:
+        pass
+    return []
+
+
 def _row_to_supplier(r) -> dict:
     return {
         "id": r[0],
@@ -41,6 +63,7 @@ def _row_to_supplier(r) -> dict:
         "notes": r[6] or "",
         "logo_path": r[7] or "",
         "created_at": r[8] or "",
+        "contacts": _parse_contacts(r[9]) if len(r) > 9 else [],
     }
 
 
@@ -104,7 +127,8 @@ async def delete_domain(domain_id: int, db=Depends(get_raw_db)):
 
 _SUPPLIER_COLS = """id, name, COALESCE(domain,''), COALESCE(phone,''),
                     COALESCE(email,''), COALESCE(contact,''), COALESCE(notes,''),
-                    COALESCE(logo_path,''), COALESCE(created_at,'')"""
+                    COALESCE(logo_path,''), COALESCE(created_at,''),
+                    COALESCE(contacts_json,'[]')"""
 
 
 @router.get("", response_model=list[SupplierResponse])
@@ -144,11 +168,20 @@ async def get_supplier(supplier_id: int, db=Depends(get_raw_db)):
 @router.post("", response_model=SupplierResponse, status_code=201)
 async def create_supplier(body: SupplierCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
-    cursor = await db.execute(
-        """INSERT INTO suppliers (name, domain, phone, email, contact, notes, logo_path, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, '', ?)""",
-        (body.name, body.domain, body.phone, body.email, body.contact, body.notes, now),
-    )
+    contacts_json = json.dumps([c.model_dump() for c in body.contacts])
+    try:
+        cursor = await db.execute(
+            """INSERT INTO suppliers (name, domain, phone, email, contact, notes, logo_path, created_at, contacts_json)
+               VALUES (?, ?, ?, ?, ?, ?, '', ?, ?)""",
+            (body.name, body.domain, body.phone, body.email, body.contact, body.notes, now, contacts_json),
+        )
+    except Exception:
+        # Fallback if contacts_json column doesn't exist yet
+        cursor = await db.execute(
+            """INSERT INTO suppliers (name, domain, phone, email, contact, notes, logo_path, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, '', ?)""",
+            (body.name, body.domain, body.phone, body.email, body.contact, body.notes, now),
+        )
     await db.commit()
     supplier_id = cursor.lastrowid
     rows = await db.execute_fetchall(
@@ -164,11 +197,19 @@ async def update_supplier(supplier_id: int, body: SupplierUpdate, db=Depends(get
     if not rows:
         raise HTTPException(status_code=404, detail="Supplier not found")
 
-    await db.execute(
-        """UPDATE suppliers SET name=?, domain=?, phone=?, email=?, contact=?, notes=?
-           WHERE id=?""",
-        (body.name, body.domain, body.phone, body.email, body.contact, body.notes, supplier_id),
-    )
+    contacts_json = json.dumps([c.model_dump() for c in body.contacts])
+    try:
+        await db.execute(
+            """UPDATE suppliers SET name=?, domain=?, phone=?, email=?, contact=?, notes=?, contacts_json=?
+               WHERE id=?""",
+            (body.name, body.domain, body.phone, body.email, body.contact, body.notes, contacts_json, supplier_id),
+        )
+    except Exception:
+        await db.execute(
+            """UPDATE suppliers SET name=?, domain=?, phone=?, email=?, contact=?, notes=?
+               WHERE id=?""",
+            (body.name, body.domain, body.phone, body.email, body.contact, body.notes, supplier_id),
+        )
     await db.commit()
     return await get_supplier(supplier_id, db)
 

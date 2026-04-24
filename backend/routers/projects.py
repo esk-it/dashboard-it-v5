@@ -225,6 +225,26 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
             for t in project["tasks"]:
                 t["checklist_total"] = 0
                 t["checklist_done"] = 0
+
+        # Attach dependencies (task → list of {id, title, done})
+        try:
+            dep_rows = await db.execute_fetchall(
+                """SELECT td.task_id, td.depends_on_task_id, t.title, t.done
+                   FROM task_dependencies td
+                   JOIN tasks t ON t.id = td.depends_on_task_id
+                   WHERE td.task_id IN (SELECT id FROM tasks WHERE project_id=?)""",
+                (project_id,),
+            )
+            deps_by_task = {}
+            for r in dep_rows:
+                deps_by_task.setdefault(r[0], []).append({"id": r[1], "title": r[2], "done": bool(r[3])})
+            for t in project["tasks"]:
+                t["dependencies"] = deps_by_task.get(t["id"], [])
+                t["blocked"] = any(not d["done"] for d in t["dependencies"])
+        except Exception:
+            for t in project["tasks"]:
+                t["dependencies"] = []
+                t["blocked"] = False
     except Exception as e:
         logger.warning(f"Failed to get tasks for project {project_id}: {e}")
         project["tasks"] = []
@@ -309,6 +329,87 @@ async def update_project(project_id: int, body: ProjectUpdate, db=Depends(get_ra
     return {"ok": True}
 
 
+@router.post("/{project_id}/duplicate")
+async def duplicate_project(project_id: int, body: dict = Body(default={}), db=Depends(get_raw_db)):
+    """Create a new project from an existing one: copies tasks (un-done, dates cleared),
+    suppliers, and linked-document amounts. Notes/journal are NOT copied since they
+    belong to the original project's history."""
+    rows = await db.execute_fetchall(
+        "SELECT title, description, status, color, start_date, end_date, COALESCE(budget,0), COALESCE(budget_spent,0) FROM projects WHERE id=?",
+        (project_id,),
+    )
+    if not rows:
+        raise HTTPException(404, "Projet source non trouve")
+    src = rows[0]
+    new_title = (body.get("title") or "").strip() or f"{src[0]} (copie)"
+    now = _now()
+
+    cursor = await db.execute(
+        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        (new_title, src[1], "not_started", src[3], "", "", src[6], 0, now, now),
+    )
+    new_id = cursor.lastrowid
+
+    # Copy tasks (reset done, clear due/start dates, copy checklist)
+    try:
+        task_rows = await db.execute_fetchall(
+            "SELECT id, title, category, priority, notes, site, COALESCE(recurrence,'') FROM tasks WHERE project_id=?",
+            (project_id,),
+        )
+        for t in task_rows:
+            src_task_id = t[0]
+            tc = await db.execute(
+                "INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, project_id) VALUES (?,?,?,NULL,0,?,?,?,?,?)",
+                (t[1], t[2], t[3], now, t[4], t[5], t[6], new_id),
+            )
+            new_task_id = tc.lastrowid
+            # Copy checklist items (all un-done)
+            try:
+                cl_rows = await db.execute_fetchall(
+                    "SELECT text, sort_order FROM task_checklist WHERE task_id=? ORDER BY sort_order ASC",
+                    (src_task_id,),
+                )
+                for c in cl_rows:
+                    await db.execute(
+                        "INSERT INTO task_checklist (task_id, text, done, sort_order) VALUES (?,?,0,?)",
+                        (new_task_id, c[0], c[1]),
+                    )
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Task copy failed during duplicate: {e}")
+
+    # Copy supplier links (just the link, not the supplier records)
+    try:
+        sup_rows = await db.execute_fetchall(
+            "SELECT supplier_id FROM project_suppliers WHERE project_id=?", (project_id,),
+        )
+        for s in sup_rows:
+            await db.execute(
+                "INSERT OR IGNORE INTO project_suppliers (project_id, supplier_id) VALUES (?,?)",
+                (new_id, s[0]),
+            )
+    except Exception:
+        pass
+
+    # Copy document links with their amounts reset to pending (they're new engagements)
+    try:
+        doc_rows = await db.execute_fetchall(
+            "SELECT document_id, COALESCE(amount,0) FROM project_documents WHERE project_id=?",
+            (project_id,),
+        )
+        for d in doc_rows:
+            await db.execute(
+                "INSERT OR IGNORE INTO project_documents (project_id, document_id, amount, amount_accepted, status) VALUES (?,?,?,0,'en attente')",
+                (new_id, d[0], d[1]),
+            )
+    except Exception:
+        pass
+
+    await db.commit()
+    return {"ok": True, "id": new_id}
+
+
 @router.delete("/{project_id}")
 async def delete_project(project_id: int, db=Depends(get_raw_db)):
     # Unlink tasks (don't delete them, just remove project_id)
@@ -365,6 +466,54 @@ async def add_task_to_project(project_id: int, body: dict = Body(...), db=Depend
 async def unlink_task(project_id: int, task_id: int, db=Depends(get_raw_db)):
     """Unlink a task from the project (doesn't delete the task)."""
     await db.execute("UPDATE tasks SET project_id=NULL WHERE id=? AND project_id=?", (task_id, project_id))
+    await db.commit()
+    return {"ok": True}
+
+
+# ── Task dependencies ──
+
+@router.post("/{project_id}/tasks/{task_id}/dependencies")
+async def add_task_dependency(project_id: int, task_id: int, body: dict = Body(...), db=Depends(get_raw_db)):
+    """Declare that task_id depends on body.depends_on_task_id. Both tasks must belong to this project."""
+    dep_id = body.get("depends_on_task_id")
+    if not dep_id:
+        raise HTTPException(400, "depends_on_task_id requis")
+    if int(dep_id) == int(task_id):
+        raise HTTPException(400, "Une tache ne peut pas dependre d'elle-meme")
+
+    # Validate both tasks belong to this project
+    rows = await db.execute_fetchall(
+        "SELECT id FROM tasks WHERE id IN (?,?) AND project_id=?",
+        (task_id, dep_id, project_id),
+    )
+    if len(rows) != 2:
+        raise HTTPException(400, "Les deux taches doivent appartenir a ce projet")
+
+    # Prevent trivial cycle: if dep already depends on task_id (directly), reject
+    cyc = await db.execute_fetchall(
+        "SELECT 1 FROM task_dependencies WHERE task_id=? AND depends_on_task_id=?",
+        (dep_id, task_id),
+    )
+    if cyc:
+        raise HTTPException(400, "Cycle detecte : cette tache depend deja de l'autre")
+
+    try:
+        await db.execute(
+            "INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id) VALUES (?,?)",
+            (task_id, int(dep_id)),
+        )
+        await db.commit()
+    except Exception as e:
+        raise HTTPException(500, f"Erreur: {e}")
+    return {"ok": True}
+
+
+@router.delete("/{project_id}/tasks/{task_id}/dependencies/{dep_id}")
+async def remove_task_dependency(project_id: int, task_id: int, dep_id: int, db=Depends(get_raw_db)):
+    await db.execute(
+        "DELETE FROM task_dependencies WHERE task_id=? AND depends_on_task_id=?",
+        (task_id, dep_id),
+    )
     await db.commit()
     return {"ok": True}
 

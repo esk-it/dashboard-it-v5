@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class KpiResponse(BaseModel):
     open_tasks: int
     overdue_tasks: int
+    overdue_project_tasks: int = 0
     week_tasks: int
     documents: int
     equipment: int

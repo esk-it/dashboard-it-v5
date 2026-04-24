@@ -25,6 +25,7 @@
   let weatherData = null;
   let kpiTasks = 0;
   let kpiOverdue = 0;
+  let kpiOverdueProjects = 0;
   let kpiWeek = 0;
   let kpiDocs = 0;
   let kpiParc = 0;
@@ -75,6 +76,7 @@
       const data = await api.get('/api/dashboard/kpis');
       kpiTasks = data.open_tasks || 0;
       kpiOverdue = data.overdue_tasks || 0;
+      kpiOverdueProjects = data.overdue_project_tasks || 0;
       kpiWeek = data.week_tasks || 0;
       kpiDocs = data.documents || 0;
       kpiParc = data.equipment || 0;
@@ -167,9 +169,17 @@
 
   <!-- ═══ Alert banners ═══ -->
   {#if kpiOverdue > 0}
-    <div class="ya-alert ya-alert--danger">
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="ya-alert ya-alert--danger" on:click={() => currentPage.set(kpiOverdueProjects > 0 ? '/projects' : '/tasks')} style="cursor:pointer">
       <span class="ya-alert__icon">⚠️</span>
-      <span class="ya-alert__text"><strong>{kpiOverdue} tache{kpiOverdue > 1 ? 's' : ''} en retard</strong> — Action requise</span>
+      <span class="ya-alert__text">
+        <strong>{kpiOverdue} tache{kpiOverdue > 1 ? 's' : ''} en retard</strong>
+        {#if kpiOverdueProjects > 0}
+          — dont <strong>{kpiOverdueProjects}</strong> sur un projet
+        {/if}
+        — Action requise
+      </span>
     </div>
   {/if}
 
@@ -229,7 +239,7 @@
         </div>
       </div>
       <div class="ya-card__footer">
-        <span class="ya-card__hint">{kpiOverdue > 0 ? 'Action requise' : 'Tout est \u00e0 jour'}</span>
+        <span class="ya-card__hint">{kpiOverdueProjects > 0 ? `${kpiOverdueProjects} sur un projet` : kpiOverdue > 0 ? 'Action requise' : 'Tout est \u00e0 jour'}</span>
         <button class="ya-card__plus" on:click|stopPropagation={goNewTask}>+</button>
       </div>
     </div>

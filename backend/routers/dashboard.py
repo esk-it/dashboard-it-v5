@@ -39,6 +39,17 @@ async def kpis(db=Depends(get_raw_db)):
     )
     overdue_tasks = row[0][0]
 
+    # Overdue tasks that belong to a project (subset of overdue_tasks)
+    overdue_project_tasks = 0
+    try:
+        row = await db.execute_fetchall(
+            "SELECT COUNT(*) FROM tasks WHERE done = 0 AND due_date IS NOT NULL AND due_date != '' AND due_date < ? AND project_id IS NOT NULL",
+            (today,),
+        )
+        overdue_project_tasks = row[0][0]
+    except Exception:
+        pass
+
     row = await db.execute_fetchall(
         "SELECT COUNT(*) FROM tasks WHERE done = 0 AND due_date IS NOT NULL AND due_date != '' AND due_date >= ? AND due_date <= ?",
         (today, week_end),
@@ -54,6 +65,7 @@ async def kpis(db=Depends(get_raw_db)):
     return KpiResponse(
         open_tasks=open_tasks,
         overdue_tasks=overdue_tasks,
+        overdue_project_tasks=overdue_project_tasks,
         week_tasks=week_tasks,
         documents=documents,
         equipment=equipment,
