@@ -1,6 +1,15 @@
 <script>
   import { onMount } from 'svelte';
   import { api, API_BASE } from '../api/client.js';
+
+  // Track which supplier logos failed to load so we can fall back to initials
+  let supplierLogoErrors = {};
+  function supplierInitials(name) {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
   import { success, error as toastError } from '../stores/toast.js';
 
   // ── State ──
@@ -264,11 +273,14 @@
     } catch (e) { console.error('Toggle task failed:', e); }
   }
 
-  async function unlinkTask(taskId) {
+  async function deleteTask(taskId) {
+    // Fully delete the task (also removes it from the global Tasks module).
+    // Unlinking kept the task around with project_id=NULL, which created orphan tasks
+    // the user never wanted.
     try {
-      await api.delete(`/api/projects/${selectedProject.id}/tasks/${taskId}`);
+      await api.delete(`/api/tasks/${taskId}`);
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + e.message); }
   }
 
   // ── Task dependencies ──
@@ -934,7 +946,7 @@
               {/if}
               <button class="task-edit-btn" on:click={() => openEditTaskDialog(task)} title="Modifier">{'\u270F\uFE0F'}</button>
               <button class="task-deps-btn" on:click={() => openDepsDialog(task)} title="Gérer les dépendances">🔗</button>
-              <button class="task-unlink" on:click={() => unlinkTask(task.id)} title="Retirer du projet">✕</button>
+              <button class="task-unlink" on:click={() => deleteTask(task.id)} title="Supprimer la tâche">✕</button>
             </div>
           {/each}
         </div>
@@ -1004,6 +1016,14 @@
         <div class="sup-list">
           {#each selectedProject.suppliers as sup}
             <div class="sup-item">
+              <div class="sup-logo">
+                {#if sup.logo_path && !supplierLogoErrors[sup.id]}
+                  <img src="{API_BASE}/api/suppliers/{sup.id}/logo" alt=""
+                       on:error={() => { supplierLogoErrors[sup.id] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                {:else}
+                  <span class="sup-logo__initials">{supplierInitials(sup.name)}</span>
+                {/if}
+              </div>
               <strong>{sup.name}</strong>
               {#if sup.contact}<span>{sup.contact}</span>{/if}
               {#if sup.phone}<span>{sup.phone}</span>{/if}
@@ -1357,7 +1377,7 @@
               <li class="deps-item" class:deps-item--done={d.done}>
                 <span class="deps-check">{d.done ? '\u2713' : '\u25CB'}</span>
                 <span class="deps-title">{d.title}</span>
-                <button class="task-unlink" on:click={() => removeDependency(d.id)} title="Retirer">\u2715</button>
+                <button class="task-unlink" on:click={() => removeDependency(d.id)} title="Retirer">{'\u2715'}</button>
               </li>
             {/each}
           </ul>
@@ -1706,6 +1726,13 @@
   .sup-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-subtle); font-size: 0.8125rem; }
   .sup-item strong { color: var(--text-heading); }
   .sup-item span { color: var(--text-muted); font-size: 0.75rem; }
+  .sup-logo {
+    width: 32px; height: 32px; border-radius: 6px; overflow: hidden; flex-shrink: 0;
+    background: var(--bg-base); display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border-subtle);
+  }
+  .sup-logo img { width: 100%; height: 100%; object-fit: contain; }
+  .sup-logo__initials { font-size: 0.75rem; font-weight: 700; color: var(--text-muted); }
 
   /* Notes */
   .note-input { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }

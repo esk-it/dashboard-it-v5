@@ -186,7 +186,7 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     try:
         try:
             task_rows = await db.execute_fetchall(
-                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date, COALESCE(is_milestone,0) FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date, COALESCE(is_milestone,0) FROM tasks WHERE project_id=? ORDER BY COALESCE(start_date, due_date, created_at) ASC, id ASC",
                 (project_id,),
             )
             project["tasks"] = [
@@ -196,9 +196,9 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
                 for r in task_rows
             ]
         except Exception:
-            # Fallback without start_date / is_milestone columns
+            # Fallback without start_date / is_milestone columns — order without start_date
             task_rows = await db.execute_fetchall(
-                "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY done ASC, priority DESC, due_date ASC",
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY COALESCE(due_date, created_at) ASC, id ASC",
                 (project_id,),
             )
             project["tasks"] = [
@@ -283,16 +283,16 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     except Exception:
         project["documents"] = []
 
-    # Get linked suppliers (safely)
+    # Get linked suppliers (safely) — include logo_path so the UI can show the logo
     try:
         sup_rows = await db.execute_fetchall(
-            """SELECT s.id, s.name, s.contact, s.phone, s.email
+            """SELECT s.id, s.name, s.contact, s.phone, s.email, COALESCE(s.logo_path,'')
                FROM suppliers s JOIN project_suppliers ps ON s.id = ps.supplier_id
                WHERE ps.project_id=? ORDER BY s.name""",
             (project_id,),
         )
         project["suppliers"] = [
-            {"id": r[0], "name": r[1], "contact": r[2], "phone": r[3], "email": r[4]}
+            {"id": r[0], "name": r[1], "contact": r[2], "phone": r[3], "email": r[4], "logo_path": r[5]}
             for r in sup_rows
         ]
     except Exception:
