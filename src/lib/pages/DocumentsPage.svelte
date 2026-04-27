@@ -70,10 +70,63 @@
   let docLinks = {};
   let loadingLinks = {};
 
-  // Link dialog
+  // Link dialog (existing — used internally by the new manager to add a link)
   let showLinkDialog = false;
   let linkSourceDocId = null;
   let linkForm = { target_id: '', link_type: 'related' };
+
+  // Link manager dialog (new) — opened from the 🔗 button on each doc row.
+  // Shows current links, lets the user add/remove. We re-fetch links each time it opens.
+  let showLinkManager = false;
+  let linkManagerDocId = null;
+  let linkManagerLinks = [];
+  let linkManagerLoading = false;
+
+  async function openLinkManager(docId) {
+    linkManagerDocId = docId;
+    linkManagerLinks = [];
+    linkManagerLoading = true;
+    showLinkManager = true;
+    try {
+      const detail = await api.get(`/api/documents/${docId}`);
+      linkManagerLinks = detail.links || [];
+    } catch (e) {
+      toastError('Erreur lors du chargement des liens');
+    }
+    linkManagerLoading = false;
+  }
+
+  async function removeLinkFromManager(linkId) {
+    try {
+      await fetch(`${API_BASE}/api/documents/links/${linkId}`, { method: 'DELETE' });
+      // Refresh local state + page-level link graph so workflow cards regroup
+      const detail = await api.get(`/api/documents/${linkManagerDocId}`);
+      linkManagerLinks = detail.links || [];
+      const fresh = await api.get('/api/documents/links-graph').catch(() => null);
+      if (Array.isArray(fresh)) allLinks = fresh;
+    } catch (e) {
+      toastError('Erreur lors de la suppression du lien');
+    }
+  }
+
+  function openAddLinkFromManager() {
+    // Reuse the existing link dialog; it'll POST a link and we'll refresh on close.
+    linkSourceDocId = linkManagerDocId;
+    linkForm = { target_id: '', link_type: 'related' };
+    showLinkDialog = true;
+  }
+
+  // Click-outside handler — collapses the expanded doc when the user clicks the
+  // empty space around the cards. Buttons inside doc-rows already use stopPropagation
+  // on their own click handlers, so they won't trigger this.
+  function onListBackgroundClick(e) {
+    // If the click target is inside any .doc-row, ignore — toggleExpand handles that.
+    if (e.target.closest('.doc-row')) return;
+    if (e.target.closest('.supplier-card__header')) return;
+    if (e.target.closest('.workflow-arrow')) return;
+    if (e.target.closest('.supplier-card__section-label')) return;
+    expandedDocId = null;
+  }
 
   // Dialog (create/edit)
   let showDialog = false;
@@ -125,16 +178,16 @@
     return acc;
   }, {});
 
-  // ── Workflow grouping ─────────────────────────────────────
-  // Compute connected components of the link graph restricted to currently visible docs.
-  // Result: Array<Group> where each Group has either 1 doc (singleton) or 2+ docs that
-  // form a workflow (Devis → BPA → Facture, …).
+  // ── Supplier-first grouping ───────────────────────────────
+  // Single rendering style for everything: one card per supplier, containing
+  //   - chains: connected components of the link graph (size >= 2)
+  //   - singletons: docs with no visible neighbours
+  // This eliminates the visual jarring between "workflow card" and "plain row".
   $: docGroups = (() => {
     if (!filteredDocs?.length) return [];
-    const visibleIds = new Set(filteredDocs.map(d => d.id));
-    const docById = new Map(filteredDocs.map(d => [d.id, d]));
 
-    // Adjacency map restricted to visible docs only
+    // Adjacency map across all visible docs
+    const visibleIds = new Set(filteredDocs.map(d => d.id));
     const adj = new Map();
     for (const id of visibleIds) adj.set(id, new Set());
     for (const e of allLinks) {
@@ -143,52 +196,69 @@
         adj.get(e.target_id).add(e.source_id);
       }
     }
+    const docById = new Map(filteredDocs.map(d => [d.id, d]));
 
-    // BFS for connected components
-    const seen = new Set();
-    const groups = [];
-    for (const startId of visibleIds) {
-      if (seen.has(startId)) continue;
-      const queue = [startId];
-      const componentIds = [];
-      while (queue.length) {
-        const id = queue.shift();
-        if (seen.has(id)) continue;
-        seen.add(id);
-        componentIds.push(id);
-        for (const nb of adj.get(id) || []) {
-          if (!seen.has(nb)) queue.push(nb);
-        }
+    // Bucket docs by supplier identity first.
+    // Use supplier_id when available, fall back to supplier_name/supplier text,
+    // and finally a "no-supplier" bucket for orphans.
+    const supplierBuckets = new Map(); // key → { supplierId, supplierName, docs: [] }
+    function supplierKey(d) {
+      if (d.supplier_id != null) return `id:${d.supplier_id}`;
+      const name = (d.supplier_name || d.supplier || '').trim();
+      return name ? `name:${name.toLowerCase()}` : '__none__';
+    }
+    for (const d of filteredDocs) {
+      const key = supplierKey(d);
+      if (!supplierBuckets.has(key)) {
+        supplierBuckets.set(key, {
+          key,
+          supplierId: d.supplier_id ?? null,
+          supplierName: (d.supplier_name || d.supplier || '').trim() || (key === '__none__' ? 'Sans prestataire' : ''),
+          docs: [],
+        });
       }
-      const docs = componentIds.map(i => docById.get(i)).filter(Boolean);
-      // Workflow ordering: documents oldest-first so the user reads chronologically
-      docs.sort((a, b) => (a.doc_date || a.created_at || '').localeCompare(b.doc_date || b.created_at || ''));
-      groups.push(docs);
+      supplierBuckets.get(key).docs.push(d);
     }
 
-    // Sort groups: most recent activity first
-    groups.sort((a, b) => {
-      const lastA = a.reduce((m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0);
-      const lastB = b.reduce((m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0);
-      return lastB - lastA;
-    });
+    // Within each supplier bucket, run BFS to find connected components.
+    const result = [];
+    for (const bucket of supplierBuckets.values()) {
+      const bucketIds = new Set(bucket.docs.map(d => d.id));
+      const seen = new Set();
+      const chains = [];
+      const singletons = [];
+      for (const startId of bucketIds) {
+        if (seen.has(startId)) continue;
+        const queue = [startId];
+        const compIds = [];
+        while (queue.length) {
+          const id = queue.shift();
+          if (seen.has(id)) continue;
+          seen.add(id);
+          compIds.push(id);
+          for (const nb of adj.get(id) || []) {
+            // only follow neighbours that are in the SAME supplier bucket (chains
+            // crossing suppliers are rendered as cross-group chips, see externalLinks)
+            if (!seen.has(nb) && bucketIds.has(nb)) queue.push(nb);
+          }
+        }
+        const docs = compIds.map(i => docById.get(i)).filter(Boolean);
+        docs.sort((a, b) => (a.doc_date || a.created_at || '').localeCompare(b.doc_date || b.created_at || ''));
+        if (docs.length > 1) chains.push(docs);
+        else singletons.push(docs[0]);
+      }
+      // Singletons sorted by date desc inside the supplier card
+      singletons.sort((a, b) => (b.doc_date || b.created_at || '').localeCompare(a.doc_date || a.created_at || ''));
+      // Bucket-level "last activity" to sort suppliers most-recent-first
+      const lastActivity = bucket.docs.reduce(
+        (m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0,
+      );
+      result.push({ ...bucket, chains, singletons, lastActivity });
+    }
 
-    return groups;
+    result.sort((a, b) => b.lastActivity - a.lastActivity);
+    return result;
   })();
-
-  function groupSupplier(group) {
-    // Use the first non-empty supplier_name found in the group. If multiple distinct
-    // suppliers appear (rare), fall back to a neutral label.
-    const names = [...new Set(group.map(d => d.supplier_name || d.supplier || '').filter(Boolean))];
-    if (names.length === 1) return names[0];
-    if (names.length === 0) return 'Sans prestataire';
-    return 'Plusieurs prestataires';
-  }
-
-  function groupSupplierId(group) {
-    const ids = [...new Set(group.map(d => d.supplier_id).filter(v => v != null))];
-    return ids.length === 1 ? ids[0] : null;
-  }
 
   function supplierInitials(name) {
     if (!name) return '??';
@@ -197,18 +267,21 @@
     return name.slice(0, 2).toUpperCase();
   }
 
-  // External chain chips: links that point to docs outside the current group
-  // (e.g. a Devis in this group references a Devis that lives in another group).
-  function externalLinks(doc, group) {
-    const groupIds = new Set(group.map(d => d.id));
+  // Cross-supplier link chips: when a doc points to a doc in a *different* supplier card.
+  function crossSupplierLinks(doc) {
     const out = [];
     for (const e of allLinks) {
       let other = null;
-      if (e.source_id === doc.id && !groupIds.has(e.target_id)) other = e.target_id;
-      else if (e.target_id === doc.id && !groupIds.has(e.source_id)) other = e.source_id;
+      if (e.source_id === doc.id) other = e.target_id;
+      else if (e.target_id === doc.id) other = e.source_id;
       if (other != null) {
         const refDoc = documents.find(x => x.id === other);
-        if (refDoc) out.push(refDoc);
+        if (!refDoc) continue;
+        // Same supplier → it's already rendered inside the same chain, skip.
+        const sameId = doc.supplier_id != null && refDoc.supplier_id != null && doc.supplier_id === refDoc.supplier_id;
+        const sameName = !sameId && (doc.supplier_name || doc.supplier || '').trim() && (doc.supplier_name || doc.supplier || '').trim().toLowerCase() === (refDoc.supplier_name || refDoc.supplier || '').trim().toLowerCase();
+        if (sameId || sameName) continue;
+        out.push(refDoc);
       }
     }
     return out;
@@ -376,6 +449,16 @@
       success('Lien cree');
       closeLinkDialog();
       await fetchLinks(linkSourceDocId);
+      // Refresh global graph so the supplier cards re-bucket the new connection
+      const fresh = await api.get('/api/documents/links-graph').catch(() => null);
+      if (Array.isArray(fresh)) allLinks = fresh;
+      // Refresh the manager dialog if it was the source
+      if (showLinkManager && linkManagerDocId === linkSourceDocId) {
+        try {
+          const detail = await api.get(`/api/documents/${linkManagerDocId}`);
+          linkManagerLinks = detail.links || [];
+        } catch {}
+      }
     } catch (e) {
       toastError('Erreur lors de la creation du lien');
     }
@@ -803,32 +886,10 @@
           <div class="empty-hint">Importez des fichiers ou creez un nouveau document</div>
         </div>
       {:else}
-        {#each docGroups as group (group.map(d => d.id).join(','))}
-          {#if group.length > 1}
-            <!-- Workflow card: 2+ docs linked together (Devis → BPA → Facture). -->
-            {@const supplierName = groupSupplier(group)}
-            {@const supId = groupSupplierId(group)}
-            <div class="workflow-card">
-              <div class="workflow-card__header">
-                <div class="workflow-card__supplier">
-                  {#if supId && !supplierLogoErrors[supId]}
-                    <img class="workflow-card__logo"
-                         src="{API_BASE}/api/suppliers/{supId}/logo" alt=""
-                         on:error={() => { supplierLogoErrors[supId] = true; supplierLogoErrors = supplierLogoErrors; }} />
-                  {:else}
-                    <span class="workflow-card__initials">{supplierInitials(supplierName)}</span>
-                  {/if}
-                  <span class="workflow-card__supplier-name">{supplierName}</span>
-                </div>
-                <span class="workflow-card__count">{group.length} documents li{'\u00e9'}s</span>
-              </div>
-              {#each group as doc, idx (doc.id)}
-                <!-- arrow connector between rows -->
-                {#if idx > 0}
-                  <div class="workflow-arrow">{'\u2193'}</div>
-                {/if}
+        <!-- Reusable doc row + expanded view, used both in workflow chains and singletons -->
+        {#snippet docRow(doc)}
           <div
-            class="doc-row doc-row--in-workflow"
+            class="doc-row"
             class:doc-row-expanded={expandedDocId === doc.id}
             class:doc-row-selected={previewDoc && previewDoc.id === doc.id}
             style="border-left: 3px solid {getTypeStyle(doc.doc_type).border}"
@@ -838,130 +899,46 @@
               <span class="doc-file-icon" title={getFileExtension(doc.file_path).toUpperCase() || 'Fichier'}>
                 {getFileIcon(doc.file_path)}
               </span>
-
-              <span
-                class="doc-type-badge"
-                style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40"
-              >
+              <span class="doc-type-badge"
+                    style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40">
                 {getTypeStyle(doc.doc_type).label || doc.doc_type}
               </span>
-
               <div class="doc-title-group">
                 <span class="doc-title">{doc.title}</span>
-                {#if doc.supplier_name || doc.supplier}
-                  <span class="doc-supplier-prominent">{doc.supplier_name || doc.supplier}</span>
-                {/if}
               </div>
-
-              {#if doc.doc_date}
-                <span class="doc-date">{formatDate(doc.doc_date)}</span>
-              {/if}
-
-              {#if doc.reference}
-                <span class="doc-ref">#{doc.reference}</span>
-              {/if}
-
-              {#if doc.file_path}
-                <span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>
-              {/if}
-
+              {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
+              {#if doc.reference}<span class="doc-ref">#{doc.reference}</span>{/if}
+              {#if doc.file_path}<span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>{/if}
+              <!-- Cross-supplier link chips (rare): same-supplier links are visualised by the workflow card -->
+              {#each crossSupplierLinks(doc) as ext}
+                <button class="doc-cross-link" on:click|stopPropagation={() => toggleExpand(ext.id)}
+                        title="Lié à : {ext.title}"
+                        style="border-color: {getTypeStyle(ext.doc_type).color}55; color: {getTypeStyle(ext.doc_type).color}">
+                  → {getTypeStyle(ext.doc_type).label} {truncateText(ext.reference || ext.title, 16)}
+                </button>
+              {/each}
               <div class="doc-actions">
                 {#if doc.file_path}
-                  <button
-                    class="btn-icon btn-icon-preview"
-                    on:click|stopPropagation={() => openPreview(doc)}
-                    title="Apercu"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
+                  <button class="btn-icon btn-icon-preview" on:click|stopPropagation={() => openPreview(doc)} title="Apercu">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
                 {/if}
+                <button class="btn-icon" on:click|stopPropagation={() => openLinkManager(doc.id)} title="Gérer les liens">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                </button>
                 <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(doc)} title="Modifier">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                  </svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
                 <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => { confirmDeleteId = doc.id; }} title="Supprimer">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                  </svg>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                 </button>
               </div>
             </div>
 
-            <!-- Expanded area -->
+            <!-- Expanded area: tags, projects, notes, file path. Links are managed via the
+                 dedicated dialog (button above) since the workflow card already shows them. -->
             {#if expandedDocId === doc.id}
               <div class="doc-expanded">
-                <!-- ── Chain Bar (Document Links as Visual Chain) ── -->
-                <div class="chain-bar-section">
-                  <div class="chain-bar">
-                    <!-- Current document pill -->
-                    <div
-                      class="chain-pill chain-pill-current"
-                      style="background: {getTypeStyle(doc.doc_type).color}; color: #fff"
-                    >
-                      <span class="chain-pill-icon">{getTypeStyle(doc.doc_type).icon || '\u{1F4C4}'}</span>
-                      <span class="chain-pill-type">{getTypeStyle(doc.doc_type).label}</span>
-                      <span class="chain-pill-title">{truncateText(doc.reference || doc.title, 20)}</span>
-                    </div>
-
-                    <!-- inline chips for cross-group links -->
-                    {#each externalLinks(doc, group) as ext}
-                      <span class="chain-arrow">{'\u2192'}</span>
-                      <button class="chain-pill chain-pill-linked"
-                              style="background: {getTypeStyle(ext.doc_type).bg}; color: {getTypeStyle(ext.doc_type).color}; border: 1px solid {getTypeStyle(ext.doc_type).color}40"
-                              on:click|stopPropagation={() => toggleExpand(ext.id)}>
-                        <span class="chain-pill-icon">{getTypeStyle(ext.doc_type).icon || '\u{1F4C4}'}</span>
-                        <span class="chain-pill-type">{getTypeStyle(ext.doc_type).label}</span>
-                        <span class="chain-pill-title">{truncateText(ext.reference || ext.title, 20)}</span>
-                      </button>
-                    {/each}
-
-                    {#if loadingLinks[doc.id]}
-                      <span class="chain-loading">…</span>
-                    {:else if docLinks[doc.id] && docLinks[doc.id].length > 0}
-                      {#each docLinks[doc.id] as link}
-                        {@const linkedId = link.source_id === doc.id ? link.target_id : link.source_id}
-                        {@const linkedDoc = getDocById(linkedId)}
-                        {@const linkedType = linkedDoc ? linkedDoc.doc_type : 'AUTRE'}
-                        {@const linkedStyle = getTypeStyle(linkedType)}
-
-                        <span class="chain-arrow">→</span>
-
-                        <div class="chain-pill-wrapper">
-                          <button
-                            class="chain-pill chain-pill-linked"
-                            style="border-color: {linkedStyle.color}50; color: {linkedStyle.color}"
-                            on:click|stopPropagation={() => navigateToLinkedDoc(linkedId)}
-                            title="{getLinkTypeLabel(link.link_type)}: {getDocTitle(linkedId)}"
-                          >
-                            <span class="chain-pill-icon">{linkedStyle.icon || '\u{1F4C4}'}</span>
-                            <span class="chain-pill-type">{linkedStyle.label}</span>
-                            <span class="chain-pill-title">{truncateText(linkedDoc ? (linkedDoc.reference || linkedDoc.title) : `#${linkedId}`, 18)}</span>
-                          </button>
-                          <button
-                            class="chain-pill-remove"
-                            on:click|stopPropagation={() => deleteLink(link.id, doc.id)}
-                            title="Supprimer le lien"
-                          >×</button>
-                        </div>
-                      {/each}
-                    {/if}
-
-                    <!-- Add link button -->
-                    <button
-                      class="chain-add-btn"
-                      on:click|stopPropagation={() => openLinkDialog(doc.id)}
-                      title="Ajouter un lien"
-                    >+</button>
-                  </div>
-                </div>
-
-                <!-- Tags, notes, file info -->
                 {#if doc.tags}
                   <div class="expanded-section">
                     <div class="expanded-label">Tags</div>
@@ -972,10 +949,9 @@
                     </div>
                   </div>
                 {/if}
-
                 {#if doc.projects?.length > 0}
                   <div class="expanded-section">
-                    <div class="expanded-label">Projets lies</div>
+                    <div class="expanded-label">Projets liés</div>
                     <div class="tags-list">
                       {#each doc.projects as proj}
                         <span class="tag-chip" style="background:{proj.color}20;color:{proj.color};border-color:{proj.color}40">Projet: {proj.title}</span>
@@ -983,14 +959,12 @@
                     </div>
                   </div>
                 {/if}
-
                 {#if doc.notes}
                   <div class="expanded-section">
                     <div class="expanded-label">Notes</div>
                     <div class="notes-display">{doc.notes}</div>
                   </div>
                 {/if}
-
                 {#if doc.file_path}
                   <div class="expanded-section">
                     <div class="expanded-label">Fichier</div>
@@ -1000,52 +974,53 @@
               </div>
             {/if}
           </div>
-              {/each}
-            </div>
-          {:else}
-            <!-- Singleton: doc with no other linked docs visible — render as standalone row. -->
-            {@const doc = group[0]}
-            <div
-              class="doc-row"
-              class:doc-row-expanded={expandedDocId === doc.id}
-              class:doc-row-selected={previewDoc && previewDoc.id === doc.id}
-              style="border-left: 3px solid {getTypeStyle(doc.doc_type).border}"
-              data-doc-id={doc.id}
-            >
-              <div class="doc-main" on:click={() => toggleExpand(doc.id)}>
-                <span class="doc-file-icon" title={getFileExtension(doc.file_path).toUpperCase() || 'Fichier'}>
-                  {getFileIcon(doc.file_path)}
-                </span>
-                <span class="doc-type-badge"
-                      style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40">
-                  {getTypeStyle(doc.doc_type).label || doc.doc_type}
-                </span>
-                <div class="doc-title-group">
-                  <span class="doc-title">{doc.title}</span>
-                  {#if doc.supplier_name || doc.supplier}
-                    <span class="doc-supplier-prominent">{doc.supplier_name || doc.supplier}</span>
-                  {/if}
-                </div>
-                {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
-                {#if doc.reference}<span class="doc-ref">#{doc.reference}</span>{/if}
-                {#if doc.file_path}<span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>{/if}
-                <div class="doc-actions">
-                  {#if doc.file_path}
-                    <button class="btn-icon btn-icon-preview" on:click|stopPropagation={() => openPreview(doc)} title="Apercu">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </button>
-                  {/if}
-                  <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(doc)} title="Modifier">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  </button>
-                  <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => { confirmDeleteId = doc.id; }} title="Supprimer">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  </button>
-                </div>
+        {/snippet}
+
+        <!-- Click anywhere outside a doc card → collapse expand -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div class="doc-list-clickable" on:click={onListBackgroundClick}>
+        {#each docGroups as bucket (bucket.key)}
+          <div class="supplier-card">
+            <div class="supplier-card__header">
+              <div class="supplier-card__supplier">
+                {#if bucket.supplierId && !supplierLogoErrors[bucket.supplierId]}
+                  <img class="supplier-card__logo"
+                       src="{API_BASE}/api/suppliers/{bucket.supplierId}/logo" alt=""
+                       on:error={() => { supplierLogoErrors[bucket.supplierId] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                {:else}
+                  <span class="supplier-card__initials">{supplierInitials(bucket.supplierName || '?')}</span>
+                {/if}
+                <span class="supplier-card__supplier-name">{bucket.supplierName || 'Sans prestataire'}</span>
               </div>
+              <span class="supplier-card__count">{bucket.docs.length} document{bucket.docs.length > 1 ? 's' : ''}</span>
             </div>
-          {/if}
+
+            {#each bucket.chains as chain, ci (ci)}
+              <div class="supplier-card__section">
+                {#if bucket.chains.length > 1 || bucket.singletons.length > 0}
+                  <div class="supplier-card__section-label">Workflow</div>
+                {/if}
+                {#each chain as doc, idx (doc.id)}
+                  {#if idx > 0}<div class="workflow-arrow">{'\u2193'}</div>{/if}
+                  {@render docRow(doc)}
+                {/each}
+              </div>
+            {/each}
+
+            {#if bucket.singletons.length > 0}
+              <div class="supplier-card__section">
+                {#if bucket.chains.length > 0}
+                  <div class="supplier-card__section-label">Documents seuls</div>
+                {/if}
+                {#each bucket.singletons as doc (doc.id)}
+                  {@render docRow(doc)}
+                {/each}
+              </div>
+            {/if}
+          </div>
         {/each}
+        </div>
       {/if}
     </div>
 
@@ -1366,6 +1341,66 @@
   </div>
 {/if}
 
+<!-- ── Link Manager (per-doc) ─────────────────────────────────────── -->
+{#if showLinkManager}
+  {@const managedDoc = documents.find(d => d.id === linkManagerDocId)}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="modal-overlay" on:click={() => { showLinkManager = false; }}>
+    <div class="modal-box" on:click|stopPropagation style="max-width:520px">
+      <div class="modal-header">
+        <h2>Liens du document</h2>
+        <button class="modal-close" on:click={() => { showLinkManager = false; }}>{'\u2715'}</button>
+      </div>
+      <div class="modal-body">
+        {#if managedDoc}
+          <div class="link-manager__doc">
+            <span class="doc-type-badge"
+                  style="background: {getTypeStyle(managedDoc.doc_type).bg}; color: {getTypeStyle(managedDoc.doc_type).color}; border: 1px solid {getTypeStyle(managedDoc.doc_type).color}40">
+              {getTypeStyle(managedDoc.doc_type).label || managedDoc.doc_type}
+            </span>
+            <span class="link-manager__title">{managedDoc.title}</span>
+          </div>
+        {/if}
+
+        <div class="link-manager__section-label">Liens existants</div>
+        {#if linkManagerLoading}
+          <p class="empty-text" style="padding:0.5rem 0">Chargement…</p>
+        {:else if linkManagerLinks.length === 0}
+          <p class="empty-text" style="padding:0.5rem 0">Aucun lien pour ce document.</p>
+        {:else}
+          <div class="link-manager__list">
+            {#each linkManagerLinks as link}
+              {@const otherId = link.source_id === linkManagerDocId ? link.target_id : link.source_id}
+              {@const otherDoc = documents.find(d => d.id === otherId)}
+              <div class="link-manager__item">
+                <span class="link-manager__type-tag">{getLinkTypeLabel(link.link_type)}</span>
+                {#if otherDoc}
+                  <span class="doc-type-badge"
+                        style="background: {getTypeStyle(otherDoc.doc_type).bg}; color: {getTypeStyle(otherDoc.doc_type).color}; border: 1px solid {getTypeStyle(otherDoc.doc_type).color}40">
+                    {getTypeStyle(otherDoc.doc_type).label || otherDoc.doc_type}
+                  </span>
+                  <span class="link-manager__other-title">{otherDoc.title}</span>
+                {:else}
+                  <span class="link-manager__other-title">Document #{otherId}</span>
+                {/if}
+                <button class="btn-icon btn-icon-danger" on:click={() => removeLinkFromManager(link.id)} title="Retirer ce lien">{'\u2715'}</button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
+        <div style="margin-top:1rem">
+          <button class="btn-primary" on:click={openAddLinkFromManager}>+ Lier à un autre document</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-ghost" on:click={() => { showLinkManager = false; }}>Fermer</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   /* ── Page ──────────────────────────────────────────────── */
   .documents-page {
@@ -1609,53 +1644,94 @@
     padding-right: 4px;
   }
 
-  /* ── Workflow card (groups linked docs together) ─────────── */
-  .workflow-card {
+  /* ── Supplier card (one card per supplier) ────────────────── */
+  .doc-list-clickable { display: block; min-height: 60px; }
+  .supplier-card {
     background: var(--bg-card);
     border: 1px solid var(--border-card);
     border-radius: 0.75rem;
-    margin-bottom: 10px;
-    padding: 10px 12px 4px;
+    margin-bottom: 12px;
+    padding: 12px 14px 8px;
     transition: border-color 0.2s, box-shadow 0.25s;
-    position: relative;
   }
-  .workflow-card:hover {
+  .supplier-card:hover {
     border-color: var(--border-hover);
     box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.08), 0 4px 12px rgba(0, 0, 0, 0.15);
   }
-  .workflow-card__header {
+  .supplier-card__header {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; padding-bottom: 8px;
+    gap: 12px; padding-bottom: 10px;
     border-bottom: 1px dashed rgba(255,255,255,0.08);
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
-  .workflow-card__supplier { display: flex; align-items: center; gap: 10px; }
-  .workflow-card__logo {
+  .supplier-card__supplier { display: flex; align-items: center; gap: 10px; }
+  .supplier-card__logo {
     width: 32px; height: 32px; border-radius: 6px; object-fit: contain;
     background: rgba(255,255,255,0.05); padding: 2px;
   }
-  .workflow-card__initials {
+  .supplier-card__initials {
     width: 32px; height: 32px; border-radius: 6px;
     display: flex; align-items: center; justify-content: center;
     background: rgba(136,105,225,0.15); color: var(--primary, #8869e1);
     font-size: 12px; font-weight: 700;
   }
-  .workflow-card__supplier-name {
+  .supplier-card__supplier-name {
     font-weight: 600; font-size: 14px; color: var(--text, #E6EAF2);
   }
-  .workflow-card__count {
+  .supplier-card__count {
     font-size: 11px; font-weight: 600;
     color: var(--text-muted, #94A3B8); text-transform: uppercase; letter-spacing: 0.04em;
     background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 1rem;
     border: 1px solid rgba(255,255,255,0.08);
   }
+  .supplier-card__section { margin-bottom: 8px; }
+  .supplier-card__section:last-child { margin-bottom: 0; }
+  .supplier-card__section-label {
+    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted, #94A3B8);
+    margin: 4px 4px 6px;
+  }
   .workflow-arrow {
     text-align: center; color: var(--text-muted, #94A3B8);
     font-size: 14px; padding: 2px 0; user-select: none;
   }
-  .doc-row--in-workflow {
-    margin-bottom: 0 !important;
-    background: var(--bg-base, #0F1115) !important;
+
+  /* Cross-supplier link chip in a doc row */
+  .doc-cross-link {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid; border-radius: 999px;
+    padding: 2px 8px; font-size: 10px; font-weight: 600;
+    cursor: pointer; white-space: nowrap;
+  }
+  .doc-cross-link:hover { background: rgba(255,255,255,0.08); }
+
+  /* Link manager dialog */
+  .link-manager__doc {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; background: rgba(255,255,255,0.04);
+    border-radius: 6px; margin-bottom: 12px;
+  }
+  .link-manager__title { font-weight: 600; color: var(--text, #E6EAF2); }
+  .link-manager__section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    color: var(--text-muted, #94A3B8); margin-bottom: 6px;
+  }
+  .link-manager__list { display: flex; flex-direction: column; gap: 6px; }
+  .link-manager__item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; background: var(--bg-base, #0F1115);
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+    border-radius: 6px;
+  }
+  .link-manager__type-tag {
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    color: var(--text-muted, #94A3B8);
+    background: rgba(255,255,255,0.04);
+    padding: 2px 6px; border-radius: 4px; white-space: nowrap;
+  }
+  .link-manager__other-title {
+    flex: 1; color: var(--text, #E6EAF2); font-size: 13px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
   /* ── Document rows ──────────────────────────────────────── */

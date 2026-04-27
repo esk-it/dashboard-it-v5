@@ -4,6 +4,12 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.1 — Documents : présentation unifiée + gestion liens dédiée
+
+- **Cohérence visuelle** : tous les documents sont maintenant dans des cartes de prestataire (une carte = un fournisseur). Plus de différence visuelle entre docs liés et docs seuls. À l'intérieur d'une carte : section "Workflow" pour les chaînes (Devis → BPA → Facture), section "Documents seuls" pour le reste, séparées si les deux coexistent.
+- **Gestion des liens repensée** : la chain-bar dans l'expanded view est supprimée (redondante avec le visuel de la carte). Nouveau bouton **🔗** dans les actions de chaque doc → dialog "Liens du document" avec liste des liens existants (× pour retirer) et bouton "+ Lier à un autre document".
+- **Click-outside ferme l'expand** : cliquer en dehors d'un document referme la zone détaillée. Re-cliquer le même doc le referme aussi.
+
 ## v6.7.0 — Documents : workflow cards (regroupement par chaîne)
 
 - Les documents liés entre eux (Devis ↔ BPA ↔ Facture pour un même achat) sont maintenant **regroupés visuellement** dans une carte unique avec logo prestataire, nom et compteur. Lecture chronologique top-to-bottom, flèche entre chaque document.
