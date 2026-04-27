@@ -57,6 +57,8 @@ def _row_to_document(r) -> dict:
         "file_hash": r[8] or "",
         "notes": r[9] or "",
         "created_at": r[10] or "",
+        # Optional CSV of tag names (present on list endpoint, empty otherwise)
+        "tags": r[11] if len(r) > 11 and r[11] else "",
     }
 
 
@@ -218,8 +220,32 @@ async def upload_document(
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (title, doc_type, supplier_id, doc_date, reference, rel_path, sha, notes, now),
     )
+    new_doc_id = cursor.lastrowid
+    # Persist tags from the comma-separated string. The upload endpoint accepted them
+    # but never wrote them to document_tags before — this is the missing link.
+    if tags:
+        await _attach_tags_by_name(db, new_doc_id, tags, now)
     await db.commit()
-    return await _fetch_document_response(db, cursor.lastrowid)
+    return await _fetch_document_response(db, new_doc_id)
+
+
+async def _attach_tags_by_name(db, doc_id: int, tags_str: str, now: str) -> None:
+    """Split a comma-separated tag string, ensure each tag exists in `tags`, and link
+    them to the doc via `document_tags`. No-op for blank input."""
+    names = [t.strip() for t in (tags_str or "").split(",") if t.strip()]
+    for name in names:
+        rows = await db.execute_fetchall("SELECT id FROM tags WHERE name = ?", (name,))
+        if rows:
+            tag_id = rows[0][0]
+        else:
+            cur = await db.execute(
+                "INSERT INTO tags (name, created_at) VALUES (?, ?)", (name, now),
+            )
+            tag_id = cur.lastrowid
+        await db.execute(
+            "INSERT OR IGNORE INTO document_tags (document_id, tag_id) VALUES (?, ?)",
+            (doc_id, tag_id),
+        )
 
 
 @router.post("/upload-folder", status_code=201)
@@ -269,7 +295,10 @@ async def upload_folder(
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (file_title, file_doc_type, supplier_id, file_date, "", rel_path, sha, "", now),
         )
-        created.append(cursor.lastrowid)
+        new_id = cursor.lastrowid
+        if tags:
+            await _attach_tags_by_name(db, new_id, tags, now)
+        created.append(new_id)
 
     await db.commit()
     return {"created": len(created), "skipped": skipped, "ids": created}
@@ -295,7 +324,11 @@ async def list_documents(
                       COALESCE(s.name,'') as supplier_name,
                       d.doc_date, COALESCE(d.reference,''),
                       COALESCE(d.file_path,''), COALESCE(d.file_hash,''),
-                      COALESCE(d.notes,''), COALESCE(d.created_at,'')
+                      COALESCE(d.notes,''), COALESCE(d.created_at,''),
+                      COALESCE(
+                        (SELECT GROUP_CONCAT(t.name, ', ')
+                         FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
+                         WHERE dt.document_id = d.id), '') AS tags_csv
                FROM documents d
                LEFT JOIN suppliers s ON d.supplier_id = s.id
                WHERE 1=1"""
@@ -571,7 +604,11 @@ async def _fetch_document_response(db, doc_id: int) -> DocumentResponse:
                   COALESCE(s.name,'') as supplier_name,
                   d.doc_date, COALESCE(d.reference,''),
                   COALESCE(d.file_path,''), COALESCE(d.file_hash,''),
-                  COALESCE(d.notes,''), COALESCE(d.created_at,'')
+                  COALESCE(d.notes,''), COALESCE(d.created_at,''),
+                  COALESCE(
+                    (SELECT GROUP_CONCAT(t.name, ', ')
+                     FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
+                     WHERE dt.document_id = d.id), '') AS tags_csv
            FROM documents d
            LEFT JOIN suppliers s ON d.supplier_id = s.id
            WHERE d.id = ?""",

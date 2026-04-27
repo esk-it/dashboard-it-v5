@@ -4,6 +4,13 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.3 — Documents : tags fonctionnels + auto-réf élargie + UI cleanup
+
+- **Tags persistés à l'import** : le bug était côté backend, le champ `tags` était reçu mais jamais inséré dans `document_tags`. Maintenant chaque tag est créé (s'il n'existe pas) puis lié au document. La liste `GET /api/documents` renvoie aussi les tags en CSV pour qu'ils soient utilisables côté UI (filtre + affichage).
+- **Auto-détection de référence assouplie** : avant, seul `[A-Z]{2,5}-\d{4}-\d{3,5}` matchait. Maintenant on score chaque token sur le nombre de chiffres, on ignore les années (`20xx`) et les pures lettres, et on extrait le plus probable (ex: `F16347`, `S02313`, `16122`). Le pattern strict reste prioritaire si présent.
+- **Cohérence visuelle des lignes** : chaque ligne en mode liste plate affiche maintenant un badge prestataire compact (logo + nom) à côté du type. Plus de différence entre les lignes selon qu'elles sont seules ou liées.
+- **Toolbar nettoyée** : suppression du bouton "Nouveau" (création sans fichier) et "Importer un dossier" (peu utilisé) → ne reste qu'un bouton "Importer". Les filtres et la recherche tiennent maintenant sur une seule ligne.
+
 ## v6.7.2 — Documents : liste plate par défaut + toggle vue prestataire
 
 À 4-5 docs la vue par cartes prestataires de v6.7.1 était jolie ; à 100+ docs ça devenait un mur. Nouvelle approche pensée pour scaler :

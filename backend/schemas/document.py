@@ -32,6 +32,7 @@ class DocumentResponse(BaseModel):
     file_hash: str
     notes: str
     created_at: str
+    tags: str = ""  # CSV string of tag names — present on the list endpoint, used by the UI for filter + display
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -447,11 +447,26 @@
       }
     }
 
-    // Try detect reference
-    const refMatch = filename.match(/([A-Z]{2,5}[-_]\d{4}[-_]\d{3,5})/i);
-    if (refMatch) {
-      result.reference = refMatch[1];
+    // Try detect reference. Real-world filenames don't always follow
+    // "PREFIX-YYYY-NNN"; we score tokens and pick the digit-heaviest one,
+    // skipping plain years and pure-letter words.
+    const tokens = nameWithoutExt.split(/[\s_]+/).filter(Boolean);
+    let bestRef = null;
+    let bestScore = -1;
+    for (const t of tokens) {
+      const digits = (t.match(/\d/g) || []).length;
+      if (digits < 3) continue;                              // not enough digits to be a ref
+      if (/^20\d{2}$/.test(t)) continue;                     // looks like a year
+      if (/^\d{2}$/.test(t)) continue;                       // 2 digits only
+      // Prefer tokens that mix letters + digits (more likely a real ref like F16347)
+      const hasLetter = /[A-Za-z]/.test(t);
+      const score = digits + (hasLetter ? 2 : 0);
+      if (score > bestScore) { bestScore = score; bestRef = t; }
     }
+    // Stricter pattern as a fallback / preferred form: PREFIX-YYYY-NNN
+    const formal = filename.match(/([A-Z]{2,5}[-_]\d{4}[-_]\d{3,5})/i);
+    if (formal) result.reference = formal[1];
+    else if (bestRef) result.reference = bestRef;
 
     return result;
   }
@@ -873,30 +888,26 @@
   </div>
 
   <!-- ── Action bar ─────────────────────────────────────── -->
-  <div class="ya-toolbar">
+  <!-- Single action: Importer un fichier (drag & drop also works). The previous
+       "Nouveau" + "Importer un dossier" buttons were redundant for the actual flow. -->
+  <div class="ya-toolbar ya-toolbar--single">
     <div class="toolbar-left">
-      <button class="ya-btn ya-btn--primary" on:click={openCreateDialog}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align: -2px; margin-right: 4px">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Nouveau
-      </button>
-      <button class="ya-btn ya-btn--ghost" on:click={triggerFileInput}>
+      <button class="ya-btn ya-btn--primary" on:click={triggerFileInput}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/>
           <line x1="12" y1="3" x2="12" y2="15"/>
         </svg>
-        Importer un fichier
-      </button>
-      <button class="ya-btn ya-btn--ghost" on:click={triggerFolderInput}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-        Importer un dossier
+        Importer
       </button>
     </div>
     <div class="toolbar-right">
+      <div class="ya-toolbar__search">
+        <svg class="search-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
+      </div>
       <select class="filter-select" bind:value={filterType}>
         <option value="">— Tous types —</option>
         {#each docTypes as t}
@@ -915,12 +926,6 @@
           <option value={s}>{s}</option>
         {/each}
       </select>
-      <div class="ya-toolbar__search">
-        <svg class="search-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
-      </div>
       <button class="view-toggle" on:click={() => groupBySupplier = !groupBySupplier}
               title="{groupBySupplier ? 'Repasser en liste plate' : 'Grouper par prestataire'}">
         {#if groupBySupplier}
@@ -970,8 +975,25 @@
                     style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40">
                 {getTypeStyle(doc.doc_type).label || doc.doc_type}
               </span>
+              <!-- Supplier identity (logo + name) — kept compact so a row stays single-line.
+                   Hidden when the row is inside the supplier-card view (already in the header). -->
+              {#if !groupBySupplier && (doc.supplier_id || doc.supplier_name || doc.supplier)}
+                <span class="doc-supplier-cell">
+                  {#if doc.supplier_id && !supplierLogoErrors[doc.supplier_id]}
+                    <img class="doc-supplier-cell__logo"
+                         src="{API_BASE}/api/suppliers/{doc.supplier_id}/logo" alt=""
+                         on:error={() => { supplierLogoErrors[doc.supplier_id] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                  {:else}
+                    <span class="doc-supplier-cell__initials">{supplierInitials(doc.supplier_name || doc.supplier || '?')}</span>
+                  {/if}
+                  <span class="doc-supplier-cell__name">{doc.supplier_name || doc.supplier}</span>
+                </span>
+              {/if}
               <div class="doc-title-group">
                 <span class="doc-title">{doc.title}</span>
+                {#if doc.tags}
+                  <span class="doc-tags-inline">{doc.tags}</span>
+                {/if}
               </div>
               {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
               {#if doc.reference}<span class="doc-ref">#{doc.reference}</span>{/if}
@@ -1748,6 +1770,35 @@
     overflow-y: auto;
     max-height: calc(100vh - 240px);
     padding-right: 4px;
+  }
+
+  /* Supplier identity inside a doc row (compact, kept on a single line) */
+  .doc-supplier-cell {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 2px 8px 2px 4px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+  .doc-supplier-cell__logo {
+    width: 18px; height: 18px; border-radius: 4px; object-fit: contain;
+    background: rgba(255,255,255,0.05);
+  }
+  .doc-supplier-cell__initials {
+    width: 18px; height: 18px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(136,105,225,0.15); color: var(--primary, #8869e1);
+    font-size: 9px; font-weight: 700;
+  }
+  .doc-supplier-cell__name {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-secondary, #C0C8D6); white-space: nowrap;
+    max-width: 140px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .doc-tags-inline {
+    font-size: 10px; color: var(--text-muted, #94A3B8);
+    font-style: italic; margin-top: 2px;
   }
 
   /* View toggle button in the toolbar */
