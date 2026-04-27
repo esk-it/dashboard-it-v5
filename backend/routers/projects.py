@@ -549,31 +549,31 @@ async def link_document(project_id: int, body: dict = Body(...), db=Depends(get_
     amount = float(body.get("amount", 0))
     amount_accepted = float(body.get("amount_accepted", 0))
     doc_status = body.get("status", "")
+
+    # Insert the link first; if it already exists, that's fine — we'll update amounts.
+    existing = await db.execute_fetchall(
+        "SELECT 1 FROM project_documents WHERE project_id=? AND document_id=?",
+        (project_id, int(doc_id)),
+    )
     try:
-        # Basic insert first (compatible with any schema)
-        await db.execute(
-            "INSERT INTO project_documents (project_id, document_id) VALUES (?,?)",
-            (project_id, int(doc_id)),
-        )
-        # Then update amounts if columns exist
+        if not existing:
+            await db.execute(
+                "INSERT INTO project_documents (project_id, document_id) VALUES (?,?)",
+                (project_id, int(doc_id)),
+            )
+        # Update amount columns; older databases without these columns will raise here.
         try:
             await db.execute(
                 "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
                 (amount, amount_accepted, doc_status, project_id, int(doc_id)),
             )
-        except Exception:
-            pass  # Columns may not exist yet
+        except Exception as e:
+            # Migration ran but columns are missing — log so we can investigate; the link itself is OK.
+            logger.warning(f"Could not write amounts on project_documents (project={project_id} doc={doc_id}): {e}")
         await db.commit()
-    except Exception:
-        # Already linked — try updating amounts
-        try:
-            await db.execute(
-                "UPDATE project_documents SET amount=?, amount_accepted=?, status=? WHERE project_id=? AND document_id=?",
-                (amount, amount_accepted, doc_status, project_id, int(doc_id)),
-            )
-            await db.commit()
-        except Exception:
-            pass
+    except Exception as e:
+        logger.exception(f"link_document failed for project={project_id} doc={doc_id}")
+        raise HTTPException(500, f"Erreur liaison document: {e}")
     return {"ok": True}
 
 
@@ -588,7 +588,8 @@ async def update_document_link(project_id: int, document_id: int, body: dict = B
         )
         await db.commit()
     except Exception as e:
-        logger.warning(f"Failed to update doc link: {e}")
+        logger.exception("update_document_link failed")
+        raise HTTPException(500, f"Erreur mise a jour du lien: {e}")
     return {"ok": True}
 
 

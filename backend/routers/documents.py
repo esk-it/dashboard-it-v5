@@ -361,8 +361,10 @@ async def get_document(doc_id: int, db=Depends(get_raw_db)):
             (doc_id,),
         )
         linked_projects = [{"id": r[0], "title": r[1], "color": r[2]} for r in proj_rows]
-    except Exception:
-        pass
+    except Exception as e:
+        # Don't 500 the document detail just because project links can't be resolved,
+        # but log so we can spot a real schema/permission problem.
+        logger.warning(f"could not fetch linked projects for doc {doc_id}: {e}")
 
     result = DocumentDetailResponse(**doc, tags=tags, links=links)
     # Add projects as extra field (not in Pydantic model, use dict)

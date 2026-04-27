@@ -312,6 +312,182 @@
     } catch (e) { toastError('Erreur: ' + e.message); }
   }
 
+  // Highlight a task in the list when clicking its dependency chip — saves
+  // hunting through long lists to figure out what "Tâche A" is.
+  function jumpToTask(taskId) {
+    const el = document.getElementById(`task-item-${taskId}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    el.classList.add('task-item--flash');
+    setTimeout(() => el.classList.remove('task-item--flash'), 1500);
+  }
+
+  // ── PDF export ─────────────────────────────────────────────
+  // One-shot project report: header, budget, Gantt screenshot, tasks, suppliers,
+  // documents, journal. Useful for sharing a project status or archiving.
+  let ganttCardEl;
+  let exportingPdf = false;
+
+  async function exportProjectPdf() {
+    if (!selectedProject || exportingPdf) return;
+    exportingPdf = true;
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      await import('jspdf-autotable');
+      const doc = new jsPDF();
+
+      const p = selectedProject;
+      const today = new Date().toLocaleDateString('fr-FR');
+
+      // Header
+      doc.setFontSize(18);
+      doc.text(p.title, 14, 18);
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      doc.text(`Exporte le ${today} \u2014 Statut : ${statusInfo(p.status).label}`, 14, 25);
+      if (p.start_date || p.end_date) {
+        doc.text(`Periode : ${p.start_date ? formatDate(p.start_date) : '...'} \u2192 ${p.end_date ? formatDate(p.end_date) : '...'}`, 14, 31);
+      }
+      doc.setTextColor(0);
+      let y = 38;
+
+      // Description
+      if (p.description) {
+        doc.setFontSize(10);
+        const desc = doc.splitTextToSize(p.description, 180);
+        doc.text(desc, 14, y);
+        y += desc.length * 5 + 4;
+      }
+
+      // Budget summary
+      if (budgetPrevu > 0 || budgetEngage > 0 || budgetFacture > 0) {
+        doc.setFontSize(12); doc.setTextColor(60);
+        doc.text('Budget', 14, y); y += 6;
+        doc.setFontSize(9); doc.setTextColor(0);
+        const lines = [];
+        if (budgetPrevu > 0) lines.push(`Prevu : ${budgetPrevu.toLocaleString('fr-FR')} EUR`);
+        lines.push(`Engage : ${budgetEngage.toLocaleString('fr-FR')} EUR`);
+        lines.push(`Facture : ${budgetFacture.toLocaleString('fr-FR')} EUR`);
+        if (budgetPrevu > 0) {
+          const pct = Math.round(budgetConsomme / budgetPrevu * 100);
+          lines.push(`Consomme : ${budgetConsomme.toLocaleString('fr-FR')} EUR (${pct}%${budgetConsomme > budgetPrevu ? ' \u2014 DEPASSEMENT' : ''})`);
+        }
+        for (const l of lines) { doc.text(l, 14, y); y += 5; }
+        y += 3;
+      }
+
+      // Gantt as image (best effort — skip silently if html2canvas fails)
+      if (ganttCardEl) {
+        try {
+          const { default: html2canvas } = await import('html2canvas');
+          const canvas = await html2canvas(ganttCardEl, { scale: 1.5, backgroundColor: '#ffffff' });
+          const imgData = canvas.toDataURL('image/png');
+          const pageW = doc.internal.pageSize.getWidth() - 28;
+          const ratio = canvas.height / canvas.width;
+          const imgH = pageW * ratio;
+          if (y + imgH > 270) { doc.addPage(); y = 18; }
+          doc.setFontSize(12); doc.setTextColor(60);
+          doc.text('Diagramme de Gantt', 14, y); y += 6;
+          doc.setTextColor(0);
+          doc.addImage(imgData, 'PNG', 14, y, pageW, imgH);
+          y += imgH + 6;
+        } catch (e) {
+          console.warn('Gantt capture failed:', e);
+        }
+      }
+
+      // Tasks table
+      if (p.tasks && p.tasks.length > 0) {
+        if (y > 240) { doc.addPage(); y = 18; }
+        doc.setFontSize(12); doc.setTextColor(60);
+        doc.text(`Taches (${p.tasks.length})`, 14, y); y += 4;
+        doc.setTextColor(0);
+        const head = [['#', 'Titre', 'Debut', 'Echeance', 'Priorite', 'Statut']];
+        const body = p.tasks.map((t, i) => [
+          String(i + 1),
+          (t.is_milestone ? '\u25C6 ' : '') + t.title,
+          t.start_date ? formatDate(t.start_date) : '\u2014',
+          t.due_date ? formatDate(t.due_date) : '\u2014',
+          t.priority === 3 ? 'Haute' : t.priority === 1 ? 'Basse' : 'Normale',
+          t.done ? 'Terminee' : (t.blocked ? 'Bloquee' : 'A faire'),
+        ]);
+        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [136, 105, 225] } });
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      // Suppliers
+      if (p.suppliers && p.suppliers.length > 0) {
+        if (y > 250) { doc.addPage(); y = 18; }
+        doc.setFontSize(12); doc.setTextColor(60);
+        doc.text(`Prestataires (${p.suppliers.length})`, 14, y); y += 4;
+        doc.setTextColor(0);
+        const head = [['Nom', 'Contact', 'Telephone', 'Email']];
+        const body = p.suppliers.map(s => [s.name, s.contact || '', s.phone || '', s.email || '']);
+        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [58, 155, 148] } });
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      // Documents
+      if (p.documents && p.documents.length > 0) {
+        if (y > 250) { doc.addPage(); y = 18; }
+        doc.setFontSize(12); doc.setTextColor(60);
+        doc.text(`Documents (${p.documents.length})`, 14, y); y += 4;
+        doc.setTextColor(0);
+        const head = [['Titre', 'Type', 'Montant', 'Valide', 'Statut']];
+        const body = p.documents.map(d => [
+          d.title,
+          d.doc_type || '',
+          (d.amount || 0).toLocaleString('fr-FR') + ' EUR',
+          d.amount_accepted > 0 ? d.amount_accepted.toLocaleString('fr-FR') + ' EUR' : '\u2014',
+          d.status || '\u2014',
+        ]);
+        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [245, 158, 11] } });
+        y = doc.lastAutoTable.finalY + 6;
+      }
+
+      // Notes (journal)
+      if (p.notes && p.notes.length > 0) {
+        if (y > 240) { doc.addPage(); y = 18; }
+        doc.setFontSize(12); doc.setTextColor(60);
+        doc.text(`Journal (${p.notes.length})`, 14, y); y += 6;
+        doc.setFontSize(9); doc.setTextColor(0);
+        for (const n of p.notes) {
+          if (y > 270) { doc.addPage(); y = 18; }
+          doc.setTextColor(120);
+          doc.text(formatDate(n.created_at), 14, y);
+          doc.setTextColor(0);
+          const lines = doc.splitTextToSize(n.content, 170);
+          doc.text(lines, 35, y);
+          y += Math.max(5, lines.length * 4) + 2;
+        }
+      }
+
+      // Save via Tauri dialog when available, fall back to browser download
+      const filename = `projet_${(p.title || 'export').replace(/[^a-z0-9]+/gi, '_').toLowerCase()}_${new Date().toISOString().slice(0,10)}.pdf`;
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { documentDir, join } = await import('@tauri-apps/api/path');
+        const docsDir = await documentDir();
+        const path = await save({
+          defaultPath: await join(docsDir, filename),
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        });
+        if (path) {
+          const { writeFile } = await import('@tauri-apps/plugin-fs');
+          await writeFile(path, new Uint8Array(doc.output('arraybuffer')));
+          success(`PDF enregistre : ${path.split(/[\\/]/).pop()}`);
+        }
+      } catch {
+        doc.save(filename);
+        success('PDF exporte');
+      }
+    } catch (e) {
+      console.error('PDF export failed:', e);
+      toastError('Erreur export PDF : ' + (e.message || ''));
+    }
+    exportingPdf = false;
+  }
+
   // ── Documents ──
   let docLinkForm = { document_id: null, amount: 0, amount_accepted: 0, status: '' };
   let showDocAmountDialog = false;
@@ -341,14 +517,14 @@
         amount: doc.amount, amount_accepted: doc.amount_accepted, status: doc.status,
       });
       success('Montant mis a jour');
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + (e.message || '')); }
   }
 
   async function unlinkDocument(docId) {
     try {
       await api.delete(`/api/projects/${selectedProject.id}/documents/${docId}`);
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + (e.message || '')); }
   }
 
   // ── Suppliers ──
@@ -369,7 +545,7 @@
     try {
       await api.delete(`/api/projects/${selectedProject.id}/suppliers/${supId}`);
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + (e.message || '')); }
   }
 
   // ── Notes ──
@@ -379,14 +555,14 @@
       await api.post(`/api/projects/${selectedProject.id}/notes`, { content: noteText });
       noteText = '';
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + (e.message || '')); }
   }
 
   async function deleteNote(noteId) {
     try {
       await api.delete(`/api/projects/${selectedProject.id}/notes/${noteId}`);
       await openProject(selectedProject);
-    } catch {}
+    } catch (e) { toastError('Erreur: ' + (e.message || '')); }
   }
 
   // ── Gantt helpers ──
@@ -572,6 +748,117 @@
   $: gd = selectedProject ? ganttData(selectedProject, ganttZoom) : { tasks: [], months: [], weeks: [], startMs: 0, totalMs: 1, hiddenCount: 0 };
   $: arrows = computeArrows(gd.tasks, ganttBodyWidth, gd.startMs, gd.totalMs);
 
+  // ── Drag-to-edit on Gantt ──
+  // Press a bar to move it (shift both start_date and due_date by the same number of days),
+  // or grab the right edge (last 8px) to resize the due_date.
+  let dragState = null; // { taskId, mode: 'move'|'resize', startX, origStart, origEnd, deltaDays }
+
+  function pixelsPerDay(bodyWidth, totalMs) {
+    if (!bodyWidth || !totalMs) return 0;
+    const barAreaPx = bodyWidth - GANTT_NAME_W;
+    return barAreaPx / (totalMs / 86400000);
+  }
+
+  function isoFromMs(ms) {
+    const d = new Date(ms);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  function onGanttBarDown(e, task) {
+    if (e.button !== 0) return;
+    if (!task.start_date && !task.due_date) return;
+    const bar = e.currentTarget;
+    const rect = bar.getBoundingClientRect();
+    const localX = e.clientX - rect.left;
+    const isResize = task.due_date && (rect.width - localX) <= 8;
+    // Milestones / tasks without due_date: only allow move
+    const mode = isResize ? 'resize' : 'move';
+
+    dragState = {
+      taskId: task.id,
+      mode,
+      startX: e.clientX,
+      origStartMs: taskStartMs(task),
+      origEndMs: taskEndMs(task),
+      origStart: task.start_date,
+      origDue: task.due_date,
+      deltaDays: 0,
+    };
+    e.preventDefault();
+    window.addEventListener('mousemove', onGanttDragMove);
+    window.addEventListener('mouseup', onGanttDragUp);
+    document.body.style.cursor = mode === 'resize' ? 'ew-resize' : 'grabbing';
+  }
+
+  function onGanttDragMove(e) {
+    if (!dragState) return;
+    const ppd = pixelsPerDay(ganttBodyWidth, gd.totalMs);
+    if (!ppd) return;
+    const dx = e.clientX - dragState.startX;
+    dragState.deltaDays = Math.round(dx / ppd);
+  }
+
+  async function onGanttDragUp() {
+    window.removeEventListener('mousemove', onGanttDragMove);
+    window.removeEventListener('mouseup', onGanttDragUp);
+    document.body.style.cursor = '';
+    const ds = dragState;
+    dragState = null;
+    if (!ds || ds.deltaDays === 0) return;
+
+    const task = (selectedProject.tasks || []).find(t => t.id === ds.taskId);
+    if (!task) return;
+
+    let newStart = ds.origStart;
+    let newDue = ds.origDue;
+    const shiftMs = ds.deltaDays * 86400000;
+    if (ds.mode === 'move') {
+      if (ds.origStart) newStart = isoFromMs(dayMs(ds.origStart) + shiftMs);
+      if (ds.origDue) newDue = isoFromMs(dayMs(ds.origDue) + shiftMs);
+    } else {
+      // resize: only the due_date moves
+      if (ds.origDue) {
+        const newDueMs = dayMs(ds.origDue) + shiftMs;
+        const minMs = ds.origStart ? dayMs(ds.origStart) : null;
+        if (minMs !== null && newDueMs < minMs) {
+          // Don't let the due_date drop before the start_date
+          return;
+        }
+        newDue = isoFromMs(newDueMs);
+      }
+    }
+
+    try {
+      await api.put(`/api/tasks/${task.id}`, {
+        title: task.title,
+        category: task.category || '',
+        priority: task.priority,
+        due_date: newDue || null,
+        start_date: newStart || null,
+        notes: task.notes || '',
+        site: task.site || '',
+        recurrence: task.recurrence || '',
+        is_milestone: !!task.is_milestone,
+      });
+      await openProject(selectedProject);
+    } catch (e) {
+      toastError('Erreur: ' + (e.message || ''));
+    }
+  }
+
+  // Visual offset applied while dragging (in % of bar-area width).
+  // Reactive — updates as deltaDays changes during drag.
+  $: dragOffsetPct = (() => {
+    if (!dragState || !ganttBodyWidth || !gd.totalMs) return 0;
+    const ppd = pixelsPerDay(ganttBodyWidth, gd.totalMs);
+    const dxPx = dragState.deltaDays * ppd;
+    const barAreaPx = ganttBodyWidth - GANTT_NAME_W;
+    return (dxPx / barAreaPx) * 100;
+  })();
+
   function computeArrows(tasks, bodyWidth, startMs, totalMs) {
     if (!bodyWidth || bodyWidth <= GANTT_NAME_W + 20 || !tasks?.length) return [];
     const barAreaW = bodyWidth - GANTT_NAME_W;
@@ -711,6 +998,9 @@
   <div class="detail-header">
     <button class="ya-btn ya-btn--ghost" on:click={backToList}>← Retour</button>
     <div style="display:flex;gap:0.5rem">
+      <button class="ya-btn ya-btn--ghost" on:click={exportProjectPdf} disabled={exportingPdf} title="Exporter le projet en PDF">
+        {exportingPdf ? '...' : '📄 PDF'}
+      </button>
       <button class="ya-btn ya-btn--ghost" on:click={duplicateProject} disabled={duplicating} title="Créer un nouveau projet à partir de celui-ci">
         {duplicating ? '...' : 'Dupliquer'}
       </button>
@@ -795,7 +1085,7 @@
       </div>
     {/if}
     {#if gd.months.length > 0}
-      <div class="section-card gantt-card">
+      <div class="section-card gantt-card" bind:this={ganttCardEl}>
         <div class="gantt-header">
           <h3 class="section-title" style="margin:0">Diagramme de Gantt</h3>
           <div class="gantt-zoom">
@@ -851,18 +1141,27 @@
                     {@const color = STATUS_COLORS[status]}
                     {@const pct = taskProgress(task)}
                     {@const blocked = task.blocked && !task.done}
+                    {@const isDragging = dragState?.taskId === task.id}
+                    {@const baseStyle = ganttBarStyle(task, gd.startMs, gd.totalMs)}
                     {#if task.is_milestone}
                       <!-- Milestone: diamond shape at the due_date (or start_date fallback) position -->
                       {@const mkMs = taskEndMs(task) ?? taskStartMs(task)}
                       {@const mkPct = mkMs !== null ? Math.max(0, Math.min(100, ((mkMs - gd.startMs) / gd.totalMs) * 100)) : 0}
+                      {@const mkOffset = isDragging ? dragOffsetPct : 0}
                       <div class="gantt-milestone" class:gantt-milestone--done={task.done}
-                           style="left:{mkPct}%;background:{color};border-color:{color}"
+                           class:gantt-bar--dragging={isDragging}
+                           style="left:calc({mkPct}% + {mkOffset}%);background:{color};border-color:{color}"
+                           on:mousedown={(e) => onGanttBarDown(e, task)}
                            title="{task.title} — Jalon {ganttBarDates(task)}{blocked ? ' — Bloquee' : ''}"></div>
                     {:else}
+                      {@const dragLeft = isDragging && dragState.mode === 'move' ? dragOffsetPct : 0}
+                      {@const dragWidth = isDragging && dragState.mode === 'resize' ? dragOffsetPct : 0}
                       <div class="gantt-bar gantt-bar--{status}" class:gantt-bar--blocked={blocked}
-                           style="{ganttBarStyle(task, gd.startMs, gd.totalMs)};background:{color}22;border-color:{color}"
+                           class:gantt-bar--dragging={isDragging}
+                           style="{baseStyle.replace(/left:([0-9.]+)%/, (m, v) => `left:calc(${v}% + ${dragLeft}%)`).replace(/width:([0-9.]+)%/, (m, v) => `width:calc(${v}% + ${dragWidth}%)`)};background:{color}22;border-color:{color}"
                            data-task-id={task.id}
-                           title="{task.title} — {ganttBarDates(task)}{pct !== null ? ` — ${pct}%` : ''}{task.checklist_total > 0 ? ` (${task.checklist_done}/${task.checklist_total})` : ''}{blocked ? ' — Bloquee' : ''}">
+                           on:mousedown={(e) => onGanttBarDown(e, task)}
+                           title="{task.title} — {ganttBarDates(task)}{pct !== null ? ` — ${pct}%` : ''}{task.checklist_total > 0 ? ` (${task.checklist_done}/${task.checklist_total})` : ''}{blocked ? ' — Bloquee' : ''} — Glisser pour deplacer, bord droit pour redimensionner">
                         {#if pct !== null && pct > 0 && !task.done}
                           <div class="gantt-bar-fill" style="width:{pct}%;background:{color}"></div>
                         {/if}
@@ -871,8 +1170,12 @@
                         {/if}
                         <span class="gantt-bar-text" style="color:{task.done || (pct !== null && pct >= 50) ? '#fff' : color}">
                           {#if blocked}{'\u{1F512} '}{/if}{#if task.done}{'\u2713 '}{/if}
-                          {#if pct !== null}{pct}%{:else}{ganttBarDates(task)}{/if}
+                          {#if isDragging && dragState.deltaDays !== 0}
+                            {dragState.deltaDays > 0 ? '+' : ''}{dragState.deltaDays}j
+                          {:else if pct !== null}{pct}%{:else}{ganttBarDates(task)}{/if}
                         </span>
+                        <!-- Resize handle on the right edge (visual hint) -->
+                        <div class="gantt-bar-resize-handle"></div>
                       </div>
                     {/if}
                   {/if}
@@ -915,7 +1218,7 @@
       {#if selectedProject.tasks?.length > 0}
         <div class="task-list">
           {#each selectedProject.tasks as task}
-            <div class="task-item" class:task-item--blocked={task.blocked && !task.done}>
+            <div class="task-item" id="task-item-{task.id}" class:task-item--blocked={task.blocked && !task.done}>
               <div class="task-check" class:done={task.done} on:click={() => toggleTask(task)}></div>
               <div class="task-main">
                 <div class="task-title-row">
@@ -929,9 +1232,10 @@
                   <div class="task-deps-inline">
                     <span class="task-deps-inline__label">Depend de :</span>
                     {#each task.dependencies as d, i}
-                      <span class="task-deps-inline__chip" class:task-deps-inline__chip--done={d.done}>
+                      <button type="button" class="task-deps-inline__chip" class:task-deps-inline__chip--done={d.done}
+                              on:click={() => jumpToTask(d.id)} title="Aller à cette tâche">
                         {d.done ? '\u2713 ' : ''}{d.title}
-                      </span>
+                      </button>
                     {/each}
                   </div>
                 {/if}
@@ -1606,8 +1910,24 @@
   .gantt-bar {
     position: absolute; height: 16px; top: 3px; border-radius: 4px;
     transition: width 0.3s ease; display: flex; align-items: center; padding: 0 4px;
-    overflow: hidden; cursor: default; border: 1.5px solid;
+    overflow: hidden; cursor: grab; border: 1.5px solid;
+    user-select: none;
   }
+  .gantt-bar:active { cursor: grabbing; }
+  .gantt-bar--dragging {
+    transition: none !important; opacity: 0.85;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    z-index: 4;
+  }
+  .gantt-bar-resize-handle {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 8px;
+    cursor: ew-resize;
+  }
+  .gantt-bar-resize-handle:hover {
+    background: rgba(255,255,255,0.25);
+  }
+  .gantt-milestone { cursor: grab; }
+  .gantt-milestone:active { cursor: grabbing; }
   .gantt-bar--late { box-shadow: 0 0 0 1px rgba(239,68,68,0.35); }
   .gantt-bar--blocked { border-style: dashed !important; opacity: 0.85; }
 
@@ -1660,6 +1980,17 @@
     padding: 0.0625rem 0.375rem; border-radius: 0.25rem;
     background: rgba(148,163,184,0.12); color: var(--text-secondary);
     border: 1px solid var(--border-subtle); font-size: 0.625rem;
+    cursor: pointer; font-family: inherit;
+  }
+  .task-deps-inline__chip:hover {
+    background: rgba(136,105,225,0.15); border-color: var(--primary); color: var(--primary);
+  }
+  .task-item--flash {
+    animation: task-flash 1.5s ease-out;
+  }
+  @keyframes task-flash {
+    0%   { background: rgba(136,105,225,0.25); }
+    100% { background: transparent; }
   }
   .task-deps-inline__chip--done { background: rgba(34,197,94,0.1); color: #22C55E; border-color: rgba(34,197,94,0.25); }
 

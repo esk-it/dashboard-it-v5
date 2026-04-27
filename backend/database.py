@@ -529,8 +529,11 @@ async def _run_migrations(db):
             await db.execute("ALTER TABLE projects ADD COLUMN budget REAL NOT NULL DEFAULT 0")
             await db.execute("ALTER TABLE projects ADD COLUMN budget_spent REAL NOT NULL DEFAULT 0")
             await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        # Schema may have already been migrated by a sibling process — log so we can spot
+        # real failures (no permissions, locked DB) instead of swallowing silently.
+        import logging
+        logging.getLogger(__name__).warning(f"projects budget migration skipped: {e}")
 
     # Project document amount columns
     try:
@@ -541,8 +544,9 @@ async def _run_migrations(db):
             await db.execute("ALTER TABLE project_documents ADD COLUMN amount_accepted REAL NOT NULL DEFAULT 0")
             await db.execute("ALTER TABLE project_documents ADD COLUMN status TEXT NOT NULL DEFAULT ''")
             await db.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"project_documents amount migration skipped: {e}")
 
     # Project link on tasks + start_date for Gantt
     cursor = await db.execute("PRAGMA table_info(tasks)")
