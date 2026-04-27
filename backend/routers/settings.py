@@ -15,7 +15,7 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -441,6 +441,166 @@ async def list_backups():
             "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
         })
     return result
+
+
+@router.get("/backups/{filename}/download")
+async def download_backup(filename: str):
+    """Stream a backup ZIP for download."""
+    # Sanitize: must be one of our naming patterns + no path traversal
+    safe = Path(filename).name  # strip any directory components
+    target = BACKUP_DIR / safe
+    if not target.exists() or not target.is_file():
+        from fastapi import HTTPException
+        raise HTTPException(404, "Backup introuvable")
+    if not any(safe.startswith(p) for p in ("backup_", "auto_backup_", "pre_update_", "pre_reset_", "pre_restore_")):
+        from fastapi import HTTPException
+        raise HTTPException(400, "Nom de backup invalide")
+    return StreamingResponse(
+        target.open("rb"),
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename={safe}"},
+    )
+
+
+@router.post("/backups/{filename}/restore")
+async def restore_backup(filename: str):
+    """Restore a backup ZIP. Creates a pre_restore_*.zip safety net first,
+    then extracts the chosen backup over the current data."""
+    from fastapi import HTTPException
+    safe = Path(filename).name
+    target = BACKUP_DIR / safe
+    if not target.exists() or not target.is_file():
+        raise HTTPException(404, "Backup introuvable")
+    if not any(safe.startswith(p) for p in ("backup_", "auto_backup_", "pre_update_", "pre_reset_", "pre_restore_")):
+        raise HTTPException(400, "Nom de backup invalide")
+
+    # Safety net: snapshot current state
+    safety = _do_backup("pre_restore")
+    if not safety:
+        raise HTTPException(500, "Impossible de creer le filet de securite (pre_restore)")
+
+    try:
+        with zipfile.ZipFile(target, "r") as zf:
+            # Validate first — refuse if no DB inside
+            names = zf.namelist()
+            if "dashboard.db" not in names:
+                raise HTTPException(400, "Backup invalide: dashboard.db manquant")
+
+            # Restore the DB. It may be locked because we're using it; rename out then write new.
+            for suffix in [".db-wal", ".db-shm"]:
+                p = DB_PATH.parent / (DB_PATH.stem + suffix)
+                if p.exists():
+                    try: p.unlink()
+                    except Exception: pass
+            tmp_db = DB_PATH.with_suffix(".db.restoring")
+            zf.extract("dashboard.db", path=tmp_db.parent)
+            extracted = tmp_db.parent / "dashboard.db"
+            # Move into place atomically
+            if DB_PATH.exists():
+                DB_PATH.unlink()
+            extracted.rename(DB_PATH)
+
+            # Restore config files (best-effort — missing files in the ZIP are skipped)
+            for name, dest in [
+                ("general_settings.json", BACKEND_DIR / "data" / "general_settings.json"),
+                ("settings.json",         BACKEND_DIR / "data" / "settings.json"),
+                ("rss_feeds.json",        BACKEND_DIR / "data" / "rss_feeds.json"),
+            ]:
+                if name in names:
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(name) as src, open(dest, "wb") as out:
+                        out.write(src.read())
+
+            # Restore logos (whole subfolder)
+            logos_dir = BACKEND_DIR / "logos"
+            logos_dir.mkdir(parents=True, exist_ok=True)
+            for n in names:
+                if n.startswith("logos/") and not n.endswith("/"):
+                    logo_dest = logos_dir / Path(n).name
+                    with zf.open(n) as src, open(logo_dest, "wb") as out:
+                        out.write(src.read())
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise HTTPException(500, f"Echec de la restauration: {e}")
+
+    return {"ok": True, "restored": safe, "safety_backup": safety, "restart_recommended": True}
+
+
+@router.post("/backups/import")
+async def import_backup(file: UploadFile = File(...)):
+    """Upload an external backup ZIP into the backups folder. Restore is a
+    separate explicit step so the user can review before swapping data."""
+    if not file.filename:
+        raise HTTPException(400, "Fichier sans nom")
+    safe_name = Path(file.filename).name  # strip any path
+    if not safe_name.lower().endswith(".zip"):
+        raise HTTPException(400, "Le fichier doit etre un ZIP")
+    if not any(safe_name.startswith(p) for p in ("backup_", "auto_backup_", "pre_update_", "pre_reset_", "pre_restore_")):
+        # Normalize unknown imports under a "backup_imported_*" name
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = f"backup_imported_{ts}.zip"
+
+    dest = BACKUP_DIR / safe_name
+    if dest.exists():
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = BACKUP_DIR / f"{Path(safe_name).stem}_{ts}.zip"
+
+    content = await file.read()
+
+    # Validate it's actually a ZIP with at least dashboard.db inside before saving
+    try:
+        import io as _io
+        with zipfile.ZipFile(_io.BytesIO(content)) as zf:
+            if "dashboard.db" not in zf.namelist():
+                raise HTTPException(400, "ZIP invalide: dashboard.db manquant")
+    except zipfile.BadZipFile:
+        raise HTTPException(400, "Fichier ZIP corrompu ou invalide")
+
+    dest.write_bytes(content)
+    return {"ok": True, "filename": dest.name, "size": dest.stat().st_size}
+
+
+@router.get("/data-paths")
+async def get_data_paths():
+    """Return the resolved on-disk paths so the user can find their data outside
+    the app if needed."""
+    return {
+        "data_dir": str(BASE_DIR),
+        "database": str(DB_PATH),
+        "backups": str(BACKUP_DIR),
+        "documents": str(BASE_DIR / "data" / "documents"),
+        "logos": str(BASE_DIR / "data" / "logos"),
+    }
+
+
+@router.post("/data-paths/open")
+async def open_folder(payload: dict = Body(...)):
+    """Open a known data folder in the OS file explorer. Restricted to safe paths only."""
+    target = (payload or {}).get("target", "data_dir")
+    paths = {
+        "data_dir": BASE_DIR,
+        "backups": BACKUP_DIR,
+        "documents": BASE_DIR / "data" / "documents",
+        "logos": BASE_DIR / "data" / "logos",
+    }
+    folder = paths.get(target)
+    if folder is None:
+        raise HTTPException(400, "Cible inconnue")
+    folder.mkdir(parents=True, exist_ok=True)
+    try:
+        import platform, subprocess
+        sys_name = platform.system()
+        if sys_name == "Windows":
+            os.startfile(str(folder))  # type: ignore[attr-defined]
+        elif sys_name == "Darwin":
+            subprocess.Popen(["open", str(folder)])
+        else:
+            subprocess.Popen(["xdg-open", str(folder)])
+        return {"ok": True, "path": str(folder)}
+    except Exception as e:
+        raise HTTPException(500, f"Impossible d'ouvrir le dossier: {e}")
 
 
 @router.delete("/backups/cleanup")

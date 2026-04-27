@@ -165,6 +165,104 @@
     } catch(e) {}
   }
 
+  // ── Restore / Download / Import ──
+  let restoringName = null;
+  let importInput;
+
+  async function downloadBackup(filename) {
+    // Prefer Tauri's save dialog for a native experience
+    try {
+      const { save } = await import('@tauri-apps/plugin-dialog');
+      const { documentDir, join } = await import('@tauri-apps/api/path');
+      const docs = await documentDir();
+      const path = await save({
+        defaultPath: await join(docs, filename),
+        filters: [{ name: 'Archive ZIP', extensions: ['zip'] }],
+      });
+      if (!path) return;
+      const res = await fetch(`${API}/backups/${encodeURIComponent(filename)}/download`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const buf = new Uint8Array(await res.arrayBuffer());
+      const { writeFile } = await import('@tauri-apps/plugin-fs');
+      await writeFile(path, buf);
+      showSaved();
+    } catch (e) {
+      // Browser fallback
+      try {
+        const a = document.createElement('a');
+        a.href = `${API}/backups/${encodeURIComponent(filename)}/download`;
+        a.download = filename;
+        a.click();
+      } catch {}
+    }
+  }
+
+  async function restoreBackup(filename) {
+    const ok = window.confirm(
+      `Restaurer "${filename}" ?\n\n` +
+      "L'etat actuel sera d'abord sauvegarde dans un fichier 'pre_restore_*.zip'. " +
+      "Apres restauration, redemarrez l'application pour que les changements prennent effet."
+    );
+    if (!ok) return;
+    restoringName = filename;
+    try {
+      const res = await fetch(`${API}/backups/${encodeURIComponent(filename)}/restore`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      window.alert(
+        `Restauration terminee.\n\n` +
+        `Filet de securite cree : ${data.safety_backup}\n\n` +
+        `Veuillez redemarrer l'application pour que les changements soient pris en compte.`
+      );
+      await loadBackups();
+    } catch (e) {
+      window.alert('Erreur de restauration : ' + (e.message || ''));
+    }
+    restoringName = null;
+  }
+
+  async function importBackup(e) {
+    const file = e?.target?.files?.[0];
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      window.alert('Fichier invalide : un ZIP est attendu.');
+      return;
+    }
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const res = await fetch(`${API}/backups/import`, { method: 'POST', body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+      await loadBackups();
+      window.alert(`Import reussi : ${data.filename}\n\nUtilisez le bouton "Restaurer" sur cette ligne pour appliquer.`);
+    } catch (e) {
+      window.alert("Erreur d'import : " + (e.message || ''));
+    }
+    if (importInput) importInput.value = '';
+  }
+
+  // ── Data paths (where the DB / docs / backups actually live on disk) ──
+  let dataPaths = null;
+  async function loadDataPaths() {
+    try {
+      const res = await fetch(`${API}/data-paths`);
+      dataPaths = await res.json();
+    } catch {}
+  }
+
+  async function openDataFolder(target) {
+    try {
+      await fetch(`${API}/data-paths/open`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target }),
+      });
+    } catch {}
+  }
+
+  // copyToClipboard is defined further below — use it as-is
+
   async function loadAutoBackup() {
     try {
       const res = await fetch(`${API}/auto-backup`);
@@ -457,7 +555,7 @@
   // Load DB info & backups when switching to those panels
   $: if (activePanel === 1) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); loadZabbixConfig(); }
   $: if (activePanel === 2) loadDbInfo();
-  $: if (activePanel === 4) loadBackups();
+  $: if (activePanel === 4) { loadBackups(); loadDataPaths(); }
 
 </script>
 
@@ -1017,7 +1115,11 @@
 
           <div class="setting-section">
             <h3>Sauvegardes existantes ({backups.length})</h3>
-            <button class="btn-small" on:click={() => loadBackups()} style="margin-bottom:8px;">{'\u{1F504}'} Rafra{'\u00ee'}chir</button>
+            <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+              <button class="btn-small" on:click={() => loadBackups()}>{'\u{1F504}'} Rafra{'\u00ee'}chir</button>
+              <button class="btn-small" on:click={() => importInput?.click()}>{'\u{1F4E5}'} Importer un ZIP</button>
+              <input type="file" accept=".zip" bind:this={importInput} on:change={importBackup} style="display:none" />
+            </div>
             {#if backups.length === 0}
               <p class="setting-desc">Aucune sauvegarde trouv{'\u00e9'}e.</p>
             {:else}
@@ -1028,11 +1130,65 @@
                     <span class="backup-name">{backup.filename}</span>
                     <span class="backup-size">{backup.size_human}</span>
                     <span class="backup-date">{new Date(backup.modified).toLocaleString('fr-FR')}</span>
+                    <div class="backup-actions">
+                      <button class="btn-small" on:click={() => downloadBackup(backup.filename)} title="Telecharger ce backup">{'\u{2B07}\uFE0F'}</button>
+                      <button class="btn-small btn-restore" on:click={() => restoreBackup(backup.filename)}
+                              disabled={restoringName === backup.filename}
+                              title="Restaurer ce backup (cree un filet de securite)">
+                        {restoringName === backup.filename ? '...' : '\u21BA Restaurer'}
+                      </button>
+                    </div>
                   </div>
                 {/each}
               </div>
             {/if}
           </div>
+
+          {#if dataPaths}
+            <div class="setting-section">
+              <h3>{'\u{1F4C2}'} Emplacement des donn{'\u00e9'}es</h3>
+              <p class="setting-desc">Chemins reels sur le disque (utiles si tu dois intervenir hors de l'app).</p>
+              <div class="data-paths">
+                <div class="data-path-row">
+                  <span class="data-path-label">Dossier des donn{'\u00e9'}es</span>
+                  <code class="data-path-value">{dataPaths.data_dir}</code>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-small" on:click={() => openDataFolder('data_dir')} title="Ouvrir">{'\u{1F4C1}'}</button>
+                    <button class="btn-small" on:click={() => copyToClipboard(dataPaths.data_dir)} title="Copier">{'\u{1F4CB}'}</button>
+                  </div>
+                </div>
+                <div class="data-path-row">
+                  <span class="data-path-label">Base de donn{'\u00e9'}es</span>
+                  <code class="data-path-value">{dataPaths.database}</code>
+                  <button class="btn-small" on:click={() => copyToClipboard(dataPaths.database)} title="Copier">{'\u{1F4CB}'}</button>
+                </div>
+                <div class="data-path-row">
+                  <span class="data-path-label">Sauvegardes</span>
+                  <code class="data-path-value">{dataPaths.backups}</code>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-small" on:click={() => openDataFolder('backups')} title="Ouvrir">{'\u{1F4C1}'}</button>
+                    <button class="btn-small" on:click={() => copyToClipboard(dataPaths.backups)} title="Copier">{'\u{1F4CB}'}</button>
+                  </div>
+                </div>
+                <div class="data-path-row">
+                  <span class="data-path-label">Documents import{'\u00e9'}s</span>
+                  <code class="data-path-value">{dataPaths.documents}</code>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-small" on:click={() => openDataFolder('documents')} title="Ouvrir">{'\u{1F4C1}'}</button>
+                    <button class="btn-small" on:click={() => copyToClipboard(dataPaths.documents)} title="Copier">{'\u{1F4CB}'}</button>
+                  </div>
+                </div>
+                <div class="data-path-row">
+                  <span class="data-path-label">Logos prestataires</span>
+                  <code class="data-path-value">{dataPaths.logos}</code>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-small" on:click={() => openDataFolder('logos')} title="Ouvrir">{'\u{1F4C1}'}</button>
+                    <button class="btn-small" on:click={() => copyToClipboard(dataPaths.logos)} title="Copier">{'\u{1F4CB}'}</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
@@ -1930,6 +2086,43 @@
     flex-direction: column;
     gap: 4px;
   }
+  .backup-actions {
+    display: flex; gap: 4px; margin-left: auto;
+  }
+  .btn-restore {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22C55E;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+  }
+  .btn-restore:hover:not(:disabled) {
+    background: rgba(34, 197, 94, 0.25);
+    border-color: rgba(34, 197, 94, 0.5);
+  }
+  .data-paths {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 12px; background: var(--bg-base, #0F1115);
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+    border-radius: 8px;
+  }
+  .data-path-row {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 12px;
+  }
+  .data-path-label {
+    flex-shrink: 0; min-width: 160px;
+    color: var(--text-muted, #94A3B8);
+    font-weight: 600;
+  }
+  .data-path-value {
+    flex: 1; min-width: 0;
+    overflow-x: auto; white-space: nowrap;
+    padding: 4px 8px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 4px;
+    font-family: 'Consolas', monospace;
+    color: var(--text, #E6EAF2);
+  }
+
   .backup-item {
     display: flex;
     align-items: center;
