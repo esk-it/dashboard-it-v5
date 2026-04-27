@@ -62,6 +62,15 @@
 
   // Expand
   let expandedDocId = null;
+  // Workflow row expand (when in flat mode, a chain is one folded row)
+  let expandedWorkflowKey = null;
+
+  // View mode: flat list (default, scales) or grouped by supplier card.
+  // Persist user choice across sessions so they don't have to re-toggle every time.
+  let groupBySupplier = (() => {
+    try { return localStorage.getItem('docs.groupBySupplier') === '1'; } catch { return false; }
+  })();
+  $: { try { localStorage.setItem('docs.groupBySupplier', groupBySupplier ? '1' : '0'); } catch {} }
 
   // Preview panel
   let previewDoc = null;
@@ -122,6 +131,7 @@
   function onListBackgroundClick(e) {
     // If the click target is inside any .doc-row, ignore — toggleExpand handles that.
     if (e.target.closest('.doc-row')) return;
+    if (e.target.closest('.workflow-row')) return;
     if (e.target.closest('.supplier-card__header')) return;
     if (e.target.closest('.workflow-arrow')) return;
     if (e.target.closest('.supplier-card__section-label')) return;
@@ -265,6 +275,55 @@
     const parts = name.trim().split(/\s+/);
     if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
     return name.slice(0, 2).toUpperCase();
+  }
+
+  // ── Flat list (Gmail-style) ────────────────────────────────
+  // Reuse docGroups (which already buckets by supplier and finds chains) and flatten:
+  //   - each chain → one "workflow" item (one folded row, expandable to its docs)
+  //   - each singleton → one "doc" item (a regular row)
+  // Then mix and sort by latest date so workflows interleave with isolated docs.
+  $: flatItems = (() => {
+    const items = [];
+    for (const bucket of docGroups) {
+      for (const chain of bucket.chains) {
+        const lastDoc = chain[chain.length - 1];
+        const dateMs = chain.reduce(
+          (m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0,
+        );
+        items.push({
+          kind: 'workflow',
+          key: `wf:${bucket.key}:${chain.map(d => d.id).join('-')}`,
+          docs: chain,
+          supplierId: bucket.supplierId,
+          supplierName: bucket.supplierName,
+          lastDoc,
+          dateMs,
+        });
+      }
+      for (const doc of bucket.singletons) {
+        items.push({
+          kind: 'doc',
+          key: `doc:${doc.id}`,
+          doc,
+          dateMs: new Date(doc.doc_date || doc.created_at || 0).getTime(),
+        });
+      }
+    }
+    items.sort((a, b) => b.dateMs - a.dateMs);
+    return items;
+  })();
+
+  function toggleWorkflow(key) {
+    expandedWorkflowKey = expandedWorkflowKey === key ? null : key;
+  }
+
+  function workflowSummary(chain) {
+    // Compact one-line summary: "Devis 16122 ⇨ BPA ⇨ Facture F16347"
+    return chain.map(d => {
+      const label = getTypeStyle(d.doc_type).label || d.doc_type;
+      const ref = d.reference || truncateText(d.title || '', 14);
+      return ref ? `${label} ${ref}` : label;
+    }).join(' \u21D2 ');
   }
 
   // Cross-supplier link chips: when a doc points to a doc in a *different* supplier card.
@@ -862,6 +921,14 @@
         </svg>
         <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
       </div>
+      <button class="view-toggle" on:click={() => groupBySupplier = !groupBySupplier}
+              title="{groupBySupplier ? 'Repasser en liste plate' : 'Grouper par prestataire'}">
+        {#if groupBySupplier}
+          {'\u{1F4C2}'} Par presta
+        {:else}
+          {'\u2630'} Liste
+        {/if}
+      </button>
     </div>
   </div>
 
@@ -980,6 +1047,44 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="doc-list-clickable" on:click={onListBackgroundClick}>
+        {#if !groupBySupplier}
+          <!-- Flat list (default): each row is either a folded workflow or a single doc, sorted by date. -->
+          {#each flatItems as item (item.key)}
+            {#if item.kind === 'workflow'}
+              {@const isOpen = expandedWorkflowKey === item.key}
+              <div class="workflow-row" class:workflow-row--open={isOpen}>
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="workflow-row__head" on:click={() => toggleWorkflow(item.key)}>
+                  <span class="workflow-row__chevron">{isOpen ? '\u25BC' : '\u25B6'}</span>
+                  <span class="workflow-row__icon" title="Workflow li{'\u00e9'}">{'\u{1F517}'}</span>
+                  {#if item.supplierId && !supplierLogoErrors[item.supplierId]}
+                    <img class="workflow-row__logo"
+                         src="{API_BASE}/api/suppliers/{item.supplierId}/logo" alt=""
+                         on:error={() => { supplierLogoErrors[item.supplierId] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                  {:else}
+                    <span class="workflow-row__initials">{supplierInitials(item.supplierName || '?')}</span>
+                  {/if}
+                  <span class="workflow-row__supplier">{item.supplierName || 'Sans prestataire'}</span>
+                  <span class="workflow-row__sep">{'\u2014'}</span>
+                  <span class="workflow-row__summary">{workflowSummary(item.docs)}</span>
+                  <span class="workflow-row__count">{item.docs.length} docs</span>
+                  <span class="workflow-row__date">{formatDate(item.lastDoc.doc_date)}</span>
+                </div>
+                {#if isOpen}
+                  <div class="workflow-row__body">
+                    {#each item.docs as doc, idx (doc.id)}
+                      {#if idx > 0}<div class="workflow-arrow">{'\u2193'}</div>{/if}
+                      {@render docRow(doc)}
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              {@render docRow(item.doc)}
+            {/if}
+          {/each}
+        {:else}
         {#each docGroups as bucket (bucket.key)}
           <div class="supplier-card">
             <div class="supplier-card__header">
@@ -1020,6 +1125,7 @@
             {/if}
           </div>
         {/each}
+        {/if}
         </div>
       {/if}
     </div>
@@ -1642,6 +1748,66 @@
     overflow-y: auto;
     max-height: calc(100vh - 240px);
     padding-right: 4px;
+  }
+
+  /* View toggle button in the toolbar */
+  .view-toggle {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--bg-card, rgba(255,255,255,0.04));
+    border: 1px solid var(--border-card, rgba(255,255,255,0.1));
+    color: var(--text, #E6EAF2);
+    padding: 6px 10px; border-radius: 6px; cursor: pointer;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+  }
+  .view-toggle:hover { background: rgba(136,105,225,0.12); border-color: var(--primary, #8869e1); }
+
+  /* ── Flat-mode workflow row (folded one-line summary) ───── */
+  .workflow-row {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-left: 3px solid var(--primary, #8869e1);
+    border-radius: 0.5rem;
+    margin-bottom: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s, box-shadow 0.25s;
+  }
+  .workflow-row:hover { border-color: var(--border-hover); }
+  .workflow-row--open { box-shadow: 0 0 18px rgba(136,105,225,0.12); }
+  .workflow-row__head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 12px; cursor: pointer; user-select: none;
+  }
+  .workflow-row__chevron { color: var(--text-muted, #94A3B8); font-size: 10px; width: 14px; flex-shrink: 0; }
+  .workflow-row__icon { font-size: 14px; flex-shrink: 0; }
+  .workflow-row__logo {
+    width: 22px; height: 22px; border-radius: 4px; object-fit: contain;
+    background: rgba(255,255,255,0.05); flex-shrink: 0;
+  }
+  .workflow-row__initials {
+    width: 22px; height: 22px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(136,105,225,0.15); color: var(--primary, #8869e1);
+    font-size: 10px; font-weight: 700; flex-shrink: 0;
+  }
+  .workflow-row__supplier { font-weight: 600; font-size: 13px; color: var(--text, #E6EAF2); flex-shrink: 0; }
+  .workflow-row__sep { color: var(--text-muted, #94A3B8); flex-shrink: 0; }
+  .workflow-row__summary {
+    flex: 1; min-width: 0; font-size: 12px; color: var(--text-secondary, #C0C8D6);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .workflow-row__count {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    color: var(--primary, #8869e1);
+    background: rgba(136,105,225,0.12); padding: 2px 8px; border-radius: 1rem;
+    flex-shrink: 0;
+  }
+  .workflow-row__date {
+    font-size: 11px; color: var(--text-muted, #94A3B8);
+    font-family: 'Consolas', monospace; flex-shrink: 0;
+  }
+  .workflow-row__body {
+    padding: 8px 10px 10px; background: var(--bg-base, #0F1115);
+    border-top: 1px dashed rgba(255,255,255,0.08);
   }
 
   /* ── Supplier card (one card per supplier) ────────────────── */

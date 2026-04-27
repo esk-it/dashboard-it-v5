@@ -4,6 +4,14 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.2 — Documents : liste plate par défaut + toggle vue prestataire
+
+À 4-5 docs la vue par cartes prestataires de v6.7.1 était jolie ; à 100+ docs ça devenait un mur. Nouvelle approche pensée pour scaler :
+
+- **Vue par défaut "Liste plate"** (façon Gmail) : tout est mélangé et trié par date. Chaque ligne représente soit un workflow plié (ex. `🔗 Ageona — Devis 16122 ⇨ BPA ⇨ Facture F16347`) soit un doc seul. Densité constante quel que soit le nombre de docs.
+- **Workflows pliés par défaut** : un click sur la ligne workflow déplie ses docs en place, comme un thread Gmail. Le compteur "3 docs" et la date du dernier doc sont toujours visibles.
+- **Toggle 🗋 Liste / 📂 Par presta** dans la barre d'outils : passe à la vue cartes prestataires de v6.7.1 quand tu veux explicitement parcourir par fournisseur. Le choix est mémorisé dans `localStorage`.
+
 ## v6.7.1 — Documents : présentation unifiée + gestion liens dédiée
 
 - **Cohérence visuelle** : tous les documents sont maintenant dans des cartes de prestataire (une carte = un fournisseur). Plus de différence visuelle entre docs liés et docs seuls. À l'intérieur d'une carte : section "Workflow" pour les chaînes (Devis → BPA → Facture), section "Documents seuls" pour le reste, séparées si les deux coexistent.
