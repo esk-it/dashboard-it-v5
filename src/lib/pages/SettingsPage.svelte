@@ -169,6 +169,10 @@
   let restoringName = null;
   let importInput;
 
+  // Restore status modal state — guides the user through staging + restart
+  let restoreModal = null;     // null | { phase, message, error }
+  let restoreCountdown = 0;    // seconds remaining before auto-restart
+
   async function downloadBackup(filename) {
     // Prefer Tauri's save dialog for a native experience
     try {
@@ -200,25 +204,66 @@
   async function restoreBackup(filename) {
     const ok = window.confirm(
       `Restaurer "${filename}" ?\n\n` +
-      "L'etat actuel sera d'abord sauvegarde dans un fichier 'pre_restore_*.zip'. " +
-      "Apres restauration, redemarrez l'application pour que les changements prennent effet."
+      "Etapes :\n" +
+      "1. Filet de securite (pre_restore_*.zip)\n" +
+      "2. Preparation des fichiers (sans toucher a la DB en cours)\n" +
+      "3. Redemarrage automatique de l'app\n" +
+      "4. Au demarrage : application de la restauration\n\n" +
+      "OK pour lancer ?"
     );
     if (!ok) return;
     restoringName = filename;
+    restoreModal = { phase: 'staging', message: 'Preparation de la restauration…', error: null };
     try {
       const res = await fetch(`${API}/backups/${encodeURIComponent(filename)}/restore`, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
-      window.alert(
-        `Restauration terminee.\n\n` +
-        `Filet de securite cree : ${data.safety_backup}\n\n` +
-        `Veuillez redemarrer l'application pour que les changements soient pris en compte.`
-      );
-      await loadBackups();
+
+      restoreModal = {
+        phase: 'ready',
+        message: `Filet de securite : ${data.safety_backup}\nFichiers prets a etre appliques au prochain demarrage.`,
+        error: null,
+      };
+
+      // Auto-restart in 3s — gives the user a chance to read what's happening.
+      restoreCountdown = 3;
+      const tick = setInterval(() => {
+        restoreCountdown -= 1;
+        if (restoreCountdown <= 0) {
+          clearInterval(tick);
+          triggerRestart();
+        }
+      }, 1000);
     } catch (e) {
-      window.alert('Erreur de restauration : ' + (e.message || ''));
+      restoreModal = { phase: 'error', message: '', error: e.message || String(e) };
+      restoringName = null;
+      // Try to clean up any partially-staged files so the next restart isn't surprising
+      try { await fetch(`${API}/backups/cancel-pending`, { method: 'POST' }); } catch {}
     }
+  }
+
+  async function triggerRestart() {
+    restoreModal = { phase: 'restarting', message: "Redemarrage de l'application…", error: null };
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      await invoke('restart_app');
+      // restart_app doesn't return — Tauri exits and a new process starts.
+    } catch (e) {
+      restoreModal = {
+        phase: 'manual_restart_needed',
+        message: "Fermez et relancez l'application manuellement pour appliquer la restauration.",
+        error: e?.message || String(e),
+      };
+    }
+  }
+
+  async function cancelPendingRestore() {
+    try {
+      await fetch(`${API}/backups/cancel-pending`, { method: 'POST' });
+    } catch {}
+    restoreModal = null;
     restoringName = null;
+    restoreCountdown = 0;
   }
 
   async function importBackup(e) {
@@ -1160,7 +1205,10 @@
                 <div class="data-path-row">
                   <span class="data-path-label">Base de donn{'\u00e9'}es</span>
                   <code class="data-path-value">{dataPaths.database}</code>
-                  <button class="btn-small" on:click={() => copyToClipboard(dataPaths.database)} title="Copier">{'\u{1F4CB}'}</button>
+                  <div style="display:flex;gap:4px">
+                    <button class="btn-small" on:click={() => openDataFolder('data_dir')} title="Ouvrir le dossier parent">{'\u{1F4C1}'}</button>
+                    <button class="btn-small" on:click={() => copyToClipboard(dataPaths.database)} title="Copier">{'\u{1F4CB}'}</button>
+                  </div>
                 </div>
                 <div class="data-path-row">
                   <span class="data-path-label">Sauvegardes</span>
@@ -1194,6 +1242,61 @@
     </div>
   </div>
 </div>
+
+<!-- Restoration modal — guides the user through staging + auto-restart -->
+{#if restoreModal}
+  <div class="restore-overlay">
+    <div class="restore-dialog">
+      <div class="restore-header">
+        {#if restoreModal.phase === 'staging'}
+          <div class="restore-spinner"></div>
+          <h3>Préparation en cours</h3>
+        {:else if restoreModal.phase === 'ready'}
+          <div class="restore-icon restore-icon--ok">{'\u2713'}</div>
+          <h3>Sauvegarde prête</h3>
+        {:else if restoreModal.phase === 'restarting'}
+          <div class="restore-spinner"></div>
+          <h3>Redémarrage…</h3>
+        {:else if restoreModal.phase === 'manual_restart_needed'}
+          <div class="restore-icon restore-icon--warn">{'\u26A0'}</div>
+          <h3>Redémarrage manuel requis</h3>
+        {:else if restoreModal.phase === 'error'}
+          <div class="restore-icon restore-icon--error">{'\u2717'}</div>
+          <h3>Erreur de restauration</h3>
+        {/if}
+      </div>
+
+      <div class="restore-body">
+        {#if restoreModal.phase === 'staging'}
+          <p>Création du filet de sécurité et préparation des fichiers…</p>
+          <p class="restore-hint">La base actuelle n'est pas touchée à ce stade.</p>
+        {:else if restoreModal.phase === 'ready'}
+          <p style="white-space:pre-line">{restoreModal.message}</p>
+          <p class="restore-hint">L'application va redémarrer dans <strong>{restoreCountdown}s</strong> pour appliquer la restauration.</p>
+        {:else if restoreModal.phase === 'restarting'}
+          <p>Fermeture du backend et relancement de l'application…</p>
+          <p class="restore-hint">La fenêtre va se fermer et se rouvrir automatiquement.</p>
+        {:else if restoreModal.phase === 'manual_restart_needed'}
+          <p>{restoreModal.message}</p>
+          {#if restoreModal.error}<p class="restore-hint">Détail : {restoreModal.error}</p>{/if}
+          <p class="restore-hint">Au prochain démarrage, la restauration sera appliquée automatiquement.</p>
+        {:else if restoreModal.phase === 'error'}
+          <p>{restoreModal.error}</p>
+          <p class="restore-hint">Le filet de sécurité a peut-être déjà été créé — vérifiez la liste des sauvegardes.</p>
+        {/if}
+      </div>
+
+      <div class="restore-footer">
+        {#if restoreModal.phase === 'ready'}
+          <button class="btn-small" on:click={cancelPendingRestore}>Annuler</button>
+          <button class="btn-small btn-restore" on:click={triggerRestart}>Redémarrer maintenant</button>
+        {:else if restoreModal.phase === 'manual_restart_needed' || restoreModal.phase === 'error'}
+          <button class="btn-small" on:click={() => { restoreModal = null; restoringName = null; }}>Fermer</button>
+        {/if}
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   .settings-page {
@@ -2121,6 +2224,53 @@
     border-radius: 4px;
     font-family: 'Consolas', monospace;
     color: var(--text, #E6EAF2);
+  }
+
+  /* Restore modal */
+  .restore-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    z-index: 9999; display: flex; align-items: center; justify-content: center;
+  }
+  .restore-dialog {
+    background: var(--bg-card, #1a1a2e);
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+    border-radius: 12px; padding: 24px;
+    min-width: 420px; max-width: 540px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .restore-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .restore-header h3 {
+    margin: 0; font-size: 16px; font-weight: 600;
+    color: var(--text, #E6EAF2);
+  }
+  .restore-spinner {
+    width: 24px; height: 24px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--primary, #8869e1);
+    border-radius: 50%;
+    animation: restore-spin 0.8s linear infinite;
+  }
+  @keyframes restore-spin {
+    to { transform: rotate(360deg); }
+  }
+  .restore-icon {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px; color: #fff;
+  }
+  .restore-icon--ok { background: #22C55E; }
+  .restore-icon--warn { background: #F59E0B; }
+  .restore-icon--error { background: #EF4444; }
+  .restore-body p { margin: 0 0 8px; color: var(--text, #E6EAF2); font-size: 13px; line-height: 1.5; }
+  .restore-hint { color: var(--text-muted, #94A3B8) !important; font-size: 12px !important; }
+  .restore-footer {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 16px; padding-top: 16px;
+    border-top: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
   }
 
   .backup-item {

@@ -243,9 +243,16 @@
   }
 
   // ── Export PDF ─────────────────────────────────────────────
-  async function exportInventoryPdf() {
+  // jspdf-autotable v5+ uses autoTable(doc, opts) instead of doc.autoTable(opts).
+  async function _loadPdfDeps() {
     const { default: jsPDF } = await import('jspdf');
-    await import('jspdf-autotable');
+    const autoTableMod = await import('jspdf-autotable');
+    const autoTable = autoTableMod.default || autoTableMod.autoTable;
+    return { jsPDF, autoTable };
+  }
+
+  async function exportInventoryPdf() {
+    const { jsPDF, autoTable } = await _loadPdfDeps();
     const doc = new jsPDF('landscape');
     const items = selectedEquipment.length > 0 ? selectedEquipment : filteredEquipment;
     const startY = addPdfHeader(doc, 'Inventaire du Parc Informatique',
@@ -259,14 +266,13 @@
       e.source, e.last_user || '',
     ]);
 
-    doc.autoTable({ head: headers, body: rows, startY, styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [6, 166, 201] } });
+    autoTable(doc, { head: headers, body: rows, startY, styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [6, 166, 201] } });
     await savePdfWithDialog(doc, `inventaire_parc_${new Date().toISOString().slice(0,10)}.pdf`);
   }
 
   async function exportAuditPdf() {
     if (!auditData) return;
-    const { default: jsPDF } = await import('jspdf');
-    await import('jspdf-autotable');
+    const { jsPDF, autoTable } = await _loadPdfDeps();
     const doc = new jsPDF('landscape');
     const startY = addPdfHeader(doc, 'Audit Parc Informatique',
       `Conformit\u00e9 : ${auditData.summary.compliance_percent}% \u2014 ${auditData.summary.critical} critiques, ${auditData.summary.warnings} avertissements`);
@@ -278,7 +284,7 @@
       i.site_name || '', i.building_name || '', i.room_name || '', i.last_user || '',
     ]);
 
-    doc.autoTable({ head: headers, body: rows, startY, styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [239, 68, 68] } });
+    autoTable(doc, { head: headers, body: rows, startY, styles: { fontSize: 7, cellPadding: 2 }, headStyles: { fillColor: [239, 68, 68] } });
     await savePdfWithDialog(doc, `audit_parc_${new Date().toISOString().slice(0,10)}.pdf`);
   }
 

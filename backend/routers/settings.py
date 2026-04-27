@@ -464,43 +464,47 @@ async def download_backup(filename: str):
 
 @router.post("/backups/{filename}/restore")
 async def restore_backup(filename: str):
-    """Restore a backup ZIP. Creates a pre_restore_*.zip safety net first,
-    then extracts the chosen backup over the current data."""
-    from fastapi import HTTPException
+    """Stage a backup ZIP for restoration. The actual file swap happens at the
+    next app startup — that's the only way to safely replace a SQLite DB that
+    the running backend has open in WAL mode.
+
+    Flow:
+      1. Validate the ZIP and create a pre_restore_*.zip safety snapshot.
+      2. Extract dashboard.db from the chosen ZIP to dashboard.db.pending-restore
+         (sitting next to the live DB but never touching it).
+      3. Extract config JSONs and logos to .pending-restore staging files.
+      4. Write a `.restore-pending` marker so init_db() can pick this up.
+      5. Tell the UI to ask for a restart. On next startup, init_db() swaps
+         the staged files in BEFORE opening any DB connection.
+    """
     safe = Path(filename).name
     target = BACKUP_DIR / safe
     if not target.exists() or not target.is_file():
         raise HTTPException(404, "Backup introuvable")
-    if not any(safe.startswith(p) for p in ("backup_", "auto_backup_", "pre_update_", "pre_reset_", "pre_restore_")):
+    if not any(safe.startswith(p) for p in ("backup_", "auto_backup_", "pre_update_", "pre_reset_", "pre_restore_", "backup_imported_")):
         raise HTTPException(400, "Nom de backup invalide")
 
-    # Safety net: snapshot current state
+    # Safety net: snapshot current state BEFORE staging anything new.
     safety = _do_backup("pre_restore")
     if not safety:
         raise HTTPException(500, "Impossible de creer le filet de securite (pre_restore)")
 
+    staging_db = DB_PATH.with_suffix(".db.pending-restore")
+    marker = BASE_DIR / ".restore-pending"
+    staged_files: list[Path] = []  # tracked for rollback
+
     try:
         with zipfile.ZipFile(target, "r") as zf:
-            # Validate first — refuse if no DB inside
             names = zf.namelist()
             if "dashboard.db" not in names:
                 raise HTTPException(400, "Backup invalide: dashboard.db manquant")
 
-            # Restore the DB. It may be locked because we're using it; rename out then write new.
-            for suffix in [".db-wal", ".db-shm"]:
-                p = DB_PATH.parent / (DB_PATH.stem + suffix)
-                if p.exists():
-                    try: p.unlink()
-                    except Exception: pass
-            tmp_db = DB_PATH.with_suffix(".db.restoring")
-            zf.extract("dashboard.db", path=tmp_db.parent)
-            extracted = tmp_db.parent / "dashboard.db"
-            # Move into place atomically
-            if DB_PATH.exists():
-                DB_PATH.unlink()
-            extracted.rename(DB_PATH)
+            # 1. DB → staging file. Never touches the live dashboard.db.
+            with zf.open("dashboard.db") as src, open(staging_db, "wb") as out:
+                out.write(src.read())
+            staged_files.append(staging_db)
 
-            # Restore config files (best-effort — missing files in the ZIP are skipped)
+            # 2. Config files → .pending-restore siblings (each has its own staging name).
             for name, dest in [
                 ("general_settings.json", BACKEND_DIR / "data" / "general_settings.json"),
                 ("settings.json",         BACKEND_DIR / "data" / "settings.json"),
@@ -508,24 +512,87 @@ async def restore_backup(filename: str):
             ]:
                 if name in names:
                     dest.parent.mkdir(parents=True, exist_ok=True)
-                    with zf.open(name) as src, open(dest, "wb") as out:
+                    pending = dest.with_suffix(dest.suffix + ".pending-restore")
+                    with zf.open(name) as src, open(pending, "wb") as out:
                         out.write(src.read())
+                    staged_files.append(pending)
 
-            # Restore logos (whole subfolder)
-            logos_dir = BACKEND_DIR / "logos"
-            logos_dir.mkdir(parents=True, exist_ok=True)
+            # 3. Logos → staged inside a sibling pending-restore-logos folder. Cleanly
+            #    swapped on next startup.
+            pending_logos = (BACKEND_DIR / "logos.pending-restore")
             for n in names:
                 if n.startswith("logos/") and not n.endswith("/"):
-                    logo_dest = logos_dir / Path(n).name
+                    pending_logos.mkdir(parents=True, exist_ok=True)
+                    logo_dest = pending_logos / Path(n).name
                     with zf.open(n) as src, open(logo_dest, "wb") as out:
                         out.write(src.read())
+                    staged_files.append(logo_dest)
+
+        # 4. Marker — read by database.init_db at next startup.
+        marker.write_text(json.dumps({
+            "source": safe,
+            "staged_at": datetime.now().isoformat(timespec="seconds"),
+            "safety_backup": safety,
+        }), encoding="utf-8")
     except HTTPException:
+        # Roll back partial staging
+        for p in staged_files:
+            try: p.unlink()
+            except Exception: pass
         raise
     except Exception as e:
+        for p in staged_files:
+            try: p.unlink()
+            except Exception: pass
         import traceback; traceback.print_exc()
-        raise HTTPException(500, f"Echec de la restauration: {e}")
+        raise HTTPException(500, f"Echec de la preparation de la restauration: {e}")
 
-    return {"ok": True, "restored": safe, "safety_backup": safety, "restart_recommended": True}
+    return {
+        "ok": True,
+        "staged_from": safe,
+        "safety_backup": safety,
+        "needs_restart": True,
+    }
+
+
+@router.post("/backups/cancel-pending")
+async def cancel_pending_restore():
+    """User can back out of a staged restore as long as the app hasn't restarted.
+    Removes all .pending-restore staging files and the marker."""
+    marker = BASE_DIR / ".restore-pending"
+    if not marker.exists():
+        return {"ok": True, "had_pending": False}
+
+    # Sweep all staged files
+    for p in [
+        DB_PATH.with_suffix(".db.pending-restore"),
+        BACKEND_DIR / "data" / "general_settings.json.pending-restore",
+        BACKEND_DIR / "data" / "settings.json.pending-restore",
+        BACKEND_DIR / "data" / "rss_feeds.json.pending-restore",
+    ]:
+        try:
+            if p.exists(): p.unlink()
+        except Exception: pass
+    pending_logos = BACKEND_DIR / "logos.pending-restore"
+    if pending_logos.exists() and pending_logos.is_dir():
+        try: shutil.rmtree(pending_logos)
+        except Exception: pass
+    try: marker.unlink()
+    except Exception: pass
+    return {"ok": True, "had_pending": True}
+
+
+@router.get("/backups/pending")
+async def get_pending_restore():
+    """Tells the UI whether a restore is staged and waiting for a restart."""
+    marker = BASE_DIR / ".restore-pending"
+    if not marker.exists():
+        return {"pending": False}
+    try:
+        info = json.loads(marker.read_text(encoding="utf-8"))
+    except Exception:
+        info = {}
+    return {"pending": True, **info}
 
 
 @router.post("/backups/import")

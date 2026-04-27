@@ -40,8 +40,87 @@ async def get_raw_db():
         await db.close()
 
 
+def _apply_pending_restore():
+    """Apply a staged backup restore before any DB connection is opened.
+    The restore endpoint extracts files to *.pending-restore staging paths and
+    drops a `.restore-pending` marker; we swap them in here on startup so the
+    live SQLite connection is never disturbed.
+    """
+    import shutil as _shutil
+    marker = BASE_DIR / ".restore-pending"
+    if not marker.exists():
+        return
+
+    print(f"[restore] Applying pending restore (marker: {marker})")
+    try:
+        # 1. DB file
+        staging_db = DB_PATH.with_suffix(".db.pending-restore")
+        if staging_db.exists():
+            # Clear any leftover WAL/SHM so we don't mix new DB with old journal
+            for suffix in [".db-wal", ".db-shm"]:
+                p = DB_PATH.parent / (DB_PATH.stem + suffix)
+                if p.exists():
+                    try: p.unlink()
+                    except Exception as e: print(f"[restore] couldn't remove {p}: {e}")
+            if DB_PATH.exists():
+                try: DB_PATH.unlink()
+                except Exception as e: print(f"[restore] couldn't remove old DB: {e}")
+            staging_db.rename(DB_PATH)
+            print(f"[restore] DB swapped: {DB_PATH}")
+
+        # 2. Config JSONs
+        for dest in [
+            BASE_DIR / "data" / "general_settings.json",
+            BASE_DIR / "data" / "settings.json",
+            BASE_DIR / "data" / "rss_feeds.json",
+        ]:
+            pending = dest.with_suffix(dest.suffix + ".pending-restore")
+            if pending.exists():
+                if dest.exists():
+                    try: dest.unlink()
+                    except Exception: pass
+                pending.rename(dest)
+                print(f"[restore] config swapped: {dest.name}")
+
+        # 3. Logos folder — replace contents (don't blow away the folder, the running
+        #    backend may be holding a directory handle to it). Wipe files, then move in
+        #    the staged ones.
+        pending_logos = BASE_DIR / "logos.pending-restore"
+        if pending_logos.exists() and pending_logos.is_dir():
+            logos_dir = BASE_DIR / "logos"
+            logos_dir.mkdir(parents=True, exist_ok=True)
+            for f in logos_dir.iterdir():
+                if f.is_file():
+                    try: f.unlink()
+                    except Exception: pass
+            for f in pending_logos.iterdir():
+                if f.is_file():
+                    try:
+                        f.rename(logos_dir / f.name)
+                    except Exception as e:
+                        print(f"[restore] couldn't move logo {f.name}: {e}")
+            try: _shutil.rmtree(pending_logos)
+            except Exception: pass
+            print(f"[restore] logos swapped")
+
+    except Exception as e:
+        # Never crash startup over a failed restore — leave the marker so the user can
+        # see the staged files and recover manually if needed.
+        import traceback; traceback.print_exc()
+        print(f"[restore] FAILED to apply: {e} — marker preserved for inspection")
+        return
+
+    # All good — remove the marker so we don't try to re-apply on next startup.
+    try: marker.unlink()
+    except Exception: pass
+    print("[restore] Pending restore applied successfully.")
+
+
 async def init_db():
     """Create all tables if they don't exist (fresh install)."""
+    # Apply any pending restore BEFORE opening a DB connection
+    _apply_pending_restore()
+
     db = await aiosqlite.connect(str(DB_PATH))
     await db.execute("PRAGMA journal_mode=WAL")
 

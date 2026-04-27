@@ -13,7 +13,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-        .invoke_handler(tauri::generate_handler![check_update])
+        .invoke_handler(tauri::generate_handler![check_update, restart_app])
         .setup(|app| {
             // Spawn the Python backend as a sidecar process
             let handle = app.handle().clone();
@@ -276,6 +276,18 @@ async fn check_update(handle: tauri::AppHandle) -> Result<String, String> {
         Ok(_) => Ok("ok".to_string()),
         Err(e) => Err(format!("{}", e)),
     }
+}
+
+#[tauri::command]
+fn restart_app(handle: tauri::AppHandle) {
+    // Graceful kill of the backend so the SQLite WAL flushes and our restore-marker
+    // takes effect when the Python sidecar starts up next.
+    log::info!("restart_app: shutting down backend before relaunch");
+    graceful_shutdown_backend();
+    kill_backend(&handle);
+    force_kill_backend();
+    // Tauri 2's built-in relaunch — sets the right env to spawn a new instance, then exits.
+    handle.restart();
 }
 
 struct BackendChild(std::sync::Mutex<Option<tauri_plugin_shell::process::CommandChild>>);

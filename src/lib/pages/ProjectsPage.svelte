@@ -333,7 +333,10 @@
     exportingPdf = true;
     try {
       const { default: jsPDF } = await import('jspdf');
-      await import('jspdf-autotable');
+      // jspdf-autotable v5 changed to a function-style API (autoTable(doc, opts))
+      // instead of doc.autoTable(opts). Import the function directly.
+      const autoTableMod = await import('jspdf-autotable');
+      const autoTable = autoTableMod.default || autoTableMod.autoTable;
       const doc = new jsPDF();
 
       const p = selectedProject;
@@ -411,7 +414,7 @@
           t.priority === 3 ? 'Haute' : t.priority === 1 ? 'Basse' : 'Normale',
           t.done ? 'Terminee' : (t.blocked ? 'Bloquee' : 'A faire'),
         ]);
-        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [136, 105, 225] } });
+        autoTable(doc, { head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [136, 105, 225] } });
         y = doc.lastAutoTable.finalY + 6;
       }
 
@@ -423,7 +426,7 @@
         doc.setTextColor(0);
         const head = [['Nom', 'Contact', 'Telephone', 'Email']];
         const body = p.suppliers.map(s => [s.name, s.contact || '', s.phone || '', s.email || '']);
-        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [58, 155, 148] } });
+        autoTable(doc, { head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [58, 155, 148] } });
         y = doc.lastAutoTable.finalY + 6;
       }
 
@@ -441,7 +444,7 @@
           d.amount_accepted > 0 ? d.amount_accepted.toLocaleString('fr-FR') + ' EUR' : '\u2014',
           d.status || '\u2014',
         ]);
-        doc.autoTable({ head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [245, 158, 11] } });
+        autoTable(doc, { head, body, startY: y, styles: { fontSize: 8, cellPadding: 2 }, headStyles: { fillColor: [245, 158, 11] } });
         y = doc.lastAutoTable.finalY + 6;
       }
 
