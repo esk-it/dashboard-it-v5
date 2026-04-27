@@ -48,6 +48,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ── Health check ────────────────────────────────────────────
+# Lightweight ping so the UI can detect if the backend sidecar has crashed.
+# Kept un-routed (top-level) so it has zero dependencies and stays cheap.
+import time as _time
+_BACKEND_STARTED_AT = _time.time()
+
+
+@app.get("/api/health")
+async def health():
+    return {
+        "ok": True,
+        "uptime_seconds": int(_time.time() - _BACKEND_STARTED_AT),
+    }
+
 app.include_router(dashboard.router)
 app.include_router(tasks.router)
 app.include_router(settings.router)

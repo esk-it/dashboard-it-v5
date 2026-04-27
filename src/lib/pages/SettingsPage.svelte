@@ -296,6 +296,47 @@
     } catch {}
   }
 
+  // ── Diagnostics export ──
+  let exportingDiag = false;
+  async function exportDiagnostics() {
+    if (exportingDiag) return;
+    exportingDiag = true;
+    try {
+      const res = await fetch(`${API}/diagnostics`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '').replace(/-/g, '_');
+      const filename = `diagnostic_${ts}.zip`;
+      // Tauri save dialog preferred for a real filesystem path
+      try {
+        const { save } = await import('@tauri-apps/plugin-dialog');
+        const { documentDir, join } = await import('@tauri-apps/api/path');
+        const docs = await documentDir();
+        const path = await save({
+          defaultPath: await join(docs, filename),
+          filters: [{ name: 'Archive ZIP', extensions: ['zip'] }],
+        });
+        if (path) {
+          const buf = new Uint8Array(await blob.arrayBuffer());
+          const { writeFile } = await import('@tauri-apps/plugin-fs');
+          await writeFile(path, buf);
+          showSaved();
+          return;
+        }
+      } catch {}
+      // Browser fallback
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      showSaved();
+    } catch (e) {
+      window.alert("Erreur diagnostic : " + (e.message || ''));
+    }
+    exportingDiag = false;
+  }
+
   async function openDataFolder(target) {
     try {
       await fetch(`${API}/data-paths/open`, {
@@ -1187,6 +1228,18 @@
                 {/each}
               </div>
             {/if}
+          </div>
+
+          <div class="setting-section">
+            <h3>{'\u{1F50D}'} Diagnostic</h3>
+            <p class="setting-desc">
+              Exporte un fichier ZIP avec les informations syst{'\u00e8'}me, les chemins, les compteurs de tables
+              de la base et la liste des sauvegardes. Utile pour diagnostiquer un probl{'\u00e8'}me sans devoir t'expliquer
+              ce que contient ton installation. Aucune donn{'\u00e9'}e sensible n'est incluse.
+            </p>
+            <button class="btn-small" on:click={exportDiagnostics} disabled={exportingDiag}>
+              {exportingDiag ? '...' : '\u{1F4E4} Exporter un diagnostic'}
+            </button>
           </div>
 
           {#if dataPaths}

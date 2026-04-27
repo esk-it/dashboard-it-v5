@@ -629,6 +629,110 @@ async def import_backup(file: UploadFile = File(...)):
     return {"ok": True, "filename": dest.name, "size": dest.stat().st_size}
 
 
+@router.get("/diagnostics")
+async def export_diagnostics():
+    """Stream a ZIP of diagnostic info (no DB content, no sensitive files):
+    versions, paths, table row counts, recent backups, current pending restore.
+    Useful when reporting an issue 6 months from now without remembering anything.
+    """
+    import io as _io
+    import platform
+    import sys
+    import sqlite3
+
+    info = {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "version": platform.version(),
+            "machine": platform.machine(),
+            "python": sys.version,
+        },
+        "paths": {
+            "data_dir": str(BASE_DIR),
+            "database": str(DB_PATH),
+            "backups": str(BACKUP_DIR),
+            "documents": str(BASE_DIR / "data" / "documents"),
+            "logos": str(BASE_DIR / "data" / "logos"),
+            "logs_tauri_hint": "%LOCALAPPDATA%\\com.esk-it.itmanager-dashboard\\logs (Windows) — Tauri",
+        },
+        "env": {
+            "ITMANAGER_DATA_DIR": os.environ.get("ITMANAGER_DATA_DIR", "(non défini)"),
+            "frozen": bool(getattr(sys, "frozen", False)),
+        },
+        "database": {},
+        "auto_backup": _get_auto_backup_settings(),
+        "backups": [],
+        "pending_restore": None,
+    }
+
+    # DB stats — file size + per-table row counts. Read-only so safe even with the live DB open.
+    if DB_PATH.exists():
+        try:
+            stat = DB_PATH.stat()
+            info["database"]["size_bytes"] = stat.st_size
+            info["database"]["modified"] = datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds")
+            con = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=2)
+            try:
+                tables = [r[0] for r in con.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                ).fetchall()]
+                row_counts = {}
+                for t in tables:
+                    try:
+                        # Quote the identifier safely (sqlite_master controls the name list)
+                        n = con.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+                        row_counts[t] = n
+                    except Exception as e:
+                        row_counts[t] = f"error: {e}"
+                info["database"]["row_counts"] = row_counts
+            finally:
+                con.close()
+        except Exception as e:
+            info["database"]["error"] = str(e)
+    else:
+        info["database"]["missing"] = True
+
+    # Backups summary
+    for pattern in ["backup_*.zip", "auto_backup_*.zip", "pre_update_*.zip", "pre_reset_*.zip", "pre_restore_*.zip", "backup_imported_*.zip"]:
+        for p in sorted(BACKUP_DIR.glob(pattern), key=lambda x: x.stat().st_mtime, reverse=True)[:5]:
+            info["backups"].append({
+                "name": p.name,
+                "size_bytes": p.stat().st_size,
+                "modified": datetime.fromtimestamp(p.stat().st_mtime).isoformat(timespec="seconds"),
+            })
+
+    # Pending restore marker
+    marker = BASE_DIR / ".restore-pending"
+    if marker.exists():
+        try:
+            info["pending_restore"] = json.loads(marker.read_text(encoding="utf-8"))
+        except Exception:
+            info["pending_restore"] = {"raw": marker.read_text(encoding="utf-8", errors="replace")}
+
+    # Build the ZIP in memory
+    buf = _io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("info.json", json.dumps(info, indent=2, ensure_ascii=False))
+
+        # Include the auto_backup_settings.json verbatim (small + useful)
+        ab_path = BACKEND_DIR / "data" / "auto_backup_settings.json"
+        if ab_path.exists():
+            try:
+                zf.write(ab_path, "auto_backup_settings.json")
+            except Exception:
+                pass
+
+    buf.seek(0)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=diagnostic_{ts}.zip"},
+    )
+
+
 @router.get("/data-paths")
 async def get_data_paths():
     """Return the resolved on-disk paths so the user can find their data outside

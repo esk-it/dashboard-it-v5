@@ -3,6 +3,7 @@
   import { currentPage, sidebarOpen } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
   import { isAuthenticated, checkAuth, logout } from './lib/stores/auth.js';
+  import { isOnline, startHealthPolling, recheckNow } from './lib/stores/health.js';
   import SplashScreen from './lib/components/SplashScreen.svelte';
   import Sidebar from './lib/components/Sidebar.svelte';
   import Navbar from './lib/components/Navbar.svelte';
@@ -34,6 +35,13 @@
   let showSearch = false;
   let showQuickCreate = false;
   let splashDone = false;
+  let recheckingHealth = false;
+
+  async function retryBackend() {
+    recheckingHealth = true;
+    await recheckNow();
+    recheckingHealth = false;
+  }
 
   $: if (splashDone) loadSettings();
 
@@ -47,6 +55,7 @@
 
   onMount(async () => {
     loadSettings();
+    startHealthPolling();
     // Check "remember me" — if active and not expired, skip login
     const rememberUntil = parseInt(localStorage.getItem('auth_remember_until') || '0');
     const hasToken = !!localStorage.getItem('auth_token');
@@ -141,6 +150,19 @@
 
   <Toast />
 
+  {#if !$isOnline}
+    <div class="backend-offline-banner">
+      <span class="bo-icon">{'\u26A0\uFE0F'}</span>
+      <span class="bo-text">
+        <strong>Backend déconnecté</strong> — l'app ne peut plus charger ni sauvegarder de données.
+        Si le problème persiste, redémarre l'application.
+      </span>
+      <button class="bo-btn" on:click={retryBackend} disabled={recheckingHealth}>
+        {recheckingHealth ? 'Vérification…' : 'Réessayer'}
+      </button>
+    </div>
+  {/if}
+
   {#if showSearch}
     <SearchPalette on:close={() => showSearch = false} />
   {/if}
@@ -183,4 +205,28 @@
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  /* Backend-down banner — fixed at the bottom so it never hides primary content */
+  .backend-offline-banner {
+    position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+    z-index: 9998;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px;
+    background: rgba(239, 68, 68, 0.95);
+    color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(239, 68, 68, 0.35);
+    max-width: 720px; font-size: 13px;
+  }
+  .bo-icon { font-size: 18px; }
+  .bo-text { flex: 1; line-height: 1.4; }
+  .bo-text strong { font-weight: 700; }
+  .bo-btn {
+    background: rgba(255,255,255,0.18); color: #fff;
+    border: 1px solid rgba(255,255,255,0.35);
+    padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;
+    font-size: 12px; white-space: nowrap;
+  }
+  .bo-btn:hover:not(:disabled) { background: rgba(255,255,255,0.28); }
+  .bo-btn:disabled { opacity: 0.6; cursor: wait; }
 </style>
