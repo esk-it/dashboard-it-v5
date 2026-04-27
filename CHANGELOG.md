@@ -4,6 +4,13 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.0 — Documents : workflow cards (regroupement par chaîne)
+
+- Les documents liés entre eux (Devis ↔ BPA ↔ Facture pour un même achat) sont maintenant **regroupés visuellement** dans une carte unique avec logo prestataire, nom et compteur. Lecture chronologique top-to-bottom, flèche entre chaque document.
+- Les documents sans liens restent en ligne simple (rendu inchangé).
+- Nouvel endpoint `GET /api/documents/links-graph` côté backend qui renvoie toutes les arêtes du graphe en un seul appel — utilisé pour calculer les composants connectés sur le frontend.
+- Quand un doc lié dans une carte référence un doc *hors* de la carte (cas rare), un **chip inline** s'affiche dans la zone détaillée pour naviguer.
+
 ## v6.6.2 — Fix username refresh + weather city encoding
 
 - **Nom d'utilisateur** : Settings sauvait bien en backend mais le store global `settings` n'était pas mis à jour → l'accueil affichait l'ancienne valeur jusqu'au prochain redémarrage. Maintenant le store se met à jour dans la foulée du PUT.

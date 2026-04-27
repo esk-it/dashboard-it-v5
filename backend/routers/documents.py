@@ -79,6 +79,17 @@ async def list_tags(db=Depends(get_raw_db)):
 # ── Document Links (static prefix must come BEFORE /{doc_id}) ──
 
 
+@router.get("/links-graph")
+async def list_all_document_links(db=Depends(get_raw_db)):
+    """All document_links rows in one shot, used by the UI to group connected
+    documents into workflow cards (Devis → BPA → Facture etc.). Cheaper than
+    one-call-per-doc and stable enough to fetch alongside the list."""
+    rows = await db.execute_fetchall(
+        "SELECT source_id, target_id, COALESCE(link_type, '') FROM document_links"
+    )
+    return [{"source_id": r[0], "target_id": r[1], "link_type": r[2]} for r in rows]
+
+
 @router.delete("/links/{link_id}", status_code=204)
 async def delete_document_link(link_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(

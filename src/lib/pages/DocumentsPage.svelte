@@ -46,6 +46,13 @@
   let suppliers = [];
   let loading = true;
 
+  // All edges in the document_links graph — fetched once at load, used to group
+  // related docs (Devis → BPA → Facture) into workflow cards.
+  let allLinks = [];
+
+  // Logo error tracking for supplier logos in workflow cards
+  let supplierLogoErrors = {};
+
   // Filters
   let searchQuery = '';
   let filterType = '';
@@ -117,6 +124,95 @@
     acc[d.doc_type] = (acc[d.doc_type] || 0) + 1;
     return acc;
   }, {});
+
+  // ── Workflow grouping ─────────────────────────────────────
+  // Compute connected components of the link graph restricted to currently visible docs.
+  // Result: Array<Group> where each Group has either 1 doc (singleton) or 2+ docs that
+  // form a workflow (Devis → BPA → Facture, …).
+  $: docGroups = (() => {
+    if (!filteredDocs?.length) return [];
+    const visibleIds = new Set(filteredDocs.map(d => d.id));
+    const docById = new Map(filteredDocs.map(d => [d.id, d]));
+
+    // Adjacency map restricted to visible docs only
+    const adj = new Map();
+    for (const id of visibleIds) adj.set(id, new Set());
+    for (const e of allLinks) {
+      if (visibleIds.has(e.source_id) && visibleIds.has(e.target_id)) {
+        adj.get(e.source_id).add(e.target_id);
+        adj.get(e.target_id).add(e.source_id);
+      }
+    }
+
+    // BFS for connected components
+    const seen = new Set();
+    const groups = [];
+    for (const startId of visibleIds) {
+      if (seen.has(startId)) continue;
+      const queue = [startId];
+      const componentIds = [];
+      while (queue.length) {
+        const id = queue.shift();
+        if (seen.has(id)) continue;
+        seen.add(id);
+        componentIds.push(id);
+        for (const nb of adj.get(id) || []) {
+          if (!seen.has(nb)) queue.push(nb);
+        }
+      }
+      const docs = componentIds.map(i => docById.get(i)).filter(Boolean);
+      // Workflow ordering: documents oldest-first so the user reads chronologically
+      docs.sort((a, b) => (a.doc_date || a.created_at || '').localeCompare(b.doc_date || b.created_at || ''));
+      groups.push(docs);
+    }
+
+    // Sort groups: most recent activity first
+    groups.sort((a, b) => {
+      const lastA = a.reduce((m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0);
+      const lastB = b.reduce((m, d) => Math.max(m, new Date(d.doc_date || d.created_at || 0).getTime()), 0);
+      return lastB - lastA;
+    });
+
+    return groups;
+  })();
+
+  function groupSupplier(group) {
+    // Use the first non-empty supplier_name found in the group. If multiple distinct
+    // suppliers appear (rare), fall back to a neutral label.
+    const names = [...new Set(group.map(d => d.supplier_name || d.supplier || '').filter(Boolean))];
+    if (names.length === 1) return names[0];
+    if (names.length === 0) return 'Sans prestataire';
+    return 'Plusieurs prestataires';
+  }
+
+  function groupSupplierId(group) {
+    const ids = [...new Set(group.map(d => d.supplier_id).filter(v => v != null))];
+    return ids.length === 1 ? ids[0] : null;
+  }
+
+  function supplierInitials(name) {
+    if (!name) return '??';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name.slice(0, 2).toUpperCase();
+  }
+
+  // External chain chips: links that point to docs outside the current group
+  // (e.g. a Devis in this group references a Devis that lives in another group).
+  function externalLinks(doc, group) {
+    const groupIds = new Set(group.map(d => d.id));
+    const out = [];
+    for (const e of allLinks) {
+      let other = null;
+      if (e.source_id === doc.id && !groupIds.has(e.target_id)) other = e.target_id;
+      else if (e.target_id === doc.id && !groupIds.has(e.source_id)) other = e.source_id;
+      if (other != null) {
+        const refDoc = documents.find(x => x.id === other);
+        if (refDoc) out.push(refDoc);
+      }
+    }
+    return out;
+  }
 
   // ── Helpers ────────────────────────────────────────────────
   function defaultForm() {
@@ -232,7 +328,13 @@
   async function fetchDocuments() {
     loading = true;
     try {
-      documents = await api.get('/api/documents');
+      // Fetch the doc list AND the link graph in parallel — both feed the workflow grouping.
+      const [docs, links] = await Promise.all([
+        api.get('/api/documents'),
+        api.get('/api/documents/links-graph').catch(() => []),
+      ]);
+      documents = docs;
+      allLinks = Array.isArray(links) ? links : [];
     } catch (e) {
       toastError('Erreur lors du chargement des documents');
     } finally {
@@ -701,9 +803,32 @@
           <div class="empty-hint">Importez des fichiers ou creez un nouveau document</div>
         </div>
       {:else}
-        {#each filteredDocs as doc (doc.id)}
+        {#each docGroups as group (group.map(d => d.id).join(','))}
+          {#if group.length > 1}
+            <!-- Workflow card: 2+ docs linked together (Devis → BPA → Facture). -->
+            {@const supplierName = groupSupplier(group)}
+            {@const supId = groupSupplierId(group)}
+            <div class="workflow-card">
+              <div class="workflow-card__header">
+                <div class="workflow-card__supplier">
+                  {#if supId && !supplierLogoErrors[supId]}
+                    <img class="workflow-card__logo"
+                         src="{API_BASE}/api/suppliers/{supId}/logo" alt=""
+                         on:error={() => { supplierLogoErrors[supId] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                  {:else}
+                    <span class="workflow-card__initials">{supplierInitials(supplierName)}</span>
+                  {/if}
+                  <span class="workflow-card__supplier-name">{supplierName}</span>
+                </div>
+                <span class="workflow-card__count">{group.length} documents li{'\u00e9'}s</span>
+              </div>
+              {#each group as doc, idx (doc.id)}
+                <!-- arrow connector between rows -->
+                {#if idx > 0}
+                  <div class="workflow-arrow">{'\u2193'}</div>
+                {/if}
           <div
-            class="doc-row"
+            class="doc-row doc-row--in-workflow"
             class:doc-row-expanded={expandedDocId === doc.id}
             class:doc-row-selected={previewDoc && previewDoc.id === doc.id}
             style="border-left: 3px solid {getTypeStyle(doc.doc_type).border}"
@@ -784,6 +909,18 @@
                       <span class="chain-pill-title">{truncateText(doc.reference || doc.title, 20)}</span>
                     </div>
 
+                    <!-- inline chips for cross-group links -->
+                    {#each externalLinks(doc, group) as ext}
+                      <span class="chain-arrow">{'\u2192'}</span>
+                      <button class="chain-pill chain-pill-linked"
+                              style="background: {getTypeStyle(ext.doc_type).bg}; color: {getTypeStyle(ext.doc_type).color}; border: 1px solid {getTypeStyle(ext.doc_type).color}40"
+                              on:click|stopPropagation={() => toggleExpand(ext.id)}>
+                        <span class="chain-pill-icon">{getTypeStyle(ext.doc_type).icon || '\u{1F4C4}'}</span>
+                        <span class="chain-pill-type">{getTypeStyle(ext.doc_type).label}</span>
+                        <span class="chain-pill-title">{truncateText(ext.reference || ext.title, 20)}</span>
+                      </button>
+                    {/each}
+
                     {#if loadingLinks[doc.id]}
                       <span class="chain-loading">…</span>
                     {:else if docLinks[doc.id] && docLinks[doc.id].length > 0}
@@ -863,6 +1000,51 @@
               </div>
             {/if}
           </div>
+              {/each}
+            </div>
+          {:else}
+            <!-- Singleton: doc with no other linked docs visible — render as standalone row. -->
+            {@const doc = group[0]}
+            <div
+              class="doc-row"
+              class:doc-row-expanded={expandedDocId === doc.id}
+              class:doc-row-selected={previewDoc && previewDoc.id === doc.id}
+              style="border-left: 3px solid {getTypeStyle(doc.doc_type).border}"
+              data-doc-id={doc.id}
+            >
+              <div class="doc-main" on:click={() => toggleExpand(doc.id)}>
+                <span class="doc-file-icon" title={getFileExtension(doc.file_path).toUpperCase() || 'Fichier'}>
+                  {getFileIcon(doc.file_path)}
+                </span>
+                <span class="doc-type-badge"
+                      style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40">
+                  {getTypeStyle(doc.doc_type).label || doc.doc_type}
+                </span>
+                <div class="doc-title-group">
+                  <span class="doc-title">{doc.title}</span>
+                  {#if doc.supplier_name || doc.supplier}
+                    <span class="doc-supplier-prominent">{doc.supplier_name || doc.supplier}</span>
+                  {/if}
+                </div>
+                {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
+                {#if doc.reference}<span class="doc-ref">#{doc.reference}</span>{/if}
+                {#if doc.file_path}<span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>{/if}
+                <div class="doc-actions">
+                  {#if doc.file_path}
+                    <button class="btn-icon btn-icon-preview" on:click|stopPropagation={() => openPreview(doc)} title="Apercu">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  {/if}
+                  <button class="btn-icon" on:click|stopPropagation={() => openEditDialog(doc)} title="Modifier">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  </button>
+                  <button class="btn-icon btn-icon-danger" on:click|stopPropagation={() => { confirmDeleteId = doc.id; }} title="Supprimer">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          {/if}
         {/each}
       {/if}
     </div>
@@ -1425,6 +1607,55 @@
     overflow-y: auto;
     max-height: calc(100vh - 240px);
     padding-right: 4px;
+  }
+
+  /* ── Workflow card (groups linked docs together) ─────────── */
+  .workflow-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 0.75rem;
+    margin-bottom: 10px;
+    padding: 10px 12px 4px;
+    transition: border-color 0.2s, box-shadow 0.25s;
+    position: relative;
+  }
+  .workflow-card:hover {
+    border-color: var(--border-hover);
+    box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.08), 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+  .workflow-card__header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding-bottom: 8px;
+    border-bottom: 1px dashed rgba(255,255,255,0.08);
+    margin-bottom: 8px;
+  }
+  .workflow-card__supplier { display: flex; align-items: center; gap: 10px; }
+  .workflow-card__logo {
+    width: 32px; height: 32px; border-radius: 6px; object-fit: contain;
+    background: rgba(255,255,255,0.05); padding: 2px;
+  }
+  .workflow-card__initials {
+    width: 32px; height: 32px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(136,105,225,0.15); color: var(--primary, #8869e1);
+    font-size: 12px; font-weight: 700;
+  }
+  .workflow-card__supplier-name {
+    font-weight: 600; font-size: 14px; color: var(--text, #E6EAF2);
+  }
+  .workflow-card__count {
+    font-size: 11px; font-weight: 600;
+    color: var(--text-muted, #94A3B8); text-transform: uppercase; letter-spacing: 0.04em;
+    background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 1rem;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .workflow-arrow {
+    text-align: center; color: var(--text-muted, #94A3B8);
+    font-size: 14px; padding: 2px 0; user-select: none;
+  }
+  .doc-row--in-workflow {
+    margin-bottom: 0 !important;
+    background: var(--bg-base, #0F1115) !important;
   }
 
   /* ── Document rows ──────────────────────────────────────── */
