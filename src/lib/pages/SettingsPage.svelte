@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { API_BASE } from '../api/client.js';
+  import { settings as settingsStore } from '../stores/settings.js';
 
   const API = `${API_BASE}/api/settings`;
 
@@ -372,6 +373,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(general),
       });
+      // Refresh the global settings store so HomePage greeting / weather / etc.
+      // pick up the new values immediately, instead of waiting for app restart.
+      settingsStore.set({ ...general });
       showSaved();
     } catch { /* backend not ready */ }
   }

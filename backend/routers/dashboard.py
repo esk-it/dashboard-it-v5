@@ -171,8 +171,11 @@ async def weather():
 
         async with httpx.AsyncClient(timeout=10) as client:
             if configured_city:
-                # Use Open-Meteo geocoding to resolve city name → coordinates
-                geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={configured_city}&count=1&language=fr"
+                # Use Open-Meteo geocoding to resolve city name → coordinates.
+                # URL-encode so cities with spaces or accents ("La Rochelle", "Mâcon",
+                # "Saint-Étienne") don't break the request URL.
+                from urllib.parse import quote_plus
+                geo_url = f"https://geocoding-api.open-meteo.com/v1/search?name={quote_plus(configured_city)}&count=1&language=fr"
                 geo = await client.get(geo_url)
                 geo_results = geo.json().get("results", [])
                 if geo_results:
@@ -180,7 +183,18 @@ async def weather():
                     lon = geo_results[0]["longitude"]
                     city = geo_results[0].get("name", configured_city)
                 else:
-                    lat, lon, city = 48.86, 2.35, configured_city
+                    # Don't silently fall back to Paris coords — that misled the user
+                    # into seeing their city's name with another city's weather.
+                    logger.warning(f"Weather: geocoding failed for '{configured_city}'")
+                    return {
+                        "city": configured_city,
+                        "temperature": None,
+                        "humidity": None,
+                        "wind_speed": None,
+                        "emoji": "\u2753",
+                        "description": f"Ville '{configured_city}' introuvable",
+                        "forecast": [],
+                    }
             else:
                 # Fallback: IP geolocation
                 geo = await client.get("http://ip-api.com/json/?fields=city,lat,lon")
