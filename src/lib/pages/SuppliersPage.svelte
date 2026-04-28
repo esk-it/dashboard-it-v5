@@ -2,6 +2,13 @@
   import { onMount } from 'svelte';
   import { api, API_BASE } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import { currentPage } from '../stores/navigation.js';
+
+  // Cross-page navigation: stash the doc id, switch to /documents, the docs page reads + clears it.
+  function goToDocument(docId) {
+    try { sessionStorage.setItem('docs.focusId', String(docId)); } catch {}
+    currentPage.set('/documents');
+  }
 
   // ── State ──────────────────────────────────────────────────
   let suppliers = [];
@@ -460,7 +467,11 @@
           {:else if supplierDocuments.length > 0}
             <div class="detail-docs">
               {#each supplierDocuments as doc}
-                <div class="detail-doc-row">
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="detail-doc-row detail-doc-row--clickable"
+                     on:click={() => goToDocument(doc.id)}
+                     title="Ouvrir dans le module Documents">
                   <span class="doc-type-badge">{doc.doc_type}</span>
                   <span class="doc-title">{doc.title}</span>
                   {#if doc.doc_date}
@@ -762,7 +773,11 @@
   }
   .btn-close-detail:hover { background: var(--bg-hover); color: var(--text-primary); }
 
-  .detail-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+  /* min-height: 0 needed for the flex child to actually shrink and let overflow-y kick in.
+     Without it, the body expands beyond the 100vh panel and the scroll never engages. */
+  .detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }
+  .detail-doc-row--clickable { cursor: pointer; transition: background 0.12s; }
+  .detail-doc-row--clickable:hover { background: rgba(136,105,225,0.08); }
   .detail-section { margin-bottom: 22px; }
   .detail-section h3 { margin: 0 0 10px; font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
   .detail-fields { display: flex; flex-direction: column; gap: 6px; }

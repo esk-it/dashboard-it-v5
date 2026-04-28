@@ -4,6 +4,12 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.6 — Workflow refs complètes + scroll prestataire + cross-page navigation
+
+- **Refs de TOUS les docs sur les lignes ensemble** : avant on n'affichait que la ref du premier doc (`DEV-2026-001`). Maintenant les 3 refs s'affichent côte à côte (`DEV-2026-001` `BPA-2026-001` `FAC-2026-001`) suivies du nom du premier doc + "et N autres".
+- **Panneau prestataire scrollable** : un classique CSS — `min-height: 0` manquant sur le `.detail-body` flex child empêchait l'overflow-y de s'engager. Sans ça, le contenu poussait le panel au-delà de 100vh au lieu de scroller en interne. Maintenant ça scrolle.
+- **Clic sur un document depuis la fiche prestataire** → bascule sur le module Documents, ferme tous les filtres, ouvre l'éventuel workflow contenant le doc, scrolle dessus et le flash en violet 1.5s pour qu'on le repère.
+
 ## v6.7.5 — Documents : toolbar fix, lignes ensemble enrichies, polish
 
 - **Toolbar refondue** : la classe globale `.ya-toolbar` avait un `max-width: 320px` sur la barre de recherche et un layout flex-wrap qui faisait passer la loupe et le champ sur deux lignes. Custom toolbar `.docs-toolbar` (Importer | Search qui grandit | filtres qui s'étalent à droite). Tout sur une seule ligne propre.

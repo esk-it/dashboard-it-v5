@@ -824,10 +824,46 @@
   }
 
   // ── Lifecycle ──────────────────────────────────────────────
-  onMount(() => {
-    fetchDocuments();
+  // If another page asked to focus a specific document (via sessionStorage flag),
+  // clear filters and expand/scroll to it after the list has loaded.
+  async function handleIncomingFocus() {
+    let focusId = null;
+    try {
+      const raw = sessionStorage.getItem('docs.focusId');
+      if (raw) {
+        focusId = parseInt(raw, 10);
+        sessionStorage.removeItem('docs.focusId');
+      }
+    } catch {}
+    if (!focusId || !documents?.length) return;
+    // Make sure the doc is visible: clear filters and search.
+    filterType = ''; filterTag = ''; filterSupplier = '';
+    searchQuery = '';
+    // Wait one tick so reactive lists rebuild
+    await new Promise(r => setTimeout(r, 50));
+    expandedDocId = focusId;
+    // Workflow that contains the doc — auto-open it
+    for (const item of flatItems) {
+      if (item.kind === 'workflow' && item.docs.some(d => d.id === focusId)) {
+        expandedWorkflowKey = item.key;
+        break;
+      }
+    }
+    await new Promise(r => setTimeout(r, 80));
+    const el = document.querySelector(`[data-doc-id="${focusId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('doc-row--flash');
+      setTimeout(() => el.classList.remove('doc-row--flash'), 1500);
+    }
+  }
+
+  onMount(async () => {
+    await fetchDocuments();
     fetchMeta();
     fetchSuppliers();
+    // Defer focus handling so reactive computations have settled
+    setTimeout(handleIncomingFocus, 100);
   });
 
   onDestroy(() => {
@@ -1102,12 +1138,12 @@
                   {/if}
                   <div class="doc-title-group">
                     <div class="doc-title-row">
-                      {#if item.docs[0].internal_ref}
-                        <span class="doc-iref">{item.docs[0].internal_ref}</span>
-                      {/if}
+                      {#each item.docs as d}
+                        {#if d.internal_ref}<span class="doc-iref">{d.internal_ref}</span>{/if}
+                      {/each}
                       <span class="doc-title">
                         {item.docs[0].title}
-                        <span class="workflow-row__more"> et {item.docs.length - 1} autre{item.docs.length > 2 ? 's' : ''}</span>
+                        {#if item.docs.length > 1}<span class="workflow-row__more">et {item.docs.length - 1} autre{item.docs.length > 2 ? 's' : ''}</span>{/if}
                       </span>
                     </div>
                   </div>
@@ -1822,6 +1858,13 @@
     color: var(--text-secondary, #C0C8D6); white-space: nowrap;
     max-width: 140px; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Brief highlight when arriving via cross-page navigation (e.g. from Suppliers) */
+  .doc-row--flash { animation: doc-flash 1.5s ease-out; }
+  @keyframes doc-flash {
+    0%   { background: rgba(136,105,225,0.25); box-shadow: 0 0 0 2px var(--primary, #8869e1); }
+    100% { background: var(--bg-card); box-shadow: none; }
+  }
+
   /* Inline tags shown under the title — small chip-style for readability at scale */
   .doc-tags-inline {
     display: inline-flex; flex-wrap: wrap; gap: 4px;
