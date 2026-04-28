@@ -4,6 +4,13 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.4 — Documents : référence interne + 3 modes de vue + ligne homogène
+
+- **Référence interne auto-générée** : chaque document reçoit un identifiant unique au format `{TYPE}-{ANNÉE}-{SEQ}` (ex. `DEV-2026-001`, `FAC-2026-042`). Séquence par type et par année. Migration backfill automatique sur la base existante. La référence externe (celle imprimée sur le PDF du fournisseur) reste un champ optionnel séparé. Recherche les deux.
+- **3 modes d'affichage** : sélecteur dans la barre d'outils — `Liste` (workflows pliés en 1 ligne, défaut), `Par date` (chaque doc est une ligne, tri strict décroissant), `Par prestataire` (cartes par fournisseur). Choix mémorisé entre sessions.
+- **Ligne workflow homogène** : la ligne d'un ensemble lié partage maintenant la même grille qu'une ligne single — bord coloré (violet), badge type "Ensemble N", supplier-cell (logo + nom), résumé de la chaîne dans la zone titre, date à droite, chevron pour déplier. Plus de différence visuelle entre une ligne seule et un workflow plié.
+- **Toolbar repensée** : la barre de recherche prend tout l'espace disponible (`flex: 1`), les filtres restent à taille fixe à droite. Tout sur une seule ligne maintenant.
+
 ## v6.7.3 — Documents : tags fonctionnels + auto-réf élargie + UI cleanup
 
 - **Tags persistés à l'import** : le bug était côté backend, le champ `tags` était reçu mais jamais inséré dans `document_tags`. Maintenant chaque tag est créé (s'il n'existe pas) puis lié au document. La liste `GET /api/documents` renvoie aussi les tags en CSV pour qu'ils soient utilisables côté UI (filtre + affichage).

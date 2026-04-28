@@ -27,7 +27,8 @@ class DocumentResponse(BaseModel):
     supplier_id: int | None
     supplier_name: str
     doc_date: str | None
-    reference: str
+    reference: str           # external reference (printed on the supplier's PDF, optional)
+    internal_ref: str = ""   # our auto-generated identifier (DEV-2026-001, FAC-2026-042, …)
     file_path: str
     file_hash: str
     notes: str

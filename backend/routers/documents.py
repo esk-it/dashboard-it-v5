@@ -59,7 +59,40 @@ def _row_to_document(r) -> dict:
         "created_at": r[10] or "",
         # Optional CSV of tag names (present on list endpoint, empty otherwise)
         "tags": r[11] if len(r) > 11 and r[11] else "",
+        "internal_ref": r[12] if len(r) > 12 and r[12] else "",
     }
+
+
+# Type prefix map for internal references — DEV-2026-001 etc.
+_TYPE_PREFIX = {
+    "DEVIS": "DEV", "FACTURE": "FAC", "BPA": "BPA", "BON": "BPA",
+    "CONTRAT": "CTR", "RAPPORT": "RAP", "AUTRE": "AUT",
+}
+
+
+async def _next_internal_ref(db, doc_type: str, year_str: str) -> str:
+    """Compute the next internal reference for a (type, year) pair.
+    Returns e.g. 'DEV-2026-007'. Caller must run inside a transaction.
+    """
+    prefix = _TYPE_PREFIX.get((doc_type or "AUTRE").upper(), "AUT")
+    if not (year_str and year_str.isdigit() and len(year_str) == 4):
+        year_str = str(datetime.now().year)
+    pattern = f"{prefix}-{year_str}-%"
+    rows = await db.execute_fetchall(
+        "SELECT internal_ref FROM documents WHERE internal_ref LIKE ?",
+        (pattern,),
+    )
+    max_seq = 0
+    for row in rows:
+        ref = row[0] or ""
+        # ref looks like DEV-2026-042 → take the last segment
+        try:
+            n = int(ref.rsplit("-", 1)[-1])
+            if n > max_seq:
+                max_seq = n
+        except Exception:
+            pass
+    return f"{prefix}-{year_str}-{(max_seq + 1):03d}"
 
 
 @router.get("/types")
@@ -215,10 +248,12 @@ async def upload_document(
             supplier_id = rows[0][0]
 
     now = datetime.now().isoformat(timespec="seconds")
+    year_for_ref = (doc_date or now)[:4]
+    internal_ref = await _next_internal_ref(db, doc_type, year_for_ref)
     cursor = await db.execute(
-        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, file_path, file_hash, notes, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (title, doc_type, supplier_id, doc_date, reference, rel_path, sha, notes, now),
+        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, internal_ref, file_path, file_hash, notes, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (title, doc_type, supplier_id, doc_date, reference, internal_ref, rel_path, sha, notes, now),
     )
     new_doc_id = cursor.lastrowid
     # Persist tags from the comma-separated string. The upload endpoint accepted them
@@ -290,10 +325,12 @@ async def upload_folder(
             skipped += 1
             continue
 
+        year_for_ref = (file_date or now)[:4]
+        internal_ref = await _next_internal_ref(db, file_doc_type, year_for_ref)
         cursor = await db.execute(
-            """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, file_path, file_hash, notes, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (file_title, file_doc_type, supplier_id, file_date, "", rel_path, sha, "", now),
+            """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, internal_ref, file_path, file_hash, notes, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (file_title, file_doc_type, supplier_id, file_date, "", internal_ref, rel_path, sha, "", now),
         )
         new_id = cursor.lastrowid
         if tags:
@@ -328,15 +365,18 @@ async def list_documents(
                       COALESCE(
                         (SELECT GROUP_CONCAT(t.name, ', ')
                          FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
-                         WHERE dt.document_id = d.id), '') AS tags_csv
+                         WHERE dt.document_id = d.id), '') AS tags_csv,
+                      COALESCE(d.internal_ref, '') AS internal_ref
                FROM documents d
                LEFT JOIN suppliers s ON d.supplier_id = s.id
                WHERE 1=1"""
     params: list = []
 
     if search:
-        query += " AND (d.title LIKE ? OR d.reference LIKE ? OR d.notes LIKE ?)"
-        params += [f"%{search}%", f"%{search}%", f"%{search}%"]
+        # Match against title, external reference, internal reference, and notes —
+        # so a user can paste either "DEV-2026-001" or "F16347" and find the doc.
+        query += " AND (d.title LIKE ? OR d.reference LIKE ? OR d.internal_ref LIKE ? OR d.notes LIKE ?)"
+        params += [f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"]
 
     if doc_type:
         query += " AND d.doc_type = ?"
@@ -608,7 +648,8 @@ async def _fetch_document_response(db, doc_id: int) -> DocumentResponse:
                   COALESCE(
                     (SELECT GROUP_CONCAT(t.name, ', ')
                      FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
-                     WHERE dt.document_id = d.id), '') AS tags_csv
+                     WHERE dt.document_id = d.id), '') AS tags_csv,
+                  COALESCE(d.internal_ref, '') AS internal_ref
            FROM documents d
            LEFT JOIN suppliers s ON d.supplier_id = s.id
            WHERE d.id = ?""",

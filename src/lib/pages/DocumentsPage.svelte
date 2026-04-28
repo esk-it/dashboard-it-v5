@@ -65,12 +65,20 @@
   // Workflow row expand (when in flat mode, a chain is one folded row)
   let expandedWorkflowKey = null;
 
-  // View mode: flat list (default, scales) or grouped by supplier card.
-  // Persist user choice across sessions so they don't have to re-toggle every time.
-  let groupBySupplier = (() => {
-    try { return localStorage.getItem('docs.groupBySupplier') === '1'; } catch { return false; }
+  // View mode: 'list' (flat with workflows folded), 'date' (every doc as a row, no grouping),
+  // or 'supplier' (cards per supplier). Persist across sessions.
+  let viewMode = (() => {
+    try {
+      const saved = localStorage.getItem('docs.viewMode');
+      if (saved === 'list' || saved === 'date' || saved === 'supplier') return saved;
+      // Backwards-compat with the old binary toggle
+      if (localStorage.getItem('docs.groupBySupplier') === '1') return 'supplier';
+      return 'list';
+    } catch { return 'list'; }
   })();
-  $: { try { localStorage.setItem('docs.groupBySupplier', groupBySupplier ? '1' : '0'); } catch {} }
+  $: { try { localStorage.setItem('docs.viewMode', viewMode); } catch {} }
+  // Legacy alias to keep downstream conditionals readable
+  $: groupBySupplier = viewMode === 'supplier';
 
   // Preview panel
   let previewDoc = null;
@@ -177,7 +185,8 @@
       const q = searchQuery.toLowerCase();
       return (d.title || '').toLowerCase().includes(q)
         || (d.supplier_name || d.supplier || '').toLowerCase().includes(q)
-        || (d.reference || '').toLowerCase().includes(q);
+        || (d.reference || '').toLowerCase().includes(q)
+        || (d.internal_ref || '').toLowerCase().includes(q);
     }
     return true;
   });
@@ -313,17 +322,20 @@
     return items;
   })();
 
+  // "Par date" mode: every visible doc as its own row, no grouping. Sort by doc_date desc.
+  $: dateOrderedDocs = [...filteredDocs].sort((a, b) => {
+    const ta = new Date(a.doc_date || a.created_at || 0).getTime();
+    const tb = new Date(b.doc_date || b.created_at || 0).getTime();
+    return tb - ta;
+  });
+
   function toggleWorkflow(key) {
     expandedWorkflowKey = expandedWorkflowKey === key ? null : key;
   }
 
   function workflowSummary(chain) {
     // Compact one-line summary: "Devis 16122 ⇨ BPA ⇨ Facture F16347"
-    return chain.map(d => {
-      const label = getTypeStyle(d.doc_type).label || d.doc_type;
-      const ref = d.reference || truncateText(d.title || '', 14);
-      return ref ? `${label} ${ref}` : label;
-    }).join(' \u21D2 ');
+    return chain.map(d => d.internal_ref || d.reference || truncateText(d.title || '', 14)).join('\u21D2 ');
   }
 
   // Cross-supplier link chips: when a doc points to a doc in a *different* supplier card.
@@ -902,11 +914,11 @@
       </button>
     </div>
     <div class="toolbar-right">
-      <div class="ya-toolbar__search">
+      <div class="ya-toolbar__search ya-toolbar__search--grow">
         <svg class="search-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
           <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
         </svg>
-        <input type="text" placeholder="Rechercher..." on:input={onSearchInput} />
+        <input type="text" placeholder="Rechercher (titre, ref interne ou externe, fournisseur...)" on:input={onSearchInput} />
       </div>
       <select class="filter-select" bind:value={filterType}>
         <option value="">— Tous types —</option>
@@ -926,14 +938,11 @@
           <option value={s}>{s}</option>
         {/each}
       </select>
-      <button class="view-toggle" on:click={() => groupBySupplier = !groupBySupplier}
-              title="{groupBySupplier ? 'Repasser en liste plate' : 'Grouper par prestataire'}">
-        {#if groupBySupplier}
-          {'\u{1F4C2}'} Par presta
-        {:else}
-          {'\u2630'} Liste
-        {/if}
-      </button>
+      <select class="filter-select view-mode-select" bind:value={viewMode} title="Mode d'affichage">
+        <option value="list">{'\u2630'} Liste (groupes plies)</option>
+        <option value="date">{'\u{1F4C5}'} Par date</option>
+        <option value="supplier">{'\u{1F4C2}'} Par prestataire</option>
+      </select>
     </div>
   </div>
 
@@ -990,13 +999,16 @@
                 </span>
               {/if}
               <div class="doc-title-group">
-                <span class="doc-title">{doc.title}</span>
+                <div class="doc-title-row">
+                  {#if doc.internal_ref}<span class="doc-iref">{doc.internal_ref}</span>{/if}
+                  <span class="doc-title">{doc.title}</span>
+                </div>
                 {#if doc.tags}
                   <span class="doc-tags-inline">{doc.tags}</span>
                 {/if}
               </div>
               {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
-              {#if doc.reference}<span class="doc-ref">#{doc.reference}</span>{/if}
+              {#if doc.reference}<span class="doc-ref" title="Reference externe (sur le document)">#{doc.reference}</span>{/if}
               {#if doc.file_path}<span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>{/if}
               <!-- Cross-supplier link chips (rare): same-supplier links are visualised by the workflow card -->
               {#each crossSupplierLinks(doc) as ext}
@@ -1069,29 +1081,41 @@
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
         <div class="doc-list-clickable" on:click={onListBackgroundClick}>
-        {#if !groupBySupplier}
-          <!-- Flat list (default): each row is either a folded workflow or a single doc, sorted by date. -->
+        {#if viewMode === 'list'}
+          <!-- Flat list mode: workflow rows mirror the same grid as singles for visual consistency. -->
           {#each flatItems as item (item.key)}
             {#if item.kind === 'workflow'}
               {@const isOpen = expandedWorkflowKey === item.key}
-              <div class="workflow-row" class:workflow-row--open={isOpen}>
+              <div class="doc-row doc-row--workflow" class:doc-row-expanded={isOpen}
+                   style="border-left: 3px solid var(--primary, #8869e1)">
                 <!-- svelte-ignore a11y_click_events_have_key_events -->
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <div class="workflow-row__head" on:click={() => toggleWorkflow(item.key)}>
-                  <span class="workflow-row__chevron">{isOpen ? '\u25BC' : '\u25B6'}</span>
-                  <span class="workflow-row__icon" title="Workflow li{'\u00e9'}">{'\u{1F517}'}</span>
+                <div class="doc-main doc-main--workflow" on:click={() => toggleWorkflow(item.key)}>
+                  <span class="doc-file-icon" title="Workflow">{'\u{1F517}'}</span>
+                  <span class="doc-type-badge doc-type-badge--workflow"
+                        title="Ensemble de {item.docs.length} documents li{'\u00e9'}s">
+                    Ensemble {item.docs.length}
+                  </span>
                   {#if item.supplierId && !supplierLogoErrors[item.supplierId]}
-                    <img class="workflow-row__logo"
-                         src="{API_BASE}/api/suppliers/{item.supplierId}/logo" alt=""
-                         on:error={() => { supplierLogoErrors[item.supplierId] = true; supplierLogoErrors = supplierLogoErrors; }} />
-                  {:else}
-                    <span class="workflow-row__initials">{supplierInitials(item.supplierName || '?')}</span>
+                    <span class="doc-supplier-cell">
+                      <img class="doc-supplier-cell__logo"
+                           src="{API_BASE}/api/suppliers/{item.supplierId}/logo" alt=""
+                           on:error={() => { supplierLogoErrors[item.supplierId] = true; supplierLogoErrors = supplierLogoErrors; }} />
+                      <span class="doc-supplier-cell__name">{item.supplierName}</span>
+                    </span>
+                  {:else if item.supplierName}
+                    <span class="doc-supplier-cell">
+                      <span class="doc-supplier-cell__initials">{supplierInitials(item.supplierName)}</span>
+                      <span class="doc-supplier-cell__name">{item.supplierName}</span>
+                    </span>
                   {/if}
-                  <span class="workflow-row__supplier">{item.supplierName || 'Sans prestataire'}</span>
-                  <span class="workflow-row__sep">{'\u2014'}</span>
-                  <span class="workflow-row__summary">{workflowSummary(item.docs)}</span>
-                  <span class="workflow-row__count">{item.docs.length} docs</span>
-                  <span class="workflow-row__date">{formatDate(item.lastDoc.doc_date)}</span>
+                  <div class="doc-title-group">
+                    <div class="doc-title-row">
+                      <span class="doc-title doc-title--workflow">{workflowSummary(item.docs)}</span>
+                    </div>
+                  </div>
+                  <span class="doc-date">{formatDate(item.lastDoc.doc_date)}</span>
+                  <span class="workflow-row__chevron">{isOpen ? '▼' : '▶'}</span>
                 </div>
                 {#if isOpen}
                   <div class="workflow-row__body">
@@ -1105,6 +1129,11 @@
             {:else}
               {@render docRow(item.doc)}
             {/if}
+          {/each}
+        {:else if viewMode === 'date'}
+          <!-- Pure date mode: every doc is its own row, no folding. -->
+          {#each dateOrderedDocs as doc (doc.id)}
+            {@render docRow(doc)}
           {/each}
         {:else}
         {#each docGroups as bucket (bucket.key)}
@@ -1800,6 +1829,39 @@
     font-size: 10px; color: var(--text-muted, #94A3B8);
     font-style: italic; margin-top: 2px;
   }
+
+  /* Internal reference — auto-generated, primary identifier */
+  .doc-iref {
+    display: inline-block;
+    font-family: 'Consolas', monospace;
+    font-size: 11px; font-weight: 700;
+    color: var(--primary, #8869e1);
+    background: rgba(136,105,225,0.1);
+    border: 1px solid rgba(136,105,225,0.25);
+    padding: 1px 6px; border-radius: 4px;
+    margin-right: 6px; white-space: nowrap;
+  }
+  .doc-title-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+  /* Workflow row visual consistency: same grid as singles, purple variants */
+  .doc-row--workflow .doc-main { cursor: pointer; }
+  .doc-type-badge--workflow {
+    background: rgba(136,105,225,0.12) !important;
+    color: var(--primary, #8869e1) !important;
+    border: 1px solid rgba(136,105,225,0.4) !important;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  .doc-title--workflow {
+    color: var(--text-secondary, #C0C8D6) !important;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+  }
+
+  /* Search bar grows to fill available toolbar space */
+  .ya-toolbar__search--grow { flex: 1 1 auto !important; min-width: 200px; }
+
+  /* View-mode select sized for full labels */
+  .view-mode-select { min-width: 170px; }
 
   /* View toggle button in the toolbar */
   .view-toggle {

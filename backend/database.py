@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import aiosqlite
@@ -639,6 +640,43 @@ async def _run_migrations(db):
     if "is_milestone" not in task_cols:
         await db.execute("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER NOT NULL DEFAULT 0")
         await db.commit()
+
+    # Internal reference on documents — every doc gets a stable, auto-generated
+    # identifier (DEV-2026-001, FAC-2026-042, ...) independent from any external
+    # reference printed on the supplier's PDF. Migration: assign refs to existing
+    # rows in chronological order so users see meaningful values right away.
+    try:
+        cursor = await db.execute("PRAGMA table_info(documents)")
+        doc_cols = [row[1] for row in await cursor.fetchall()]
+        if "internal_ref" not in doc_cols:
+            await db.execute("ALTER TABLE documents ADD COLUMN internal_ref TEXT NOT NULL DEFAULT ''")
+            await db.commit()
+
+            # Backfill: compute (type, year) sequence for every existing row
+            type_prefix_map = {
+                "DEVIS": "DEV", "FACTURE": "FAC", "BPA": "BPA", "BON": "BPA",
+                "CONTRAT": "CTR", "RAPPORT": "RAP", "AUTRE": "AUT",
+            }
+            rows = await db.execute_fetchall(
+                "SELECT id, COALESCE(doc_type, 'AUTRE'), COALESCE(doc_date, ''), COALESCE(created_at, '') "
+                "FROM documents WHERE internal_ref = '' ORDER BY COALESCE(doc_date, created_at) ASC, id ASC"
+            )
+            seq_counter = {}  # (prefix, year) -> next n
+            for row in rows:
+                doc_id, doc_type, doc_date, created_at = row
+                prefix = type_prefix_map.get((doc_type or "AUTRE").upper(), "AUT")
+                # Year source: doc_date > created_at > today
+                year_str = (doc_date or created_at or "")[:4]
+                year = year_str if year_str.isdigit() and len(year_str) == 4 else str(datetime.now().year)
+                key = (prefix, year)
+                seq = seq_counter.get(key, 0) + 1
+                seq_counter[key] = seq
+                ref = f"{prefix}-{year}-{seq:03d}"
+                await db.execute("UPDATE documents SET internal_ref = ? WHERE id = ?", (ref, doc_id))
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"documents.internal_ref migration failed: {e}")
 
     # Additional supplier contacts (multiple named contacts per supplier)
     try:
