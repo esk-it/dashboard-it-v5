@@ -4,6 +4,14 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.5 — Documents : toolbar fix, lignes ensemble enrichies, polish
+
+- **Toolbar refondue** : la classe globale `.ya-toolbar` avait un `max-width: 320px` sur la barre de recherche et un layout flex-wrap qui faisait passer la loupe et le champ sur deux lignes. Custom toolbar `.docs-toolbar` (Importer | Search qui grandit | filtres qui s'étalent à droite). Tout sur une seule ligne propre.
+- **Lignes ensemble plus parlantes** : la zone titre ne montrait que les références (`DEV-2026-001 ⇒ BPA-2026-001 ⇒ FAC-2026-001`). Maintenant : tag-style `[DEV-2026-001]` + **nom du premier document** + indication "et N autres". Tu sais immédiatement de quoi parle l'ensemble sans déplier.
+- **Référence externe retirée** des lignes : la `internal_ref` (auto, fiable) est désormais le seul identifiant affiché. L'externe reste éditable et indexée pour la recherche, juste pas affichée pour réduire le bruit.
+- **Boutons d'action toujours visibles** : avant `opacity: 0` puis 1 au hover, ce qui faisait des trous visuels. Maintenant `opacity: 0.6` par défaut et `1` au hover/expand — toujours là, pas envahissants.
+- **Polish divers** : chevron centré, tags-inline en chips, `.workflow-row__more` italique discret pour "et N autres".
+
 ## v6.7.4 — Documents : référence interne + 3 modes de vue + ligne homogène
 
 - **Référence interne auto-générée** : chaque document reçoit un identifiant unique au format `{TYPE}-{ANNÉE}-{SEQ}` (ex. `DEV-2026-001`, `FAC-2026-042`). Séquence par type et par année. Migration backfill automatique sur la base existante. La référence externe (celle imprimée sur le PDF du fournisseur) reste un champ optionnel séparé. Recherche les deux.

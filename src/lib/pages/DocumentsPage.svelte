@@ -902,9 +902,8 @@
   <!-- ── Action bar ─────────────────────────────────────── -->
   <!-- Single action: Importer un fichier (drag & drop also works). The previous
        "Nouveau" + "Importer un dossier" buttons were redundant for the actual flow. -->
-  <div class="ya-toolbar ya-toolbar--single">
-    <div class="toolbar-left">
-      <button class="ya-btn ya-btn--primary" on:click={triggerFileInput}>
+  <div class="docs-toolbar">
+    <button class="ya-btn ya-btn--primary docs-toolbar__import" on:click={triggerFileInput}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align: -2px; margin-right: 4px">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
           <polyline points="17 8 12 3 7 8"/>
@@ -912,38 +911,31 @@
         </svg>
         Importer
       </button>
+
+    <div class="docs-toolbar__search">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" placeholder="Rechercher (titre, ref interne ou externe, fournisseur...)" on:input={onSearchInput} />
     </div>
-    <div class="toolbar-right">
-      <div class="ya-toolbar__search ya-toolbar__search--grow">
-        <svg class="search-icon-svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2">
-          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-        </svg>
-        <input type="text" placeholder="Rechercher (titre, ref interne ou externe, fournisseur...)" on:input={onSearchInput} />
-      </div>
-      <select class="filter-select" bind:value={filterType}>
-        <option value="">— Tous types —</option>
-        {#each docTypes as t}
-          <option value={t}>{getTypeStyle(t).label || t}</option>
-        {/each}
-      </select>
-      <select class="filter-select" bind:value={filterTag}>
-        <option value="">— Tous tags —</option>
-        {#each docTags as tag}
-          <option value={tag.name || tag}>{tag.name || tag}</option>
-        {/each}
-      </select>
-      <select class="filter-select" bind:value={filterSupplier}>
-        <option value="">— Tous fournisseurs —</option>
-        {#each supplierList as s}
-          <option value={s}>{s}</option>
-        {/each}
-      </select>
-      <select class="filter-select view-mode-select" bind:value={viewMode} title="Mode d'affichage">
+
+    <select class="filter-select" bind:value={filterType}>
+      <option value="">— Tous types —</option>
+      {#each docTypes as t}<option value={t}>{getTypeStyle(t).label || t}</option>{/each}
+    </select>
+    <select class="filter-select" bind:value={filterTag}>
+      <option value="">— Tous tags —</option>
+      {#each docTags as tag}<option value={tag.name || tag}>{tag.name || tag}</option>{/each}
+    </select>
+    <select class="filter-select" bind:value={filterSupplier}>
+      <option value="">— Tous fournisseurs —</option>
+      {#each supplierList as s}<option value={s}>{s}</option>{/each}
+    </select>
+    <select class="filter-select view-mode-select" bind:value={viewMode} title="Mode d'affichage">
         <option value="list">{'\u2630'} Liste (groupes plies)</option>
         <option value="date">{'\u{1F4C5}'} Par date</option>
         <option value="supplier">{'\u{1F4C2}'} Par prestataire</option>
       </select>
-    </div>
   </div>
 
   <!-- ── Main Content Layout (list + preview) ────────────── -->
@@ -1008,7 +1000,6 @@
                 {/if}
               </div>
               {#if doc.doc_date}<span class="doc-date">{formatDate(doc.doc_date)}</span>{/if}
-              {#if doc.reference}<span class="doc-ref" title="Reference externe (sur le document)">#{doc.reference}</span>{/if}
               {#if doc.file_path}<span class="doc-ext-badge">{getFileExtension(doc.file_path).toUpperCase()}</span>{/if}
               <!-- Cross-supplier link chips (rare): same-supplier links are visualised by the workflow card -->
               {#each crossSupplierLinks(doc) as ext}
@@ -1111,7 +1102,13 @@
                   {/if}
                   <div class="doc-title-group">
                     <div class="doc-title-row">
-                      <span class="doc-title doc-title--workflow">{workflowSummary(item.docs)}</span>
+                      {#if item.docs[0].internal_ref}
+                        <span class="doc-iref">{item.docs[0].internal_ref}</span>
+                      {/if}
+                      <span class="doc-title">
+                        {item.docs[0].title}
+                        <span class="workflow-row__more"> et {item.docs.length - 1} autre{item.docs.length > 2 ? 's' : ''}</span>
+                      </span>
                     </div>
                   </div>
                   <span class="doc-date">{formatDate(item.lastDoc.doc_date)}</span>
@@ -1825,9 +1822,11 @@
     color: var(--text-secondary, #C0C8D6); white-space: nowrap;
     max-width: 140px; overflow: hidden; text-overflow: ellipsis;
   }
+  /* Inline tags shown under the title — small chip-style for readability at scale */
   .doc-tags-inline {
+    display: inline-flex; flex-wrap: wrap; gap: 4px;
     font-size: 10px; color: var(--text-muted, #94A3B8);
-    font-style: italic; margin-top: 2px;
+    margin-top: 2px;
   }
 
   /* Internal reference — auto-generated, primary identifier */
@@ -1856,9 +1855,39 @@
     font-family: 'Consolas', monospace;
     font-size: 12px;
   }
+  .workflow-row__more {
+    color: var(--text-muted, #94A3B8); font-size: 11px;
+    font-style: italic; margin-left: 4px;
+  }
+  .workflow-row__chevron {
+    color: var(--text-muted, #94A3B8); font-size: 10px;
+    width: 14px; flex-shrink: 0; text-align: center;
+  }
 
-  /* Search bar grows to fill available toolbar space */
-  .ya-toolbar__search--grow { flex: 1 1 auto !important; min-width: 200px; }
+  /* Custom toolbar: Importer | Search (grow) | filters spread to the right */
+  .docs-toolbar {
+    display: flex; align-items: center; gap: 0.625rem;
+    flex-wrap: wrap; margin-bottom: 1rem;
+  }
+  .docs-toolbar__import { flex-shrink: 0; }
+  .docs-toolbar__search {
+    flex: 1 1 280px; min-width: 240px;
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-input, rgba(255,255,255,0.03));
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.08));
+    border-radius: 0.625rem;
+  }
+  .docs-toolbar__search:focus-within {
+    border-color: var(--primary, #8869e1);
+    box-shadow: 0 0 0 0.25rem rgba(136,105,225,0.15);
+  }
+  .docs-toolbar__search input {
+    flex: 1 1 auto; min-width: 0;
+    background: transparent; border: none; outline: none;
+    color: var(--text-primary, #E6EAF2);
+    font-size: 0.8125rem; font-family: inherit;
+  }
 
   /* View-mode select sized for full labels */
   .view-mode-select { min-width: 170px; }
@@ -2120,11 +2149,12 @@
     display: flex;
     gap: 4px;
     flex-shrink: 0;
-    opacity: 0;
+    opacity: 0.6;
     transition: opacity 0.15s;
   }
 
-  .doc-main:hover .doc-actions {
+  .doc-main:hover .doc-actions,
+  .doc-row-expanded .doc-actions {
     opacity: 1;
   }
 
