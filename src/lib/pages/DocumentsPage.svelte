@@ -20,6 +20,19 @@
     { value: 'attachment', label: 'Piece jointe de' },
   ];
 
+  // Workflow ordering: Devis → BPA/Bon → Contrat → Facture → Rapport → Autre.
+  // Used to lay out a chain inside an "Ensemble" card so the hierarchy is visible
+  // regardless of which side of the link the user clicked from.
+  const TYPE_ORDER = {
+    DEVIS:    1,
+    BON:      2,
+    BPA:      2,
+    CONTRAT:  3,
+    FACTURE:  4,
+    RAPPORT:  5,
+    AUTRE:    6,
+  };
+
   const FILE_TYPE_ICONS = {
     pdf:   '\u{1F4D5}',
     doc:   '\u{1F4D8}',
@@ -262,7 +275,15 @@
           }
         }
         const docs = compIds.map(i => docById.get(i)).filter(Boolean);
-        docs.sort((a, b) => (a.doc_date || a.created_at || '').localeCompare(b.doc_date || b.created_at || ''));
+        // Order by doc-type hierarchy first, then date as tiebreaker.
+        // Standard accounting flow: Devis (proposal) → BPA/Bon (approval) → Contrat (signed)
+        // → Facture (invoice). Reports and "Autre" come last.
+        docs.sort((a, b) => {
+          const ra = TYPE_ORDER[(a.doc_type || '').toUpperCase()] ?? 99;
+          const rb = TYPE_ORDER[(b.doc_type || '').toUpperCase()] ?? 99;
+          if (ra !== rb) return ra - rb;
+          return (a.doc_date || a.created_at || '').localeCompare(b.doc_date || b.created_at || '');
+        });
         if (docs.length > 1) chains.push(docs);
         else singletons.push(docs[0]);
       }

@@ -4,6 +4,11 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.8 — Hiérarchie workflow + facturation partielle au pourcentage
+
+- **Ordre logique dans les ensembles** : avant, l'ordre dépendait de la date des docs → un BPA daté avant le devis se retrouvait au-dessus visuellement. Maintenant tri par hiérarchie de type : **Devis → BPA → Contrat → Facture → Rapport → Autre**, avec la date en départage. Plus jamais "BPA avant Devis".
+- **Calcul de facturation partielle (%)** dans le dialog d'édition de doc lié (module Projet) : si tu as un devis de 10 000 € et qu'on a payé 30 %, tu choisis le devis dans un picker, tu tapes 30 %, click "Appliquer" → le montant 3 000 € est calculé et rempli dans Montant initial + Montant validé. Tu peux ensuite ajuster manuellement. La case n'apparaît que si le projet a au moins un devis avec un montant.
+
 ## v6.7.7 — Fix gestion des liens + dialogs empilés + Facture moins flashy
 
 - **"Erreur lors du chargement des liens"** : `GET /api/documents/{id}` plantait à cause d'une collision de kwargs (`tags` passé deux fois à `DocumentDetailResponse`). Le `_row_to_document` ajoutait un champ `tags` (CSV) destiné à la liste, et l'endpoint détail le repassait aussi explicitement comme `list[TagResponse]`. → 500 → le dialog "Liens du document" affichait l'erreur. Corrigé en pop-ant `tags` du dict avant la construction de la réponse.

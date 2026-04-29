@@ -81,10 +81,31 @@
   // Edit document amounts
   let editingDocLink = null;
   let editDocForm = { amount: 0, amount_accepted: 0, status: '' };
+  // Partial-invoice helper: pick a Devis already linked to this project, type a percentage,
+  // amount auto-fills. Useful when a Facture covers e.g. 30% of a quote.
+  let editDocPctSourceId = null;
+  let editDocPctValue = 0;
 
   function openEditDocLink(doc) {
     editingDocLink = doc;
     editDocForm = { amount: doc.amount || 0, amount_accepted: doc.amount_accepted || 0, status: doc.status || '' };
+    editDocPctSourceId = null;
+    editDocPctValue = 0;
+  }
+
+  // Devis linked to the project, used as the picker source for partial-invoice math.
+  $: projectDevis = (selectedProject?.documents || []).filter(d =>
+    (d.doc_type || '').toUpperCase() === 'DEVIS' && (d.amount > 0 || d.amount_accepted > 0)
+  );
+
+  function applyPercentToEditDoc() {
+    const src = projectDevis.find(d => d.id === editDocPctSourceId);
+    if (!src) return;
+    const base = src.amount_accepted > 0 ? src.amount_accepted : (src.amount || 0);
+    const pct = Number(editDocPctValue) || 0;
+    if (pct <= 0 || base <= 0) return;
+    editDocForm.amount = Math.round(base * pct) / 100;          // base × pct/100, 2 décimales
+    editDocForm.amount_accepted = editDocForm.amount;
   }
 
   async function saveEditDocLink() {
@@ -1653,6 +1674,35 @@
           <option value="refuse">Refuse</option>
         </select>
       </label>
+
+      {#if projectDevis.length > 0}
+        <!-- Partial invoice helper: type % of an existing Devis instead of computing the EUR yourself. -->
+        <div class="pct-helper">
+          <div class="pct-helper__title">Calculer depuis un devis (facturation partielle)</div>
+          <div class="pct-helper__row">
+            <select bind:value={editDocPctSourceId}>
+              <option value={null}>— Choisir un devis —</option>
+              {#each projectDevis as d}
+                <option value={d.id}>
+                  {d.title} ({((d.amount_accepted > 0 ? d.amount_accepted : d.amount) || 0).toLocaleString('fr-FR')} EUR)
+                </option>
+              {/each}
+            </select>
+            <div class="pct-helper__inputs">
+              <input type="number" bind:value={editDocPctValue} min="0" max="100" step="0.1" placeholder="%" />
+              <span>%</span>
+              <button class="ya-btn ya-btn--ghost ya-btn--sm" type="button"
+                      on:click={applyPercentToEditDoc}
+                      disabled={!editDocPctSourceId || !editDocPctValue}>
+                Appliquer
+              </button>
+            </div>
+          </div>
+          <p class="pct-helper__hint">
+            Ex : Devis 10 000 € + 30 % → 3 000 €. Le calcul se met dans Montant initial et Montant valide ; tu peux ajuster ensuite.
+          </p>
+        </div>
+      {/if}
     </div>
     <div class="ya-dialog__footer">
       <button class="ya-btn ya-btn--ghost" on:click={() => editingDocLink = null}>Annuler</button>
@@ -1835,6 +1885,29 @@
   .budget-info { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); }
   .budget-pct { font-weight: 700; color: #F59E0B; }
   .budget-over { color: #EF4444 !important; }
+
+  /* Partial-invoice percent helper inside the doc-link edit dialog */
+  .pct-helper {
+    margin-top: 0.75rem; padding: 0.625rem 0.75rem;
+    background: rgba(136,105,225,0.06);
+    border: 1px dashed rgba(136,105,225,0.3);
+    border-radius: 0.5rem;
+  }
+  .pct-helper__title {
+    font-size: 0.75rem; font-weight: 700; color: var(--primary);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.5rem;
+  }
+  .pct-helper__row {
+    display: grid; grid-template-columns: 1fr auto; gap: 0.5rem; align-items: center;
+  }
+  .pct-helper__row select {
+    width: 100%; font-size: 0.8125rem;
+  }
+  .pct-helper__inputs { display: flex; align-items: center; gap: 0.375rem; }
+  .pct-helper__inputs input { width: 70px; text-align: right; font-size: 0.8125rem; }
+  .pct-helper__hint {
+    font-size: 0.6875rem; color: var(--text-muted); margin: 0.5rem 0 0; font-style: italic;
+  }
 
   /* Gantt */
   .gantt-card { padding: 1.25rem 1.25rem 0.75rem; }
