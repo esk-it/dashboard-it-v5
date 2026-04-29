@@ -60,6 +60,7 @@ def _row_to_document(r) -> dict:
         # Optional CSV of tag names (present on list endpoint, empty otherwise)
         "tags": r[11] if len(r) > 11 and r[11] else "",
         "internal_ref": r[12] if len(r) > 12 and r[12] else "",
+        "is_acompte": bool(r[13]) if len(r) > 13 else False,
     }
 
 
@@ -216,6 +217,8 @@ async def upload_document(
     reference: str = Form(""),
     notes: str = Form(""),
     tags: str = Form(""),
+    is_acompte: int = Form(0),
+    link_to_id: int | None = Form(None),
     db=Depends(get_raw_db),
 ):
     """Upload a single file and create a document record."""
@@ -250,16 +253,26 @@ async def upload_document(
     now = datetime.now().isoformat(timespec="seconds")
     year_for_ref = (doc_date or now)[:4]
     internal_ref = await _next_internal_ref(db, doc_type, year_for_ref)
+    acompte_flag = 1 if is_acompte else 0
     cursor = await db.execute(
-        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, internal_ref, file_path, file_hash, notes, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (title, doc_type, supplier_id, doc_date, reference, internal_ref, rel_path, sha, notes, now),
+        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, internal_ref, file_path, file_hash, notes, created_at, is_acompte)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (title, doc_type, supplier_id, doc_date, reference, internal_ref, rel_path, sha, notes, now, acompte_flag),
     )
     new_doc_id = cursor.lastrowid
     # Persist tags from the comma-separated string. The upload endpoint accepted them
     # but never wrote them to document_tags before — this is the missing link.
     if tags:
         await _attach_tags_by_name(db, new_doc_id, tags, now)
+    # Optional immediate link to another doc — saves the user a separate step.
+    if link_to_id:
+        try:
+            await db.execute(
+                "INSERT OR IGNORE INTO document_links (source_id, target_id, link_type, created_at) VALUES (?, ?, ?, ?)",
+                (new_doc_id, int(link_to_id), "related", now),
+            )
+        except Exception as e:
+            logger.warning(f"could not auto-link doc {new_doc_id} to {link_to_id}: {e}")
     await db.commit()
     return await _fetch_document_response(db, new_doc_id)
 
@@ -366,7 +379,8 @@ async def list_documents(
                         (SELECT GROUP_CONCAT(t.name, ', ')
                          FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
                          WHERE dt.document_id = d.id), '') AS tags_csv,
-                      COALESCE(d.internal_ref, '') AS internal_ref
+                      COALESCE(d.internal_ref, '') AS internal_ref,
+                      COALESCE(d.is_acompte, 0) AS is_acompte
                FROM documents d
                LEFT JOIN suppliers s ON d.supplier_id = s.id
                WHERE 1=1"""
@@ -401,7 +415,8 @@ async def get_document(doc_id: int, db=Depends(get_raw_db)):
                   COALESCE(d.file_path,''), COALESCE(d.file_hash,''),
                   COALESCE(d.notes,''), COALESCE(d.created_at,''),
                   '' AS tags_csv,
-                  COALESCE(d.internal_ref, '') AS internal_ref
+                  COALESCE(d.internal_ref, '') AS internal_ref,
+                  COALESCE(d.is_acompte, 0) AS is_acompte
            FROM documents d
            LEFT JOIN suppliers s ON d.supplier_id = s.id
            WHERE d.id = ?""",
@@ -489,8 +504,8 @@ async def create_document(body: DocumentCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
     supplier_id = await _resolve_supplier_id(db, body.supplier_id, body.supplier)
     cursor = await db.execute(
-        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, file_path, file_hash, notes, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO documents (title, doc_type, supplier_id, doc_date, reference, file_path, file_hash, notes, created_at, is_acompte)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.doc_type,
@@ -501,6 +516,7 @@ async def create_document(body: DocumentCreate, db=Depends(get_raw_db)):
             body.file_hash,
             body.notes,
             now,
+            1 if body.is_acompte else 0,
         ),
     )
     await db.commit()
@@ -526,7 +542,7 @@ async def update_document(doc_id: int, body: DocumentUpdate, db=Depends(get_raw_
 
     supplier_id = await _resolve_supplier_id(db, body.supplier_id, body.supplier)
     await db.execute(
-        """UPDATE documents SET title=?, doc_type=?, supplier_id=?, doc_date=?, reference=?, file_path=?, file_hash=?, notes=?
+        """UPDATE documents SET title=?, doc_type=?, supplier_id=?, doc_date=?, reference=?, file_path=?, file_hash=?, notes=?, is_acompte=?
            WHERE id=?""",
         (
             body.title,
@@ -537,6 +553,7 @@ async def update_document(doc_id: int, body: DocumentUpdate, db=Depends(get_raw_
             body.file_path,
             body.file_hash,
             body.notes,
+            1 if body.is_acompte else 0,
             doc_id,
         ),
     )
@@ -654,7 +671,8 @@ async def _fetch_document_response(db, doc_id: int) -> DocumentResponse:
                     (SELECT GROUP_CONCAT(t.name, ', ')
                      FROM document_tags dt JOIN tags t ON dt.tag_id = t.id
                      WHERE dt.document_id = d.id), '') AS tags_csv,
-                  COALESCE(d.internal_ref, '') AS internal_ref
+                  COALESCE(d.internal_ref, '') AS internal_ref,
+                  COALESCE(d.is_acompte, 0) AS is_acompte
            FROM documents d
            LEFT JOIN suppliers s ON d.supplier_id = s.id
            WHERE d.id = ?""",

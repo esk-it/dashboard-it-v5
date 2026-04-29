@@ -641,6 +641,18 @@ async def _run_migrations(db):
         await db.execute("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER NOT NULL DEFAULT 0")
         await db.commit()
 
+    # is_acompte flag on documents — marks a Facture as a partial / down-payment invoice.
+    # Users want to visually distinguish acomptes from final invoices on the list.
+    try:
+        cursor = await db.execute("PRAGMA table_info(documents)")
+        doc_cols = [row[1] for row in await cursor.fetchall()]
+        if "is_acompte" not in doc_cols:
+            await db.execute("ALTER TABLE documents ADD COLUMN is_acompte INTEGER NOT NULL DEFAULT 0")
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"documents.is_acompte migration skipped: {e}")
+
     # Internal reference on documents — every doc gets a stable, auto-generated
     # identifier (DEV-2026-001, FAC-2026-042, ...) independent from any external
     # reference printed on the supplier's PDF. Migration: assign refs to existing

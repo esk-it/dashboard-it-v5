@@ -388,8 +388,10 @@
       doc_date: new Date().toISOString().slice(0, 10),
       reference: '',
       notes: '',
-      tags: '',
+      tags: '',          // kept for the create/edit dialogs (still useful there)
       file_path: '',
+      is_acompte: false, // only used when doc_type === 'FACTURE'
+      link_to_id: null,  // optional immediate link to another doc, single-import only
     };
   }
 
@@ -629,6 +631,8 @@
         if (metadata.reference) formData.append('reference', metadata.reference);
         if (metadata.notes) formData.append('notes', metadata.notes);
         if (metadata.tags) formData.append('tags', metadata.tags);
+        if (metadata.is_acompte) formData.append('is_acompte', '1');
+        if (metadata.link_to_id) formData.append('link_to_id', String(metadata.link_to_id));
 
         const res = await fetch(`${API_BASE}/api/documents/upload`, {
           method: 'POST',
@@ -1033,6 +1037,9 @@
                     style="background: {getTypeStyle(doc.doc_type).bg}; color: {getTypeStyle(doc.doc_type).color}; border: 1px solid {getTypeStyle(doc.doc_type).color}40">
                 {getTypeStyle(doc.doc_type).label || doc.doc_type}
               </span>
+              {#if doc.is_acompte}
+                <span class="doc-acompte-badge" title="Facture d'acompte (paiement partiel)">ACOMPTE</span>
+              {/if}
               <!-- Supplier identity (logo + name) — kept compact so a row stays single-line.
                    Hidden when the row is inside the supplier-card view (already in the header). -->
               {#if !groupBySupplier && (doc.supplier_id || doc.supplier_name || doc.supplier)}
@@ -1494,10 +1501,34 @@
           </label>
         {/if}
 
-        <label class="form-label">
-          Tags
-          <input type="text" class="form-input" bind:value={importForm.tags} placeholder="tag1, tag2, ..." />
-        </label>
+        <!-- Acompte flag (only meaningful for invoices) -->
+        {#if importForm.doc_type === 'FACTURE'}
+          <label class="form-label form-checkbox">
+            <input type="checkbox" bind:checked={importForm.is_acompte} />
+            <span>Cette facture est un <strong style="color:#EF4444">acompte</strong> (paiement partiel)</span>
+          </label>
+        {/if}
+
+        <!-- Lier à un autre document — replaces the tags slot since tags are rarely set at import time -->
+        {#if pendingFiles.length === 1 && documents.length > 0}
+          {@const candidates = importForm.supplier
+            ? documents.filter(d => (d.supplier_name || d.supplier || '').toLowerCase() === importForm.supplier.toLowerCase())
+            : documents}
+          <label class="form-label">
+            Lier à un document existant <span style="font-weight:400;color:var(--text-muted, #94A3B8)">(optionnel)</span>
+            <select class="form-input" bind:value={importForm.link_to_id}>
+              <option value={null}>— Aucun lien —</option>
+              {#each candidates.slice(0, 50) as d}
+                <option value={d.id}>
+                  {(d.internal_ref || d.reference || '#' + d.id)} · {getTypeStyle(d.doc_type).label || d.doc_type} · {d.title}{d.supplier_name ? ' (' + d.supplier_name + ')' : ''}
+                </option>
+              {/each}
+            </select>
+            {#if importForm.supplier && candidates.length === 0}
+              <small style="color:var(--text-muted, #94A3B8)">Aucun document de "{importForm.supplier}" pour l'instant.</small>
+            {/if}
+          </label>
+        {/if}
       </div>
       <div class="modal-footer">
         <button class="btn-ghost" on:click={closeImportDialog}>Annuler</button>
@@ -1893,6 +1924,24 @@
     font-size: 10px; color: var(--text-muted, #94A3B8);
     margin-top: 2px;
   }
+
+  /* "ACOMPTE" red badge on a Facture line — flags partial / down-payment invoices */
+  .doc-acompte-badge {
+    display: inline-block;
+    background: #EF4444; color: #fff;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.06em;
+    padding: 2px 7px; border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  /* Inline checkbox row in import / create dialogs */
+  .form-checkbox {
+    display: flex !important; align-items: center; gap: 8px;
+    font-weight: 500;
+    user-select: none; cursor: pointer;
+  }
+  .form-checkbox input[type="checkbox"] { margin: 0; flex-shrink: 0; }
 
   /* Internal reference — auto-generated, primary identifier */
   .doc-iref {

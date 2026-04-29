@@ -14,6 +14,7 @@ class DocumentCreate(BaseModel):
     file_hash: str = ""
     notes: str = ""
     tag_ids: list[int] = []
+    is_acompte: bool = False  # only meaningful for FACTURE — marks a partial / down-payment invoice
 
 
 class DocumentUpdate(DocumentCreate):
@@ -33,7 +34,8 @@ class DocumentResponse(BaseModel):
     file_hash: str
     notes: str
     created_at: str
-    tags: str = ""  # CSV string of tag names — present on the list endpoint, used by the UI for filter + display
+    tags: str = ""           # CSV string of tag names — present on the list endpoint, used by the UI for filter + display
+    is_acompte: bool = False # only meaningful when doc_type == FACTURE
 
     model_config = ConfigDict(from_attributes=True)
 

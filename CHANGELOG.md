@@ -4,6 +4,11 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.9 — Import : lien direct + flag acompte sur Facture
+
+- **Lier au moment de l'import** : le champ Tags du dialog d'import est remplacé par un picker "Lier à un document existant". Filtré par fournisseur si tu en as renseigné un (ne montre que les docs du même presta), sinon liste complète des 50 plus récents. À l'envoi, le lien est créé en même temps que le document. Tu peux toujours ajouter des tags plus tard via le dialog d'édition.
+- **Acompte sur Facture** : nouvelle colonne `is_acompte` sur les documents (migration auto). Une case à cocher "Cette facture est un acompte" apparaît dans le dialog d'import seulement quand le type = Facture. Sur les lignes du module Documents, un badge rouge `ACOMPTE` se place à côté du type pour distinguer visuellement les acomptes des factures finales.
+
 ## v6.7.8 — Hiérarchie workflow + facturation partielle au pourcentage
 
 - **Ordre logique dans les ensembles** : avant, l'ordre dépendait de la date des docs → un BPA daté avant le devis se retrouvait au-dessus visuellement. Maintenant tri par hiérarchie de type : **Devis → BPA → Contrat → Facture → Rapport → Autre**, avec la date en départage. Plus jamais "BPA avant Devis".
