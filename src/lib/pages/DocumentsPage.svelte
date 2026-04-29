@@ -5,7 +5,7 @@
 
   const DOC_TYPE_COLORS = {
     DEVIS:     { bg: '#3B82F620', color: '#3B82F6', label: 'Devis',              border: '#3B82F6', icon: '\u{1F4D5}' },
-    FACTURE:   { bg: '#22C55E20', color: '#22C55E', label: 'Facture',            border: '#22C55E', icon: '\u{1F4D7}' },
+    FACTURE:   { bg: '#0D948820', color: '#0D9488', label: 'Facture',            border: '#0D9488', icon: '\u{1F4D7}' },
     CONTRAT:   { bg: '#8B5CF620', color: '#8B5CF6', label: 'Contrat',            border: '#8B5CF6', icon: '\u{1F4D8}' },
     BON:       { bg: '#F59E0B20', color: '#F59E0B', label: 'Bon pour accord',    border: '#F59E0B', icon: '\u{1F4D9}' },
     RAPPORT:   { bg: '#EC489920', color: '#EC4899', label: 'Rapport',            border: '#EC4899', icon: '\u{1F4DA}' },
@@ -1495,7 +1495,8 @@
 
 <!-- ── Add Link Dialog ──────────────────────────────────── -->
 {#if showLinkDialog}
-  <div class="modal-overlay" on:click={closeLinkDialog}>
+  <!-- Sits on top of the link manager when both are open. -->
+  <div class="modal-overlay modal-overlay--top" on:click={closeLinkDialog}>
     <div class="modal-box modal-small" on:click|stopPropagation>
       <div class="modal-header">
         <h2>Ajouter un lien</h2>
@@ -2618,6 +2619,9 @@
     z-index: 1000;
     backdrop-filter: blur(4px);
     animation: fadeIn 0.15s ease-out;
+  }
+  /* Used when a second dialog needs to sit ABOVE another modal (e.g., link picker over link manager) */
+  .modal-overlay--top { z-index: 1100;
   }
 
   .modal-box {

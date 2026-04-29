@@ -399,7 +399,9 @@ async def get_document(doc_id: int, db=Depends(get_raw_db)):
                   COALESCE(s.name,'') as supplier_name,
                   d.doc_date, COALESCE(d.reference,''),
                   COALESCE(d.file_path,''), COALESCE(d.file_hash,''),
-                  COALESCE(d.notes,''), COALESCE(d.created_at,'')
+                  COALESCE(d.notes,''), COALESCE(d.created_at,''),
+                  '' AS tags_csv,
+                  COALESCE(d.internal_ref, '') AS internal_ref
            FROM documents d
            LEFT JOIN suppliers s ON d.supplier_id = s.id
            WHERE d.id = ?""",
@@ -409,6 +411,9 @@ async def get_document(doc_id: int, db=Depends(get_raw_db)):
         raise HTTPException(status_code=404, detail="Document not found")
 
     doc = _row_to_document(rows[0])
+    # `tags` is fetched separately as a full TagResponse list below — strip the CSV
+    # string from doc so we don't get a kwargs collision in DocumentDetailResponse.
+    doc.pop("tags", None)
 
     # Fetch tags
     tag_rows = await db.execute_fetchall(

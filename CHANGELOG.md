@@ -4,6 +4,12 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.7.7 — Fix gestion des liens + dialogs empilés + Facture moins flashy
+
+- **"Erreur lors du chargement des liens"** : `GET /api/documents/{id}` plantait à cause d'une collision de kwargs (`tags` passé deux fois à `DocumentDetailResponse`). Le `_row_to_document` ajoutait un champ `tags` (CSV) destiné à la liste, et l'endpoint détail le repassait aussi explicitement comme `list[TagResponse]`. → 500 → le dialog "Liens du document" affichait l'erreur. Corrigé en pop-ant `tags` du dict avant la construction de la réponse.
+- **Dialog "Lier à un autre document" passait DERRIÈRE le manager** : ajout d'une classe `.modal-overlay--top` avec `z-index: 1100` (vs 1000 pour les modaux standards). Les deux peuvent maintenant coexister visuellement, le picker se ferme et le manager reste avec le nouveau lien dans la liste.
+- **Couleur Facture moins flashy** : `#22C55E` (vert vif Tailwind 500) → `#0D9488` (teal-emerald 600). Plus posé visuellement, lisible sur fond clair comme sombre.
+
 ## v6.7.6 — Workflow refs complètes + scroll prestataire + cross-page navigation
 
 - **Refs de TOUS les docs sur les lignes ensemble** : avant on n'affichait que la ref du premier doc (`DEV-2026-001`). Maintenant les 3 refs s'affichent côte à côte (`DEV-2026-001` `BPA-2026-001` `FAC-2026-001`) suivies du nom du premier doc + "et N autres".
