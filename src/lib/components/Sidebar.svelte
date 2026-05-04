@@ -159,10 +159,18 @@
 <div class="deznav" class:collapsed={!$sidebarOpen}>
   <div class="deznav-scroll">
     <ul class="metismenu">
-      <!-- Top-level items first (Accueil, etc.) -->
+      <!-- Section: PRINCIPAL — visible only when sidebar expanded -->
+      {#if $sidebarOpen && topLevelItems.length > 0}
+        <li class="section-label">PRINCIPAL</li>
+      {/if}
       {#each topLevelItems as item}
         {@render topItem(item)}
       {/each}
+
+      <!-- Section: MODULES — groups all categories below -->
+      {#if $sidebarOpen}
+        <li class="section-label">MODULES</li>
+      {/if}
 
       <!-- Categories: each rendered as an expandable "Apps"-style row -->
       {#each navCategories as cat}
@@ -270,11 +278,25 @@
     flex: 1;
   }
 
+  /* ── Section labels (YashAdmin "YOUR COMPANY" / "OUR FEATURES" pattern) ─── */
+  .section-label {
+    padding: 1.25rem 1.5rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #6B7280;
+    user-select: none;
+    line-height: 1;
+  }
+  /* The very first section label (PRINCIPAL) gets less top padding */
+  .section-label:first-child { padding-top: 0.25rem; }
+
   /* ── Top-level items + category headers (icon + label + optional chevron) ─ */
-  .metismenu li:not(.sub-item) { position: relative; }
-  .metismenu li:not(.sub-item) > a {
+  .metismenu li:not(.sub-item):not(.section-label) { position: relative; }
+  .metismenu li:not(.sub-item):not(.section-label) > a {
     display: flex; align-items: center; gap: 0.75rem;
-    padding: 0.625rem 1.5rem;
+    padding: 0.75rem 1.5rem;
     font-size: 0.9375rem; font-weight: 400;
     color: var(--text-secondary);
     text-decoration: none;
@@ -282,8 +304,8 @@
     cursor: pointer; position: relative;
     white-space: nowrap; overflow: hidden;
   }
-  .metismenu li:not(.sub-item) > a:hover { color: var(--secondary); }
-  .metismenu li:not(.sub-item) > a:hover .menu-icon :global(svg) { color: var(--secondary); }
+  .metismenu li:not(.sub-item):not(.section-label) > a:hover { color: var(--secondary); }
+  .metismenu li:not(.sub-item):not(.section-label) > a:hover .menu-icon :global(svg) { color: var(--secondary); }
 
   .metismenu li.mm-active > a {
     color: var(--secondary); font-weight: 500;
@@ -312,7 +334,7 @@
   /* ── Sub-items (YashAdmin "- Chat" pattern) — dash prefix, no icon, indented, smaller ── */
   .sub-item > a {
     display: flex; align-items: center; gap: 0.55rem;
-    padding: 0.4rem 1.5rem 0.4rem 2.5rem;
+    padding: 0.5rem 1.5rem 0.5rem 2.5rem;
     font-size: 0.8125rem; font-weight: 400;
     color: var(--text-secondary);
     text-decoration: none;
@@ -361,10 +383,11 @@
   }
 
   /* ═══════════════════════════════════════
-     COLLAPSED MODE — flat icons, no category headers, no sub-item dashes
+     COLLAPSED MODE — flat icons, no section labels, no category headers, no sub-item dashes
      ═══════════════════════════════════════ */
+  .collapsed .section-label { display: none; }
   .collapsed .metismenu li > a {
-    padding: 0.625rem 0;
+    padding: 0.75rem 0;
     justify-content: center;
   }
   .collapsed .badge-count {

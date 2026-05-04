@@ -4,6 +4,14 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.4 — Sidebar : sections + air entre les items
+
+Finition de la sidebar v6.8.3 pour matcher la respiration de YashAdmin.
+
+- **Labels de section** ajoutés : `PRINCIPAL` au-dessus de Accueil, `MODULES` au-dessus des catégories. Petit, uppercase, gris muté — purement décoratifs comme les "YOUR COMPANY" / "OUR FEATURES" de YashAdmin. Servent à structurer visuellement la liste.
+- **Padding vertical augmenté** des items (10px → 12px) et des sous-items (6.4px → 8px). Plus de respiration entre les lignes, moins de sensation "tassé".
+- **Mode collapsed** : les labels de section sont masqués (display: none), seuls les items en icônes restent.
+
 ## v6.8.3 — Sidebar : pattern YashAdmin appliqué correctement
 
 Correction de v6.8.0 et v6.8.2 qui partaient dans le mauvais sens.
