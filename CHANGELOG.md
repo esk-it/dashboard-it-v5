@@ -4,6 +4,18 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.3 — Sidebar : pattern YashAdmin appliqué correctement
+
+Correction de v6.8.0 et v6.8.2 qui partaient dans le mauvais sens.
+
+Le bon pattern YashAdmin (visible sur la card "Apps" de leur sidebar) :
+- L'en-tête de catégorie est **une ligne avec icône + label + chevron** (cliquable, le chevron tourne).
+- Les items à l'intérieur d'une catégorie ouverte sont rendus avec **un préfixe tiret `-`, sans icône, indentés, en plus petit**. Style "- Chat", "- Users Manager", "- Email".
+
+C'est ce qui donne la hiérarchie claire et propre de YashAdmin. Avant, j'avais mis des mini-icônes sous des en-têtes-icônes (v6.8.0) ou viré le pliage et fait des labels statiques (v6.8.2) — les deux ratés.
+
+Implémentation : deux snippets `topItem` (icône+label, pour Accueil) et `subItem` (dash+label, pour les items sous catégorie). Les en-têtes de catégorie restent cliquables avec chevron qui tourne, état persisté dans `localStorage`.
+
 ## v6.8.2 — Sidebar : refonte visuelle YashAdmin
 
 Polish de la sidebar v6.8.0 : les catégories étaient implémentées comme des accordéons (icône + chevron + état pliable), trop chargé visuellement comparé à la référence YashAdmin.

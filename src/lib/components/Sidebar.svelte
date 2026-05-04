@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems, navCategories, sidebarOpen, seenNewKeys, isNew } from '../stores/navigation.js';
-  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target } from 'lucide-svelte';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target, ChevronDown, ChevronRight } from 'lucide-svelte';
   import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
   import nomB from '../../assets/nomB.png';
@@ -10,13 +10,38 @@
   const dispatch = createEventDispatcher();
   const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target };
 
-  // Top-level items (no `category`) and items grouped by category. Computed once
-  // since the navItems list is static.
+  // Top-level items (no `category`) and items grouped by category. Static — computed once.
   const topLevelItems = navItems.filter(i => !i.category);
   const itemsByCategory = navCategories.reduce((acc, cat) => {
     acc[cat.key] = navItems.filter(i => i.category === cat.key);
     return acc;
   }, {});
+
+  // Persisted open/closed state per category. Initial value: localStorage > defaultOpen.
+  function loadOpenState() {
+    const out = {};
+    for (const cat of navCategories) {
+      let saved = null;
+      try { saved = localStorage.getItem(`sidebar.cat.${cat.key}`); } catch {}
+      out[cat.key] = saved === null ? !!cat.defaultOpen : saved === '1';
+    }
+    return out;
+  }
+  let categoryOpen = loadOpenState();
+
+  function toggleCategory(key) {
+    categoryOpen = { ...categoryOpen, [key]: !categoryOpen[key] };
+    try { localStorage.setItem(`sidebar.cat.${key}`, categoryOpen[key] ? '1' : '0'); } catch {}
+  }
+
+  // Auto-open the category that contains the active page so the user always sees where they are.
+  $: {
+    const active = navItems.find(i => i.path === $currentPage);
+    if (active && active.category && !categoryOpen[active.category]) {
+      categoryOpen = { ...categoryOpen, [active.category]: true };
+      try { localStorage.setItem(`sidebar.cat.${active.category}`, '1'); } catch {}
+    }
+  }
 
   // Numeric badges fed from real backend state — refreshed every 30s.
   let appVersion = '';
@@ -59,9 +84,14 @@
   function navigate(path) {
     currentPage.set(path);
   }
+
+  function categoryHasActive(catKey) {
+    return itemsByCategory[catKey]?.some(i => i.path === $currentPage) || false;
+  }
 </script>
 
-{#snippet navItem(item)}
+<!-- Top-level item: full row with icon + label (used for Accueil, etc.) -->
+{#snippet topItem(item)}
   {@const badge = badgeFor(item.key)}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -87,6 +117,25 @@
   </li>
 {/snippet}
 
+<!-- Sub-item under a category: dash prefix + label, no icon (YashAdmin "- Chat" style) -->
+{#snippet subItem(item)}
+  {@const badge = badgeFor(item.key)}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <li class="sub-item" class:mm-active={$currentPage === item.path} on:click={() => navigate(item.path)}>
+    <a href="#/{item.key}" on:click|preventDefault>
+      <span class="sub-dash">-</span>
+      <span class="nav-text">{item.label}</span>
+      {#if badge}
+        <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
+      {/if}
+      {#if isNew(item.key, $seenNewKeys)}
+        <span class="badge-new">NEW</span>
+      {/if}
+    </a>
+  </li>
+{/snippet}
+
 <!-- Nav Header (logo area) -->
 <div class="nav-header" class:collapsed={!$sidebarOpen}>
   <a href="#/" class="brand-logo" on:click|preventDefault={() => navigate('/')}>
@@ -106,25 +155,52 @@
   </div>
 </div>
 
-<!-- Sidebar (deznav) — YashAdmin-style: section labels (decorative) + flat items -->
+<!-- Sidebar (deznav) — YashAdmin pattern: top items + expandable category rows + dashed sub-items -->
 <div class="deznav" class:collapsed={!$sidebarOpen}>
   <div class="deznav-scroll">
     <ul class="metismenu">
-      <!-- Top-level items (no section label above) -->
+      <!-- Top-level items first (Accueil, etc.) -->
       {#each topLevelItems as item}
-        {@render navItem(item)}
+        {@render topItem(item)}
       {/each}
 
-      <!-- Categories: section label + flat items underneath -->
+      <!-- Categories: each rendered as an expandable "Apps"-style row -->
       {#each navCategories as cat}
         {@const items = itemsByCategory[cat.key] || []}
+        {@const open = categoryOpen[cat.key]}
+        {@const hasActive = categoryHasActive(cat.key)}
         {#if items.length > 0}
           {#if $sidebarOpen}
-            <li class="category-label">{cat.label}</li>
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <li class="cat-header" class:cat-active={hasActive} on:click={() => toggleCategory(cat.key)}>
+              <a href="#" on:click|preventDefault>
+                <div class="menu-icon">
+                  {#if iconMap[cat.icon]}
+                    <svelte:component this={iconMap[cat.icon]} size={20} strokeWidth={1.5} />
+                  {/if}
+                </div>
+                <span class="nav-text">{cat.label}</span>
+                <span class="cat-chevron">
+                  {#if open}
+                    <ChevronDown size={14} strokeWidth={2.5} />
+                  {:else}
+                    <ChevronRight size={14} strokeWidth={2.5} />
+                  {/if}
+                </span>
+              </a>
+            </li>
+            {#if open}
+              {#each items as item}
+                {@render subItem(item)}
+              {/each}
+            {/if}
+          {:else}
+            <!-- Collapsed mode: show all module items flat as icons, skip category headers -->
+            {#each items as item}
+              {@render topItem(item)}
+            {/each}
           {/if}
-          {#each items as item}
-            {@render navItem(item)}
-          {/each}
         {/if}
       {/each}
     </ul>
@@ -194,9 +270,9 @@
     flex: 1;
   }
 
-  /* ── Nav items (top-level + items inside a section) ───────── */
-  .metismenu li:not(.category-label) { position: relative; }
-  .metismenu li:not(.category-label) a {
+  /* ── Top-level items + category headers (icon + label + optional chevron) ─ */
+  .metismenu li:not(.sub-item) { position: relative; }
+  .metismenu li:not(.sub-item) > a {
     display: flex; align-items: center; gap: 0.75rem;
     padding: 0.625rem 1.5rem;
     font-size: 0.9375rem; font-weight: 400;
@@ -206,8 +282,8 @@
     cursor: pointer; position: relative;
     white-space: nowrap; overflow: hidden;
   }
-  .metismenu li:not(.category-label) a:hover { color: var(--secondary); }
-  .metismenu li:not(.category-label) a:hover .menu-icon :global(svg) { color: var(--secondary); }
+  .metismenu li:not(.sub-item) > a:hover { color: var(--secondary); }
+  .metismenu li:not(.sub-item) > a:hover .menu-icon :global(svg) { color: var(--secondary); }
 
   .metismenu li.mm-active > a {
     color: var(--secondary); font-weight: 500;
@@ -224,17 +300,35 @@
   .nav-emoji { font-size: 1.125rem; line-height: 1; }
   .nav-text { font-size: 0.9375rem; line-height: 1; }
 
-  /* ── Section label (YashAdmin-style: pure visual divider, not interactive) ─ */
-  .category-label {
-    padding: 1.25rem 1.5rem 0.5rem;
-    font-size: 0.6875rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #6B7280;
-    user-select: none;
-    line-height: 1;
+  /* ── Category header (e.g. "Apps") — clickable, with chevron right/down ─── */
+  .cat-header > a { user-select: none; }
+  .cat-active > a { color: var(--secondary); }
+  .cat-active > a .menu-icon :global(svg) { color: var(--secondary); }
+  .cat-chevron {
+    margin-left: auto; display: flex; align-items: center;
+    color: #777; flex-shrink: 0;
   }
+
+  /* ── Sub-items (YashAdmin "- Chat" pattern) — dash prefix, no icon, indented, smaller ── */
+  .sub-item > a {
+    display: flex; align-items: center; gap: 0.55rem;
+    padding: 0.4rem 1.5rem 0.4rem 2.5rem;
+    font-size: 0.8125rem; font-weight: 400;
+    color: var(--text-secondary);
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap; overflow: hidden;
+    transition: color 0.15s ease;
+  }
+  .sub-item > a:hover { color: var(--secondary); }
+  .sub-item.mm-active > a { color: var(--secondary); font-weight: 500; }
+  .sub-dash {
+    color: #6B7280;
+    font-weight: 700; font-size: 0.875rem; line-height: 1;
+    flex-shrink: 0; width: 0.5rem; text-align: center;
+  }
+  .sub-item.mm-active .sub-dash { color: var(--secondary); }
+  .sub-item .nav-text { font-size: 0.8125rem; }
 
   /* ── Badges ───────────────────────────────────────────────── */
   .badge-count {
@@ -253,6 +347,9 @@
     padding: 1px 5px; border-radius: 3px;
     flex-shrink: 0;
   }
+  /* In sub-items the badges should sit right after the label, not pushed to the far right */
+  .sub-item .badge-count { margin-left: auto; }
+  .sub-item .badge-new { margin-left: 6px; }
 
   /* ── Version footer ───────────────────────────────────────── */
   .version-text {
@@ -264,9 +361,9 @@
   }
 
   /* ═══════════════════════════════════════
-     COLLAPSED MODE — flat icons, no labels, no section headers
+     COLLAPSED MODE — flat icons, no category headers, no sub-item dashes
      ═══════════════════════════════════════ */
-  .collapsed .metismenu li:not(.category-label) a {
+  .collapsed .metismenu li > a {
     padding: 0.625rem 0;
     justify-content: center;
   }
