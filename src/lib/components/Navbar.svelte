@@ -3,9 +3,10 @@
   import { currentPage, navItems, sidebarOpen } from '../stores/navigation.js';
   import { theme, toggleTheme } from '../stores/theme.js';
   import { currentUser, logout } from '../stores/auth.js';
+  import { isOnline } from '../stores/health.js';
   import { api } from '../api/client.js';
-  import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays } from 'lucide-svelte';
-  import { success, error as toastError, info, mail as toastMail, alert_critical as toastCritical } from '../stores/toast.js';
+  import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays, AlertTriangle, AlertCircle, Info, WifiOff, Activity, Database } from 'lucide-svelte';
+  import { success, error as toastError, info as toastInfo, mail as toastMail, alert_critical as toastCritical } from '../stores/toast.js';
 
   const dispatch = createEventDispatcher();
 
@@ -26,9 +27,48 @@
   let overdueTasks = [];
   let refreshTimer;
 
+  // Alert sources beyond tasks/events: live monitoring problem count and the
+  // age (in days) of the most recent automatic backup. Computed by fetchAll().
+  let monitoringProblems = 0;
+  let backupAgeDays = null;  // null = unknown; number = days since last auto backup
+
   // Get current page label for breadcrumb
   $: currentLabel = navItems.find(i => i.path === $currentPage)?.label || 'Dashboard';
-  $: totalNotifCount = todayEventCount + overdueTasks.length;
+
+  // Aggregate alerts grouped by severity. Recomputed reactively from each
+  // source. We keep the bell as the single hub for actionable notifications;
+  // mail and calendar have their own icons and dropdowns.
+  $: criticalAlerts = (() => {
+    const out = [];
+    if (!$isOnline) {
+      out.push({ kind: 'backend', icon: 'WifiOff', title: 'Backend déconnecté', sub: 'Sauvegarde et chargement HS — redémarre l\'app si ça persiste.', target: '/settings' });
+    }
+    if (monitoringProblems > 0) {
+      out.push({ kind: 'monitoring', icon: 'Activity', title: `${monitoringProblems} alerte${monitoringProblems > 1 ? 's' : ''} monitoring`, sub: 'Problèmes actifs sur Zabbix.', target: '/monitoring' });
+    }
+    return out;
+  })();
+
+  $: importantAlerts = (() => {
+    const out = [];
+    for (const t of overdueTasks.slice(0, 5)) {
+      out.push({ kind: 'task', icon: 'AlertTriangle', title: 'Tâche en retard', sub: t.title || '(sans titre)', meta: t.due_date || '', target: '/tasks' });
+    }
+    if (backupAgeDays !== null && backupAgeDays >= 7) {
+      out.push({ kind: 'backup', icon: 'Database', title: `Pas de backup auto depuis ${backupAgeDays} j`, sub: 'Va dans Paramètres pour relancer ou vérifier la config.', target: '/settings' });
+    }
+    return out;
+  })();
+
+  $: infoAlerts = (() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return upcomingEvents
+      .filter(e => (e.date_start || '').startsWith(today))
+      .slice(0, 3)
+      .map(e => ({ kind: 'event', icon: 'CalendarDays', title: e.title || '(sans titre)', sub: formatEventTime(e.time_start), meta: "Aujourd'hui", target: '/planning' }));
+  })();
+
+  $: totalNotifCount = criticalAlerts.length + importantAlerts.length + infoAlerts.length;
 
   function handleLogout() {
     showUserDropdown = false;
@@ -133,11 +173,41 @@
         toastCritical(`${diff} nouvelle${diff > 1 ? 's' : ''} alerte${diff > 1 ? 's' : ''} monitoring !`);
       }
       prevProblemCount = problemCount;
-    } catch { /* monitoring not configured, ignore */ }
+      monitoringProblems = problemCount;
+    } catch {
+      // monitoring not configured — leave count at 0
+      monitoringProblems = 0;
+    }
+  }
+
+  // Find the most recent automatic backup and surface its age in days. If no
+  // auto backups are listed we treat it as a missing backup (very old → 999).
+  async function fetchBackupStatus() {
+    try {
+      const list = await api.get('/api/settings/backups');
+      const autos = (list || []).filter(b => b.type === 'Auto');
+      if (autos.length === 0) {
+        backupAgeDays = 999;
+        return;
+      }
+      // List is already sorted desc by mtime — first is latest.
+      const latest = autos[0];
+      const ts = new Date(latest.modified).getTime();
+      const days = Math.floor((Date.now() - ts) / 86400000);
+      backupAgeDays = days >= 0 ? days : 0;
+    } catch {
+      // Endpoint missing or backend down — leave previous value.
+    }
   }
 
   async function fetchAll() {
-    await Promise.all([fetchMailPreview(), fetchCalendarPreview(), fetchOverdueTasks(), fetchMonitoringAlerts()]);
+    await Promise.all([
+      fetchMailPreview(),
+      fetchCalendarPreview(),
+      fetchOverdueTasks(),
+      fetchMonitoringAlerts(),
+      fetchBackupStatus(),
+    ]);
   }
 
   async function syncAndRefresh() {
@@ -235,44 +305,76 @@
           {/if}
         </div>
         {#if showNotifDropdown}
-          <div class="icon-dropdown">
+          <div class="icon-dropdown alerts-dropdown">
             <div class="icon-dropdown__header">
-              <span class="icon-dropdown__title">Notifications</span>
+              <span class="icon-dropdown__title">Alertes</span>
               {#if totalNotifCount > 0}
                 <span class="icon-dropdown__count">{totalNotifCount}</span>
+              {:else}
+                <span class="icon-dropdown__count alerts-count-ok">Tout va bien</span>
               {/if}
             </div>
             <div class="icon-dropdown__list">
-              {#if overdueTasks.length === 0 && upcomingEvents.filter(e => (e.date_start || '').startsWith(new Date().toISOString().slice(0,10))).length === 0}
-                <div class="icon-dropdown__empty">Aucune notification</div>
+              {#if totalNotifCount === 0}
+                <div class="icon-dropdown__empty">Aucune alerte — tu peux respirer.</div>
               {/if}
-              {#each overdueTasks.slice(0, 5) as task}
-                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/tasks'); }}>
-                  <div class="icon-dropdown__item-icon" style="background:rgba(239,68,68,0.1);color:#EF4444">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  </div>
-                  <div class="icon-dropdown__item-content">
-                    <span class="icon-dropdown__item-title">Tache en retard</span>
-                    <span class="icon-dropdown__item-sub">{task.title || '(sans titre)'}</span>
-                  </div>
-                  <span class="icon-dropdown__item-time" style="color:#EF4444">{task.due_date || ''}</span>
+
+              {#if criticalAlerts.length > 0}
+                <div class="alerts-section alerts-section--critical">
+                  <span class="alerts-section__dot">🔴</span> Critique
                 </div>
-              {/each}
-              {#each upcomingEvents.filter(e => (e.date_start || '').startsWith(new Date().toISOString().slice(0,10))).slice(0, 3) as evt}
-                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
-                  <div class="icon-dropdown__item-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
-                    <CalendarDays size={14} />
+                {#each criticalAlerts as a}
+                  <div class="icon-dropdown__item alerts-item alerts-item--critical" on:click={() => { closeAllDropdowns(); currentPage.set(a.target); }}>
+                    <div class="icon-dropdown__item-icon" style="background:rgba(239,68,68,0.12);color:#EF4444">
+                      {#if a.icon === 'WifiOff'}<WifiOff size={14} />{:else if a.icon === 'Activity'}<Activity size={14} />{:else}<AlertCircle size={14} />{/if}
+                    </div>
+                    <div class="icon-dropdown__item-content">
+                      <span class="icon-dropdown__item-title">{a.title}</span>
+                      <span class="icon-dropdown__item-sub">{a.sub}</span>
+                    </div>
                   </div>
-                  <div class="icon-dropdown__item-content">
-                    <span class="icon-dropdown__item-title">{evt.title || '(sans titre)'}</span>
-                    <span class="icon-dropdown__item-sub">{formatEventTime(evt.time_start)}</span>
-                  </div>
-                  <span class="icon-dropdown__item-time">Aujourd'hui</span>
+                {/each}
+              {/if}
+
+              {#if importantAlerts.length > 0}
+                <div class="alerts-section alerts-section--important">
+                  <span class="alerts-section__dot">🟡</span> Important
                 </div>
-              {/each}
-            </div>
-            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
-              Voir tout
+                {#each importantAlerts as a}
+                  <div class="icon-dropdown__item alerts-item alerts-item--important" on:click={() => { closeAllDropdowns(); currentPage.set(a.target); }}>
+                    <div class="icon-dropdown__item-icon" style="background:rgba(245,158,11,0.14);color:#F59E0B">
+                      {#if a.icon === 'AlertTriangle'}<AlertTriangle size={14} />{:else if a.icon === 'Database'}<Database size={14} />{:else}<AlertCircle size={14} />{/if}
+                    </div>
+                    <div class="icon-dropdown__item-content">
+                      <span class="icon-dropdown__item-title">{a.title}</span>
+                      <span class="icon-dropdown__item-sub">{a.sub}</span>
+                    </div>
+                    {#if a.meta}
+                      <span class="icon-dropdown__item-time" style="color:#F59E0B">{a.meta}</span>
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
+
+              {#if infoAlerts.length > 0}
+                <div class="alerts-section alerts-section--info">
+                  <span class="alerts-section__dot">🔵</span> Info
+                </div>
+                {#each infoAlerts as a}
+                  <div class="icon-dropdown__item alerts-item alerts-item--info" on:click={() => { closeAllDropdowns(); currentPage.set(a.target); }}>
+                    <div class="icon-dropdown__item-icon" style="background:rgba(59,130,246,0.12);color:#3B82F6">
+                      <CalendarDays size={14} />
+                    </div>
+                    <div class="icon-dropdown__item-content">
+                      <span class="icon-dropdown__item-title">{a.title}</span>
+                      <span class="icon-dropdown__item-sub">{a.sub}</span>
+                    </div>
+                    {#if a.meta}
+                      <span class="icon-dropdown__item-time">{a.meta}</span>
+                    {/if}
+                  </div>
+                {/each}
+              {/if}
             </div>
           </div>
         {/if}
@@ -711,6 +813,37 @@
   .icon-dropdown__footer:hover {
     background: rgba(var(--primary-rgb, 99, 102, 241), 0.05);
   }
+
+  /* ── Alerts panel — severity sections (Critique / Important / Info) ── */
+  .alerts-dropdown {
+    width: 22.5rem;
+  }
+  .alerts-count-ok {
+    color: #10B981 !important;
+  }
+  .alerts-section {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem 0.375rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    background: var(--bg-base);
+    border-top: 1px solid var(--border-subtle);
+  }
+  .alerts-section:first-child { border-top: none; }
+  .alerts-section--critical { color: #EF4444; }
+  .alerts-section--important { color: #F59E0B; }
+  .alerts-section--info { color: #3B82F6; }
+  .alerts-section__dot { font-size: 0.625rem; line-height: 1; }
+
+  /* Subtle left border accent on each item to reinforce severity at a glance */
+  .alerts-item--critical { border-left: 3px solid #EF4444; }
+  .alerts-item--important { border-left: 3px solid #F59E0B; }
+  .alerts-item--info { border-left: 3px solid #3B82F6; }
 
   /* Profile dropdown */
   .profile-dropdown {

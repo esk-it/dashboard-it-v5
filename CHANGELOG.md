@@ -4,6 +4,33 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.6 — Card "Projets en cours" + panneau alertes par sévérité
+
+### Card "Projets en cours" sur l'accueil
+
+Nouveau composant `RunningProjectsCard` (style YashAdmin "Running Projects") affiché dans une nouvelle row pleine largeur sur la home, juste sous les 4 KPI cards.
+
+- **Scroll horizontal** : une tuile de 280 px par projet `in_progress`, snap-aligned au défilement.
+- **Bandeau coloré** en haut de la tuile avec les initiales du projet et un pill d'échéance :
+  - vert/transparent : OK (>7 jours)
+  - jaune : J-7 ou aujourd'hui
+  - rouge : en retard (J-X)
+- **Adaptation solo IT** : pas d'avatars d'équipe, à la place 3 stats concrètes — `done/total tâches`, `nombre de docs liés`, `nombre de prestataires liés`.
+- **Clic sur une tuile** : pose `projects.focusId` dans sessionStorage et navigue vers `/projects` (ProjectsPage pourra utiliser ce flag plus tard pour scroll-and-flash le projet, comme on fait déjà pour les Documents).
+
+### Panneau alertes (cloche dans la navbar)
+
+Refonte du dropdown du bouton 🔔 pour le transformer en hub d'alertes actionnables, groupées par sévérité.
+
+- **🔴 Critique** : backend déconnecté (`isOnline = false`), alertes monitoring actives (Zabbix `active_problems`).
+- **🟡 Important** : tâches en retard (existant), backup automatique manquant (>=7 jours sans `auto_backup_*.zip` récent — vérifié via `/api/settings/backups`).
+- **🔵 Info** : événements de la journée (depuis Google Calendar).
+- Chaque ligne est cliquable et navigue vers la source correspondante (Settings, Monitoring, Tasks, Planning…).
+- Bord gauche coloré sur chaque alerte pour rappeler la sévérité d'un coup d'œil. Compteur global rouge au-dessus de la cloche.
+- Compteur "Tout va bien" en vert quand tout est calme.
+
+Note : l'alerte "Devis en attente +30j" est reportée à plus tard — elle nécessite un endpoint dédié pour scanner les workflow chains côté backend, ce qui dépasse le scope de cette version.
+
 ## v6.8.5 — Sidebar : retour à la liste à plat (revert v6.8.0 → v6.8.4)
 
 Les itérations v6.8.0 → v6.8.4 sur la sidebar (catégories pliables, refonte YashAdmin, labels de section) ne convenaient pas. Retour à l'ancienne sidebar à plat avec deux sections "VOTRE ENTREPRISE" et "NOS OUTILS" et le groupe Outils / Utilisateurs / Paramètres en bas. C'est la sidebar qui était en place jusqu'à v6.7.9.
