@@ -4,6 +4,21 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.1 — Badge NEW intelligent + modal "Quoi de neuf"
+
+Le badge `NEW` ne reste plus indéfiniment. Comportement :
+- Le badge s'affiche dans la sidebar tant que l'utilisateur **n'a pas visité** le module concerné.
+- Au premier clic sur un module marqué NEW, une **modal "Quoi de neuf"** s'ouvre avec les nouveautés clés du module.
+- À la fermeture de la modal, le badge disparaît dans la sidebar (état persisté dans `localStorage`).
+- Si une nouvelle vague de changements arrive plus tard, on bump le `since` du module et la modal s'ouvre à nouveau au prochain passage.
+
+Modules marqués NEW pour l'instant :
+- **Documents** (depuis 6.7.0) — workflows, ref interne, acompte, 3 modes d'affichage
+- **Projets** (depuis 6.5.0) — drag-Gantt, PDF, dépendances, jalons, duplication, budget 3 niveaux
+- **Paramètres** (depuis 6.5.1) — restauration backup, diagnostic, chemins de données, bandeau backend offline
+
+Implémentation : nouveau store `seenNewKeys`, helper `markNewSeen(key)`, composant `WhatsNewModal.svelte` déclenché depuis `App.svelte` quand le `currentPage` change vers un module avec contenu non acquitté.
+
 ## v6.8.0 — Sidebar : catégories dépliables + badges
 
 Refonte de la navigation latérale pour gérer 13+ modules sans surcharger la liste.

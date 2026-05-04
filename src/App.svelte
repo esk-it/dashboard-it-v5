@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { currentPage, sidebarOpen } from './lib/stores/navigation.js';
+  import { currentPage, sidebarOpen, navItems, whatsNew, seenNewKeys } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
   import { isAuthenticated, checkAuth, logout } from './lib/stores/auth.js';
   import { isOnline, startHealthPolling, recheckNow } from './lib/stores/health.js';
@@ -10,6 +10,7 @@
   import Toast from './lib/components/Toast.svelte';
   import SearchPalette from './lib/components/SearchPalette.svelte';
   import QuickCreate from './lib/components/QuickCreate.svelte';
+  import WhatsNewModal from './lib/components/WhatsNewModal.svelte';
   import LoginPage from './lib/pages/LoginPage.svelte';
   import LockScreenPage from './lib/pages/LockScreenPage.svelte';
   import ChangePasswordPage from './lib/pages/ChangePasswordPage.svelte';
@@ -36,6 +37,22 @@
   let showQuickCreate = false;
   let splashDone = false;
   let recheckingHealth = false;
+
+  // "What's new" modal: shows once per (module, version) when the user first
+  // navigates to a module that has unread highlights. Closing the modal marks
+  // it as seen and removes the NEW badge in the sidebar.
+  let whatsNewKey = null;
+  $: {
+    // React to currentPage changes after the splash. Only triggers if the
+    // current page maps to a known nav item that has whatsNew content the
+    // user hasn't acknowledged yet.
+    if (splashDone) {
+      const item = navItems.find(i => i.path === $currentPage);
+      if (item && whatsNew[item.key] && !$seenNewKeys.has(item.key) && whatsNewKey !== item.key) {
+        whatsNewKey = item.key;
+      }
+    }
+  }
 
   async function retryBackend() {
     recheckingHealth = true;
@@ -169,6 +186,8 @@
   {#if showQuickCreate}
     <QuickCreate on:close={() => showQuickCreate = false} />
   {/if}
+
+  <WhatsNewModal bind:activeKey={whatsNewKey} />
   {/if}
 {/if}
 

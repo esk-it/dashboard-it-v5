@@ -50,5 +50,78 @@ export const navItems = [
   { key: 'settings', path: '/settings', icon: 'Settings', label: 'Paramètres',   emoji: '⚙️', category: 'system' },
 ];
 
-// Mark items as "NEW" if you want a red badge — just add their key here.
-export const newItems = new Set([]);
+// "What's new" content per module. The NEW badge stays in the sidebar until the
+// user actually visits the module for the first time — at that point a modal
+// summarises the highlights and the badge disappears (state in localStorage).
+//
+// To re-flag a module after a future big update: bump `since` and update the
+// highlights array. The user has marked the previous version as seen, but a
+// `since` change is treated as a fresh badge.
+export const whatsNew = {
+  documents: {
+    since: '6.7.0',
+    title: 'Documents — refonte complète',
+    highlights: [
+      "Regroupement automatique des documents liés (Devis → BPA → Facture) en \"Ensembles\"",
+      "Référence interne auto-générée pour chaque document : DEV-2026-001, FAC-2026-042…",
+      "3 modes d'affichage : Liste, Par date, Par prestataire (basculer dans la barre)",
+      "Au moment de l'import, possibilité de lier directement à un document existant",
+      "Flag « Acompte » sur les factures, badge rouge ACOMPTE visible sur la ligne",
+      "Boutons d'action toujours visibles, plus de hover-only frustrant",
+    ],
+  },
+  projects: {
+    since: '6.5.0',
+    title: 'Projets — outillage avancé',
+    highlights: [
+      "Drag-to-edit sur le Gantt : tirer une barre pour la déplacer, son bord droit pour redimensionner",
+      "Export PDF du projet entier (header, budget, Gantt, tâches, prestataires, journal)",
+      "Dépendances entre tâches avec flèches sur le Gantt (style GanttProject)",
+      "Jalons (milestones) affichés en losange",
+      "Édition de tâche directement depuis la liste (bouton ✏️)",
+      "Duplication de projet (recopie tâches, dates effacées, document links \"en attente\")",
+      "Budget : 3 niveaux Prévu / Engagé / Facturé + helper « % d'un devis » pour les acomptes",
+    ],
+  },
+  settings: {
+    since: '6.5.1',
+    title: 'Paramètres — outillage prod',
+    highlights: [
+      "Restauration de backup en 1 clic depuis l'app (avec filet pre-restore automatique)",
+      "Téléchargement individuel d'un backup + import d'un ZIP externe",
+      "Export diagnostic en 1 clic (versions, chemins, compteurs DB) pour faire du support",
+      "Section « Emplacement des données » : DB, backups, documents, logos avec bouton « Ouvrir » et « Copier »",
+      "Bandeau rouge « Backend déconnecté » qui apparaît si le sidecar Python plante",
+    ],
+  },
+};
+
+// Cached set of seen module keys. Loaded once at module load from localStorage.
+function _loadSeen() {
+  try {
+    const raw = localStorage.getItem('whatsNew.seen');
+    if (!raw) return new Set();
+    const obj = JSON.parse(raw); // shape: { documents: '6.7.0', projects: '6.5.0', … }
+    return new Set(Object.keys(obj).filter(k => obj[k] === (whatsNew[k]?.since)));
+  } catch { return new Set(); }
+}
+
+// Reactive set: items the user has already acknowledged. Updated by markSeen().
+export const seenNewKeys = writable(_loadSeen());
+
+export function markNewSeen(key) {
+  if (!whatsNew[key]) return;
+  try {
+    const raw = localStorage.getItem('whatsNew.seen');
+    const obj = raw ? JSON.parse(raw) : {};
+    obj[key] = whatsNew[key].since;
+    localStorage.setItem('whatsNew.seen', JSON.stringify(obj));
+  } catch {}
+  seenNewKeys.update(s => { const out = new Set(s); out.add(key); return out; });
+}
+
+// True when a module has whatsNew content AND the user hasn't dismissed the
+// current `since` version yet.
+export function isNew(key, seen) {
+  return !!whatsNew[key] && !seen.has(key);
+}

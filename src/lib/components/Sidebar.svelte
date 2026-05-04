@@ -1,7 +1,7 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { currentPage, navItems, navCategories, newItems, sidebarOpen } from '../stores/navigation.js';
+  import { currentPage, navItems, navCategories, sidebarOpen, whatsNew, seenNewKeys, isNew } from '../stores/navigation.js';
   import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target, ChevronDown, ChevronRight } from 'lucide-svelte';
   import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
@@ -135,7 +135,7 @@
             {#if badge}
               <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
             {/if}
-            {#if newItems.has(item.key) && $sidebarOpen}
+            {#if isNew(item.key, $seenNewKeys) && $sidebarOpen}
               <span class="badge-new">NEW</span>
             {/if}
           </a>
@@ -186,7 +186,7 @@
                     {#if badge}
                       <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
                     {/if}
-                    {#if newItems.has(item.key)}
+                    {#if isNew(item.key, $seenNewKeys)}
                       <span class="badge-new">NEW</span>
                     {/if}
                   </a>
