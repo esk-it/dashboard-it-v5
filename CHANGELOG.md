@@ -4,6 +4,17 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.0 — Sidebar : catégories dépliables + badges
+
+Refonte de la navigation latérale pour gérer 13+ modules sans surcharger la liste.
+
+- **Catégories dépliables** : Travail (Projets, Tâches, Planning) · Documentation (Documents, Prestataires, Wiki) · Infrastructure (Parc, Sécurité, Monitoring) · Communication (Email, News) · Outils (Launcher, Tools, Changelog) · Système (Utilisateurs, Paramètres). Click sur l'en-tête de catégorie pour déplier/replier.
+- **État persisté** dans `localStorage` (clé `sidebar.cat.{key}`) : tes catégories ouvertes restent ouvertes au prochain démarrage. Par défaut "Travail" et "Documentation" sont ouvertes (les plus utilisées), le reste replié.
+- **Auto-ouverture de la catégorie active** : si tu navigues sur un item via raccourci ou URL, sa catégorie s'ouvre automatiquement pour rester repérable.
+- **Badges numériques** : tâches en retard (rouge), emails non lus (bleu) — déjà existants, conservés.
+- **Badge `NEW`** : ajout d'un set `newItems` dans `navigation.js` ; il suffit d'y ajouter une clé pour qu'un module porte le badge rouge "NEW" pendant la période de mise en avant. Vide par défaut.
+- **Mode collapsed (icon-only)** : les en-têtes de catégorie sont masqués, tous les items s'affichent à plat en icônes — la catégorisation n'a pas de sens à largeur réduite.
+
 ## v6.7.9 — Import : lien direct + flag acompte sur Facture
 
 - **Lier au moment de l'import** : le champ Tags du dialog d'import est remplacé par un picker "Lier à un document existant". Filtré par fournisseur si tu en as renseigné un (ne montre que les docs du même presta), sinon liste complète des 50 plus récents. À l'envoi, le lien est créé en même temps que le document. Tu peux toujours ajouter des tags plus tard via le dialog d'édition.
