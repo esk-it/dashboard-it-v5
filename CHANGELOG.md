@@ -4,6 +4,17 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.2 — Sidebar : refonte visuelle YashAdmin
+
+Polish de la sidebar v6.8.0 : les catégories étaient implémentées comme des accordéons (icône + chevron + état pliable), trop chargé visuellement comparé à la référence YashAdmin.
+
+- **Sections = labels décoratifs** (style YashAdmin pur) : uppercase, 11px, letter-spacing, gris muté. Pas d'icône, pas de chevron, pas cliquable. Servent uniquement de séparateur visuel pour grouper les modules.
+- **Items à plat** : tous les modules s'affichent au même niveau hiérarchique sous leur label de section. Plus d'indentation différentielle, plus de tailles d'icône variables.
+- **Pliage retiré** : YashAdmin ne plie pas ses sections, on fait pareil. Suppression de l'état `sidebar.cat.*` en localStorage et de la logique d'auto-ouverture de la catégorie active.
+- **Mode collapsed inchangé** : icônes seulement, sans labels de section.
+
+Le résultat : moins de bruit visuel à l'ouverture, hiérarchie immédiatement lisible. Refactor `Sidebar.svelte` pour utiliser un snippet `navItem` partagé entre items top-level et items sous une section.
+
 ## v6.8.1 — Badge NEW intelligent + modal "Quoi de neuf"
 
 Le badge `NEW` ne reste plus indéfiniment. Comportement :

@@ -1,8 +1,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
-  import { currentPage, navItems, navCategories, sidebarOpen, whatsNew, seenNewKeys, isNew } from '../stores/navigation.js';
-  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target, ChevronDown, ChevronRight } from 'lucide-svelte';
+  import { currentPage, navItems, navCategories, sidebarOpen, seenNewKeys, isNew } from '../stores/navigation.js';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target } from 'lucide-svelte';
   import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
   import nomB from '../../assets/nomB.png';
@@ -17,33 +17,6 @@
     acc[cat.key] = navItems.filter(i => i.category === cat.key);
     return acc;
   }, {});
-
-  // Persisted open/closed state per category. Initial value: localStorage > defaultOpen.
-  function loadOpenState() {
-    const out = {};
-    for (const cat of navCategories) {
-      let saved = null;
-      try { saved = localStorage.getItem(`sidebar.cat.${cat.key}`); } catch {}
-      out[cat.key] = saved === null ? !!cat.defaultOpen : saved === '1';
-    }
-    return out;
-  }
-  let categoryOpen = loadOpenState();
-
-  function toggleCategory(key) {
-    categoryOpen = { ...categoryOpen, [key]: !categoryOpen[key] };
-    try { localStorage.setItem(`sidebar.cat.${key}`, categoryOpen[key] ? '1' : '0'); } catch {}
-  }
-
-  // Auto-open the category that contains the active page so the user always sees
-  // where they are.
-  $: {
-    const active = navItems.find(i => i.path === $currentPage);
-    if (active && active.category && !categoryOpen[active.category]) {
-      categoryOpen = { ...categoryOpen, [active.category]: true };
-      try { localStorage.setItem(`sidebar.cat.${active.category}`, '1'); } catch {}
-    }
-  }
 
   // Numeric badges fed from real backend state — refreshed every 30s.
   let appVersion = '';
@@ -86,11 +59,33 @@
   function navigate(path) {
     currentPage.set(path);
   }
-
-  function categoryHasActive(catKey) {
-    return itemsByCategory[catKey]?.some(i => i.path === $currentPage) || false;
-  }
 </script>
+
+{#snippet navItem(item)}
+  {@const badge = badgeFor(item.key)}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <li class:mm-active={$currentPage === item.path} on:click={() => navigate(item.path)}>
+    <a href="#/{item.key}" on:click|preventDefault title={!$sidebarOpen ? item.label : undefined}>
+      <div class="menu-icon">
+        {#if iconMap[item.icon]}
+          <svelte:component this={iconMap[item.icon]} size={20} strokeWidth={1.5} />
+        {:else}
+          <span class="nav-emoji">{item.emoji}</span>
+        {/if}
+      </div>
+      {#if $sidebarOpen}
+        <span class="nav-text">{item.label}</span>
+      {/if}
+      {#if badge}
+        <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
+      {/if}
+      {#if isNew(item.key, $seenNewKeys) && $sidebarOpen}
+        <span class="badge-new">NEW</span>
+      {/if}
+    </a>
+  </li>
+{/snippet}
 
 <!-- Nav Header (logo area) -->
 <div class="nav-header" class:collapsed={!$sidebarOpen}>
@@ -111,110 +106,25 @@
   </div>
 </div>
 
-<!-- Sidebar (deznav) -->
+<!-- Sidebar (deznav) — YashAdmin-style: section labels (decorative) + flat items -->
 <div class="deznav" class:collapsed={!$sidebarOpen}>
   <div class="deznav-scroll">
     <ul class="metismenu">
-      <!-- Top-level items (Accueil, etc.) -->
+      <!-- Top-level items (no section label above) -->
       {#each topLevelItems as item}
-        {@const badge = badgeFor(item.key)}
-        <!-- svelte-ignore a11y_click_events_have_key_events -->
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <li class:mm-active={$currentPage === item.path} on:click={() => navigate(item.path)}>
-          <a href="#/{item.key}" on:click|preventDefault>
-            <div class="menu-icon">
-              {#if iconMap[item.icon]}
-                <svelte:component this={iconMap[item.icon]} size={22} strokeWidth={1.5} />
-              {:else}
-                <span class="nav-emoji">{item.emoji}</span>
-              {/if}
-            </div>
-            {#if $sidebarOpen}
-              <span class="nav-text">{item.label}</span>
-            {/if}
-            {#if badge}
-              <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
-            {/if}
-            {#if isNew(item.key, $seenNewKeys) && $sidebarOpen}
-              <span class="badge-new">NEW</span>
-            {/if}
-          </a>
-        </li>
+        {@render navItem(item)}
       {/each}
 
-      <!-- Categories -->
+      <!-- Categories: section label + flat items underneath -->
       {#each navCategories as cat}
         {@const items = itemsByCategory[cat.key] || []}
-        {@const open = categoryOpen[cat.key]}
-        {@const hasActive = categoryHasActive(cat.key)}
         {#if items.length > 0}
           {#if $sidebarOpen}
-            <!-- svelte-ignore a11y_click_events_have_key_events -->
-            <!-- svelte-ignore a11y_no_static_element_interactions -->
-            <li class="category-header" class:category-active={hasActive} on:click={() => toggleCategory(cat.key)}>
-              <a href="#" on:click|preventDefault>
-                <div class="menu-icon">
-                  {#if iconMap[cat.icon]}
-                    <svelte:component this={iconMap[cat.icon]} size={20} strokeWidth={1.5} />
-                  {/if}
-                </div>
-                <span class="nav-text category-label">{cat.label}</span>
-                <span class="category-chevron">
-                  {#if open}
-                    <ChevronDown size={14} strokeWidth={2} />
-                  {:else}
-                    <ChevronRight size={14} strokeWidth={2} />
-                  {/if}
-                </span>
-              </a>
-            </li>
-            {#if open}
-              {#each items as item}
-                {@const badge = badgeFor(item.key)}
-                <!-- svelte-ignore a11y_click_events_have_key_events -->
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                <li class="category-item" class:mm-active={$currentPage === item.path} on:click={() => navigate(item.path)}>
-                  <a href="#/{item.key}" on:click|preventDefault>
-                    <div class="menu-icon menu-icon--small">
-                      {#if iconMap[item.icon]}
-                        <svelte:component this={iconMap[item.icon]} size={18} strokeWidth={1.5} />
-                      {:else}
-                        <span class="nav-emoji">{item.emoji}</span>
-                      {/if}
-                    </div>
-                    <span class="nav-text">{item.label}</span>
-                    {#if badge}
-                      <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
-                    {/if}
-                    {#if isNew(item.key, $seenNewKeys)}
-                      <span class="badge-new">NEW</span>
-                    {/if}
-                  </a>
-                </li>
-              {/each}
-            {/if}
-          {:else}
-            <!-- Collapsed mode: render items flat as icons (skip the category header). -->
-            {#each items as item}
-              {@const badge = badgeFor(item.key)}
-              <!-- svelte-ignore a11y_click_events_have_key_events -->
-              <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <li class:mm-active={$currentPage === item.path} on:click={() => navigate(item.path)}>
-                <a href="#/{item.key}" on:click|preventDefault title={item.label}>
-                  <div class="menu-icon">
-                    {#if iconMap[item.icon]}
-                      <svelte:component this={iconMap[item.icon]} size={22} strokeWidth={1.5} />
-                    {:else}
-                      <span class="nav-emoji">{item.emoji}</span>
-                    {/if}
-                  </div>
-                  {#if badge}
-                    <span class="badge-count" class:badge-mail={badge.kind === 'mail'}>{badge.value}</span>
-                  {/if}
-                </a>
-              </li>
-            {/each}
+            <li class="category-label">{cat.label}</li>
           {/if}
+          {#each items as item}
+            {@render navItem(item)}
+          {/each}
         {/if}
       {/each}
     </ul>
@@ -274,7 +184,7 @@
   .deznav.collapsed { width: var(--sidebar-width-collapsed); }
   .deznav-scroll {
     height: 100%; overflow-y: auto; overflow-x: hidden;
-    padding-top: 1rem;
+    padding-top: 0.75rem;
     display: flex; flex-direction: column;
   }
 
@@ -284,10 +194,10 @@
     flex: 1;
   }
 
-  /* ── Items (top-level + leaves inside categories) ─────────── */
-  .metismenu li:not(.category-header) { position: relative; }
-  .metismenu li a {
-    display: flex; align-items: center; gap: 0.65rem;
+  /* ── Nav items (top-level + items inside a section) ───────── */
+  .metismenu li:not(.category-label) { position: relative; }
+  .metismenu li:not(.category-label) a {
+    display: flex; align-items: center; gap: 0.75rem;
     padding: 0.625rem 1.5rem;
     font-size: 0.9375rem; font-weight: 400;
     color: var(--text-secondary);
@@ -296,8 +206,8 @@
     cursor: pointer; position: relative;
     white-space: nowrap; overflow: hidden;
   }
-  .metismenu li a:hover { color: var(--secondary); }
-  .metismenu li a:hover .menu-icon :global(svg) { color: var(--secondary); }
+  .metismenu li:not(.category-label) a:hover { color: var(--secondary); }
+  .metismenu li:not(.category-label) a:hover .menu-icon :global(svg) { color: var(--secondary); }
 
   .metismenu li.mm-active > a {
     color: var(--secondary); font-weight: 500;
@@ -314,33 +224,17 @@
   .nav-emoji { font-size: 1.125rem; line-height: 1; }
   .nav-text { font-size: 0.9375rem; line-height: 1; }
 
-  /* ── Category headers ─────────────────────────────────────── */
-  .category-header > a {
-    color: #999;
-    font-size: 0.75rem !important;
+  /* ── Section label (YashAdmin-style: pure visual divider, not interactive) ─ */
+  .category-label {
+    padding: 1.25rem 1.5rem 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-weight: 600;
-    padding-top: 0.875rem !important;
-    padding-bottom: 0.5rem !important;
+    letter-spacing: 0.08em;
+    color: #6B7280;
     user-select: none;
+    line-height: 1;
   }
-  .category-header > a:hover { color: var(--text-heading); }
-  .category-header > a:hover .menu-icon :global(svg) { color: var(--text-heading); }
-  .category-header .nav-text { font-size: 0.75rem !important; }
-  .category-active > a, .category-active > a .menu-icon :global(svg) { color: var(--secondary); }
-  .category-chevron {
-    margin-left: auto; display: flex; align-items: center;
-    color: #777; flex-shrink: 0;
-  }
-
-  /* ── Items inside an open category — slightly indented + tighter ── */
-  .category-item > a {
-    padding-left: 2.25rem;
-    padding-top: 0.5rem; padding-bottom: 0.5rem;
-    font-size: 0.875rem;
-  }
-  .menu-icon--small { width: 1.25rem; height: 1.25rem; }
 
   /* ── Badges ───────────────────────────────────────────────── */
   .badge-count {
@@ -370,9 +264,9 @@
   }
 
   /* ═══════════════════════════════════════
-     COLLAPSED MODE — show all items as icons, skip category headers
+     COLLAPSED MODE — flat icons, no labels, no section headers
      ═══════════════════════════════════════ */
-  .collapsed .metismenu li a {
+  .collapsed .metismenu li:not(.category-label) a {
     padding: 0.625rem 0;
     justify-content: center;
   }
