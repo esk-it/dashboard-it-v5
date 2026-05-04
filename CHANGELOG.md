@@ -4,6 +4,18 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.5 — Sidebar : retour à la liste à plat (revert v6.8.0 → v6.8.4)
+
+Les itérations v6.8.0 → v6.8.4 sur la sidebar (catégories pliables, refonte YashAdmin, labels de section) ne convenaient pas. Retour à l'ancienne sidebar à plat avec deux sections "VOTRE ENTREPRISE" et "NOS OUTILS" et le groupe Outils / Utilisateurs / Paramètres en bas. C'est la sidebar qui était en place jusqu'à v6.7.9.
+
+Conservé de la période v6.8.x :
+- **Système NEW intelligent** (v6.8.1) : badge `NEW` à droite des modules avec contenu non acquitté, disparaît au premier clic après ouverture de la modal "Quoi de neuf".
+
+Supprimé :
+- `navCategories` du store, plus de logique de pliage de catégories.
+- Labels `PRINCIPAL` / `MODULES`, plus de chevrons sur les en-têtes.
+- Composants `cat-header` / `sub-item` / snippets `topItem` / `subItem`.
+
 ## v6.8.4 — Sidebar : sections + air entre les items
 
 Finition de la sidebar v6.8.3 pour matcher la respiration de YashAdmin.
