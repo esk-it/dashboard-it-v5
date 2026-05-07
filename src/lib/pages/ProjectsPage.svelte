@@ -44,39 +44,38 @@
     { value: 'month', label: 'Mois'     },
   ];
 
-  // Budget computed values
-  // Classification: factures → Facturé (argent dû) ; devis/BPA/proposition acceptés → Engagé (argent promis)
-  // Doc types in DB are uppercase: DEVIS / FACTURE / CONTRAT / BON (Bon pour accord = BPA) / RAPPORT / AUTRE
+  // Budget — totals are computed by the backend per workflow chain (see
+  // _project_dict in projects.py). Each project document carries a `bucket`
+  // field telling us which sum it contributed to:
+  //   'engaged'   : chain has only Devis (committed but not yet validated)
+  //   'validated' : chain has BPA/Bon, no Facture yet
+  //   'invoiced'  : chain has at least one Facture (covers acomptes too)
+  //   'none'      : refused link, or chain absorbed by a more advanced doc
+  // Frontend stays a thin renderer — no chain logic re-implemented in JS.
   function isFacture(doc) {
-    const t = (doc.doc_type || '').toLowerCase();
-    return t === 'facture';
+    return (doc.doc_type || '').toLowerCase() === 'facture';
   }
   function isEngageable(doc) {
     const t = (doc.doc_type || '').toLowerCase();
     return t === 'devis' || t === 'bon' || t === 'bpa' || t === 'proposition';
   }
   function docValue(doc) {
-    // Validated amount if set (after negotiation), fallback to initial
     return doc.amount_accepted > 0 ? doc.amount_accepted : (doc.amount || 0);
   }
 
   $: budgetDocs = (selectedProject?.documents || []).filter(d => d.amount > 0 || d.amount_accepted > 0);
-  // Factures = real money owed (count all, regardless of status)
-  $: budgetFactureDocs = budgetDocs.filter(isFacture);
-  $: budgetFacture = budgetFactureDocs.reduce((s, d) => s + docValue(d), 0);
-  // Engagé = accepted quotes/BPA/proposals (money committed)
-  $: budgetEngageDocs = budgetDocs.filter(d => isEngageable(d) && d.status === 'accepte');
-  $: budgetEngage = budgetEngageDocs.reduce((s, d) => s + docValue(d), 0);
-  // Pending quotes (informational)
+  $: budgetEngage = selectedProject?.budget_engaged || 0;
+  $: budgetValide = selectedProject?.budget_validated || 0;
+  $: budgetFacture = selectedProject?.budget_invoiced || 0;
+  $: budgetConsomme = selectedProject?.budget_consumed || 0;
+  // Pending devis (informational only — not yet contributing to engagé as of v6.8.7
+  // because the chain logic now keeps "engagé" exclusively for chains with no BPA/facture).
   $: budgetAttenteDocs = budgetDocs.filter(d => isEngageable(d) && (d.status === 'en attente' || !d.status));
   $: budgetAttente = budgetAttenteDocs.reduce((s, d) => s + docValue(d), 0);
-  // Refused (informational, not counted)
   $: budgetNbRefuse = budgetDocs.filter(d => d.status === 'refuse').length;
-  // Consumed budget = max(Engagé, Facturé) to avoid double-counting a quote + its invoice
-  $: budgetConsomme = Math.max(budgetEngage, budgetFacture);
   $: budgetPrevu = selectedProject?.budget || 0;
-  $: budgetResteAEngager = Math.max(0, budgetPrevu - budgetEngage);
-  $: budgetResteAFacturer = Math.max(0, budgetEngage - budgetFacture);
+  $: budgetResteAEngager = Math.max(0, budgetPrevu - budgetConsomme);
+  $: budgetResteAFacturer = Math.max(0, (budgetEngage + budgetValide) - budgetFacture);
 
   // Edit document amounts
   let editingDocLink = null;
@@ -1526,13 +1525,13 @@
 
 {#if showBudgetPanel && selectedProject}
 <div class="ya-dialog-overlay" on:mousedown|self={() => showBudgetPanel = false}>
-  <div class="ya-dialog" style="max-width:650px">
+  <div class="ya-dialog" style="max-width:720px">
     <div class="ya-dialog__header">
       <h2 class="ya-dialog__title">Budget — {selectedProject.title}</h2>
       <button class="ya-dialog__close" on:click={() => showBudgetPanel = false}>x</button>
     </div>
     <div class="ya-dialog__body">
-      <!-- 3-level summary cards: Prévu / Engagé / Facturé -->
+      <!-- 4-level summary cards: Prévu / Engagé / Validé / Facturé -->
       <div class="budget-detail-cards">
         <div class="bd-card">
           <div class="bd-card-icon" style="background:rgba(245,158,11,0.1);color:#F59E0B">
@@ -1543,16 +1542,25 @@
             <span class="bd-card-val" style="color:#F59E0B">{budgetPrevu.toLocaleString('fr-FR')} EUR</span>
           </div>
         </div>
-        <div class="bd-card">
+        <div class="bd-card" title="Devis dont la chaine n'a ni BPA ni facture">
           <div class="bd-card-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/></svg>
           </div>
           <div class="bd-card-info">
             <span class="bd-card-label">Engage</span>
             <span class="bd-card-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</span>
           </div>
         </div>
-        <div class="bd-card">
+        <div class="bd-card" title="Chaines avec BPA / Bon mais pas encore de facture">
+          <div class="bd-card-icon" style="background:rgba(13,148,136,0.1);color:#0d9488">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+          </div>
+          <div class="bd-card-info">
+            <span class="bd-card-label">Valide</span>
+            <span class="bd-card-val" style="color:#0d9488">{budgetValide.toLocaleString('fr-FR')} EUR</span>
+          </div>
+        </div>
+        <div class="bd-card" title="Chaines avec au moins une facture (somme des factures, gere les acomptes)">
           <div class="bd-card-icon" style="background:rgba(34,197,94,0.1);color:#22C55E">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
           </div>
@@ -1565,23 +1573,15 @@
 
       <!-- Secondary indicators -->
       <div class="budget-status-row">
-        <span class="bs-chip bs-accepted" title="Ce qu'il reste a commander sur le budget prevu">Reste a engager : {budgetResteAEngager.toLocaleString('fr-FR')} EUR</span>
-        <span class="bs-chip bs-pending" title="Devis acceptes non encore factures">Reste a facturer : {budgetResteAFacturer.toLocaleString('fr-FR')} EUR</span>
+        <span class="bs-chip bs-accepted" title="Budget prevu - total deja engage/valide/facture">Reste a engager : {budgetResteAEngager.toLocaleString('fr-FR')} EUR</span>
+        <span class="bs-chip bs-pending" title="Engage + Valide non encore factures">Reste a facturer : {budgetResteAFacturer.toLocaleString('fr-FR')} EUR</span>
         {#if budgetAttente > 0}
-          <span class="bs-chip" style="background:rgba(148,163,184,0.1);color:#94A3B8" title="Devis en attente de validation">{budgetAttenteDocs.length} devis en attente ({budgetAttente.toLocaleString('fr-FR')} EUR)</span>
+          <span class="bs-chip" style="background:rgba(148,163,184,0.1);color:#94A3B8" title="Devis avec statut 'en attente' ou non renseigne — rappel visuel uniquement">{budgetAttenteDocs.length} devis en attente ({budgetAttente.toLocaleString('fr-FR')} EUR)</span>
         {/if}
         {#if budgetNbRefuse > 0}
           <span class="bs-chip bs-refused">{budgetNbRefuse} refuse{budgetNbRefuse > 1 ? 's' : ''}</span>
         {/if}
       </div>
-
-      <!-- Alert: facture without matching quote -->
-      {#if budgetFacture > budgetEngage && budgetEngage > 0}
-        <div class="budget-alert">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <span>Le montant facture depasse l'engagement : des factures n'ont pas de devis associe.</span>
-        </div>
-      {/if}
 
       <!-- Table of documents, grouped by type -->
       {#if budgetDocs.length > 0}
@@ -1610,9 +1610,10 @@
                   {:else}<span class="doc-status">—</span>{/if}
                 </td>
                 <td>
-                  {#if isFacture(doc)}<span class="doc-status" style="background:rgba(34,197,94,0.15);color:#22C55E">Facture</span>
-                  {:else if isEngageable(doc) && doc.status === 'accepte'}<span class="doc-status" style="background:rgba(139,92,246,0.15);color:#8B5CF6">Engage</span>
-                  {:else}<span class="doc-status">—</span>{/if}
+                  {#if doc.bucket === 'invoiced'}<span class="doc-status" style="background:rgba(34,197,94,0.15);color:#22C55E">Facture</span>
+                  {:else if doc.bucket === 'validated'}<span class="doc-status" style="background:rgba(13,148,136,0.15);color:#0d9488">Valide</span>
+                  {:else if doc.bucket === 'engaged'}<span class="doc-status" style="background:rgba(139,92,246,0.15);color:#8B5CF6">Engage</span>
+                  {:else}<span class="doc-status" title="Refuse, ou absorbe par un document plus avance dans la chaine">—</span>{/if}
                 </td>
               </tr>
             {/each}
@@ -1621,6 +1622,10 @@
             <tr>
               <td colspan="5" style="font-weight:700;text-align:right">Engage</td>
               <td class="bt-amount" style="font-weight:700;color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</td>
+            </tr>
+            <tr>
+              <td colspan="5" style="font-weight:700;text-align:right">Valide</td>
+              <td class="bt-amount" style="font-weight:700;color:#0d9488">{budgetValide.toLocaleString('fr-FR')} EUR</td>
             </tr>
             <tr>
               <td colspan="5" style="font-weight:700;text-align:right">Facture</td>
@@ -1635,7 +1640,7 @@
       {#if budgetPrevu > 0}
         <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-subtle)">
           <div class="budget-info" style="margin-bottom:0.25rem">
-            <span>Consommation du budget (max engage/facture)</span>
+            <span>Consommation du budget (engage + valide + facture)</span>
             <span class="budget-pct" class:budget-over={budgetConsomme > budgetPrevu}>{Math.round((budgetConsomme / budgetPrevu) * 100)}% ({budgetConsomme.toLocaleString('fr-FR')} / {budgetPrevu.toLocaleString('fr-FR')} EUR)</span>
           </div>
           <div class="progress-bar"><div class="progress-fill" style="width:{Math.min(100, (budgetConsomme / budgetPrevu) * 100)}%;background:{budgetConsomme > budgetPrevu ? '#EF4444' : '#22C55E'}"></div></div>
@@ -1643,7 +1648,7 @@
       {:else if budgetConsomme > 0}
         <div style="margin-top:1rem;padding-top:0.75rem;border-top:1px solid var(--border-subtle);font-size:0.75rem;color:var(--text-muted)">
           Pas de budget prevu pour ce projet — suivi des depenses uniquement.
-          Total engage/facture : <strong style="color:var(--text-heading)">{budgetConsomme.toLocaleString('fr-FR')} EUR</strong>
+          Total engage + valide + facture : <strong style="color:var(--text-heading)">{budgetConsomme.toLocaleString('fr-FR')} EUR</strong>
         </div>
       {/if}
     </div>
@@ -1855,8 +1860,12 @@
   .budget-mini-label { font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; }
 
   /* Budget detail panel */
-  .budget-detail-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
-  .bd-card { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-base); border-radius: 0.625rem; }
+  .budget-detail-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.625rem; margin-bottom: 1rem; }
+  @media (max-width: 720px) {
+    .budget-detail-cards { grid-template-columns: repeat(2, 1fr); }
+  }
+  .bd-card { display: flex; align-items: center; gap: 0.625rem; padding: 0.625rem; background: var(--bg-base); border-radius: 0.625rem; min-width: 0; }
+  .bd-card-val { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .bd-card-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .bd-card-info { display: flex; flex-direction: column; }
   .bd-card-label { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; }

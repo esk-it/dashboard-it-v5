@@ -691,7 +691,7 @@
                   <!-- Tags (category + recurrence) -->
                   <td>
                     {#if task.category}
-                      <span class="dt-tag dt-tag--primary">{task.category}</span>
+                      <span class="dt-tag" class:dt-tag--project={task.category.startsWith('Projet: ')} class:dt-tag--primary={!task.category.startsWith('Projet: ')}>{task.category}</span>
                     {/if}
                     {#if task.site}
                       <span class="dt-tag dt-tag--secondary">{task.site}</span>
@@ -784,7 +784,7 @@
               >
                 <div class="kc-title">{task.title}</div>
                 {#if task.category}
-                  <span class="kc-cat">{task.category}</span>
+                  <span class="kc-cat" class:kc-cat--project={task.category.startsWith('Projet: ')}>{task.category}</span>
                 {/if}
                 {#if task.due_date}
                   <span class="kc-due" style="color: {getDueColor(getDueStatus(task))}">
@@ -1395,6 +1395,14 @@
     color: #F8B940 !important;
   }
 
+  /* Project tag — differentiates tasks created from inside a project. The
+     backend prefixes their category with "Projet: ", which we use as the
+     trigger so we don't need any extra field on the task response. */
+  .dt-tag--project {
+    background: #ccfbf1 !important;
+    color: #0f766e !important;
+  }
+
   .dt-priority-badge {
     display: inline-block;
     padding: 0.1875rem 0.625rem;
@@ -1886,6 +1894,11 @@
     color: var(--text-secondary);
     padding: 1px 6px;
     border-radius: 4px;
+  }
+
+  .kc-cat--project {
+    background: #ccfbf1;
+    color: #0f766e;
   }
 
   .kc-site {

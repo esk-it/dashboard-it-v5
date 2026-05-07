@@ -80,13 +80,32 @@ async def _project_dict(db, row) -> dict:
 
     progress = round((done_tasks / total_tasks * 100) if total_tasks > 0 else 0)
 
-    # Budget consumption derived from linked documents. Same rule as the detail view:
-    # engaged = accepted quote-like documents, invoiced = factures, consumed = max(engaged, invoiced).
+    # Budget consumption — per-chain accounting.
+    #
+    # Each project document belongs to a "workflow chain" of linked documents
+    # (Devis → BPA → Facture, or any subset). To avoid the historical
+    # double-count where both the Devis and its BPA contributed to "engagé",
+    # we now bucket each chain ONCE based on its most advanced doc type:
+    #   - chain has at least one Facture     → budget_invoiced
+    #   - chain has BPA/Bon but no Facture   → budget_validated
+    #   - chain has only Devis               → budget_engaged
+    # Docs with status='refuse' are skipped entirely.
+    #
+    # Chains are computed with a union-find over document_links restricted to
+    # this project's docs (links can extend out — we still treat them as one
+    # chain so a Devis from another project linked to a BPA here doesn't
+    # break the grouping).
     budget_engaged = 0.0
+    budget_validated = 0.0
     budget_invoiced = 0.0
+    # Per-doc bucket assignment, used by the detail endpoint to render the
+    # "Compte en" column without re-running the chain logic on the frontend.
+    # Buckets: 'engaged' | 'validated' | 'invoiced' | 'none' (refused or not
+    # contributing because a more advanced doc takes the chain).
+    doc_buckets: dict[int, str] = {}
     try:
         pd_rows = await db.execute_fetchall(
-            """SELECT COALESCE(d.doc_type, ''),
+            """SELECT pd.document_id, COALESCE(d.doc_type, ''),
                       COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0),
                       COALESCE(pd.status, '')
                FROM project_documents pd
@@ -94,19 +113,97 @@ async def _project_dict(db, row) -> dict:
                WHERE pd.project_id = ?""",
             (pid,),
         )
+
+        # Index project docs by id, normalising types and dropping rejected links.
+        doc_info: dict[int, dict] = {}
         for r in pd_rows:
-            dtype = (r[0] or "").lower()
-            amount = r[1] or 0
-            accepted = r[2] or 0
-            pstatus = (r[3] or "").lower()
-            value = accepted if accepted > 0 else amount
-            if dtype == "facture":
-                budget_invoiced += value
-            elif dtype in ("devis", "bon", "bpa", "proposition") and pstatus == "accepte":
-                budget_engaged += value
+            did = r[0]
+            if did is None:
+                continue
+            pstatus = (r[4] or "").lower()
+            if pstatus == "refuse":
+                # Rejected link doesn't contribute to any budget bucket.
+                doc_buckets[did] = "none"
+                continue
+            doc_info[did] = {
+                "type": (r[1] or "").lower(),
+                "amount": r[2] or 0,
+                "accepted": r[3] or 0,
+            }
+
+        if doc_info:
+            doc_ids = list(doc_info.keys())
+            placeholders = ",".join("?" * len(doc_ids))
+            link_rows = await db.execute_fetchall(
+                f"SELECT source_id, target_id FROM document_links "
+                f"WHERE source_id IN ({placeholders}) OR target_id IN ({placeholders})",
+                tuple(doc_ids) * 2,
+            )
+
+            # Union-find over the project docs + any doc reachable via links.
+            parent: dict[int, int] = {did: did for did in doc_ids}
+
+            def _find(x: int) -> int:
+                while parent.get(x, x) != x:
+                    parent[x] = parent.get(parent[x], parent[x])
+                    x = parent[x]
+                return x
+
+            def _union(a: int, b: int) -> None:
+                ra, rb = _find(a), _find(b)
+                if ra != rb:
+                    parent[ra] = rb
+
+            for src, tgt in link_rows:
+                if src is None or tgt is None:
+                    continue
+                if src not in parent:
+                    parent[src] = src
+                if tgt not in parent:
+                    parent[tgt] = tgt
+                _union(src, tgt)
+
+            # Group project docs by chain root.
+            chains: dict[int, list[int]] = {}
+            for did in doc_ids:
+                chains.setdefault(_find(did), []).append(did)
+
+            def _value(d: dict) -> float:
+                # "Validated" amount wins when set, else fall back to "demandé".
+                return d["accepted"] if d["accepted"] > 0 else d["amount"]
+
+            for chain_doc_ids in chains.values():
+                # Walk the chain in (doc_id, info) form so we can mark each doc.
+                pairs = [(did, doc_info[did]) for did in chain_doc_ids]
+                types = {info["type"] for _, info in pairs}
+
+                # Default every doc in the chain to 'none', then overwrite for
+                # those that actually feed the chain's bucket below.
+                for did, _info in pairs:
+                    doc_buckets[did] = "none"
+
+                if "facture" in types:
+                    for did, info in pairs:
+                        if info["type"] == "facture":
+                            budget_invoiced += _value(info)
+                            doc_buckets[did] = "invoiced"
+                elif types & {"bpa", "bon"}:
+                    for did, info in pairs:
+                        if info["type"] in ("bpa", "bon"):
+                            budget_validated += _value(info)
+                            doc_buckets[did] = "validated"
+                elif "devis" in types:
+                    for did, info in pairs:
+                        if info["type"] == "devis":
+                            budget_engaged += _value(info)
+                            doc_buckets[did] = "engaged"
+                # Other types (proposition, rapport, autre) don't impact budget.
     except Exception:
+        # Migration not applied or unexpected schema — leave zeros so the rest
+        # of the API still works.
         pass
-    budget_consumed = max(budget_engaged, budget_invoiced)
+    # Disjoint buckets, so consumption is the simple sum.
+    budget_consumed = budget_engaged + budget_validated + budget_invoiced
 
     return {
         "id": pid,
@@ -126,8 +223,13 @@ async def _project_dict(db, row) -> dict:
         "budget": row[9] if len(row) > 9 else 0,
         "budget_spent": row[10] if len(row) > 10 else 0,
         "budget_engaged": budget_engaged,
+        "budget_validated": budget_validated,
         "budget_invoiced": budget_invoiced,
         "budget_consumed": budget_consumed,
+        # Internal — consumed by get_project() to annotate each doc; the list
+        # endpoint pops it before sending so we don't ship per-doc metadata
+        # down for every project at once.
+        "_doc_buckets": doc_buckets,
     }
 
 
@@ -158,7 +260,12 @@ async def list_projects(db=Depends(get_raw_db)):
         "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0) "
         "FROM projects ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'not_started' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, updated_at DESC"
     )
-    return [await _project_dict(db, r) for r in rows]
+    out = []
+    for r in rows:
+        d = await _project_dict(db, r)
+        d.pop("_doc_buckets", None)  # internal field — only useful for the detail endpoint
+        out.append(d)
+    return out
 
 
 @router.post("")
@@ -251,7 +358,11 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
         logger.warning(f"Failed to get tasks for project {project_id}: {e}")
         project["tasks"] = []
 
-    # Get linked documents (safely)
+    # Get linked documents (safely). Each doc is annotated with the budget
+    # bucket its chain falls into (engaged/validated/invoiced/none) so the UI
+    # can render the "Compte en" column without re-implementing the chain
+    # walk in JS.
+    doc_buckets = project.pop("_doc_buckets", {})
     try:
         # Try with amount columns first
         try:
@@ -264,7 +375,8 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
             )
             project["documents"] = [
                 {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
-                 "amount": r[5], "amount_accepted": r[6], "status": r[7]}
+                 "amount": r[5], "amount_accepted": r[6], "status": r[7],
+                 "bucket": doc_buckets.get(r[0], "none")}
                 for r in doc_rows
             ]
         except Exception:
@@ -277,7 +389,7 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
             )
             project["documents"] = [
                 {"id": r[0], "title": r[1], "doc_type": r[2], "doc_date": r[3], "reference": r[4],
-                 "amount": 0, "amount_accepted": 0, "status": ""}
+                 "amount": 0, "amount_accepted": 0, "status": "", "bucket": "none"}
                 for r in doc_rows
             ]
     except Exception:

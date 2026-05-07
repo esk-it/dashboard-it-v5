@@ -4,6 +4,41 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.7 — Tag projet coloré dans Tâches + budget par chaîne workflow
+
+### Tag projet d'une couleur distincte dans le module Tâches
+
+Quand on crée une tâche depuis un projet, son `category` est préfixée `Projet: {nom}` côté backend. Sur la page Tâches, ce tag était rendu avec la même classe `dt-tag--primary` (violet pâle) que les catégories utilisateur — pas moyen de distinguer en un coup d'œil.
+
+- Nouvelle classe CSS `dt-tag--project` (vue tableau) et `kc-cat--project` (vue kanban) avec un teal `#ccfbf1` / `#0f766e`. Distinct du violet (catégorie classique) et du jaune (site).
+- Application conditionnelle via `task.category.startsWith('Projet: ')` — pas de nouveau champ ni migration backend.
+
+### Budget projet : passage à un calcul par chaîne workflow
+
+L'ancien calcul sommait les montants de **tous** les devis/BPA acceptés du projet, sans tenir compte du fait qu'un Devis et son BPA appartiennent à la même chaîne workflow. Résultat : `Devis 1000 € + BPA 1000 € liés = 2000 € en Engagé` (faux).
+
+Nouveau modèle, **par chaîne** (un Devis lié à son BPA et sa Facture = une seule chaîne) :
+
+| Bucket | Quand ? | Montant compté |
+|---|---|---|
+| **Engagé** | Chaîne sans BPA ni Facture | Somme des Devis |
+| **Validé** | Chaîne avec BPA/Bon mais pas de Facture | Somme des BPA |
+| **Facturé** | Chaîne avec au moins une Facture | Somme des Factures (gère les acomptes) |
+
+Chaque chaîne contribue à **un seul** bucket. `Consommé = Engagé + Validé + Facturé` (plus de `max()` qui masquait le double-comptage).
+
+Conséquences sur le cas typique :
+- Devis 1000 € seul → Engagé : 1000 €
+- + BPA lié 1000 € → Engagé : 0 €, **Validé : 1000 €** (le devis est absorbé)
+- + Facture liée 1000 € → Validé : 0 €, **Facturé : 1000 €**
+
+Implémentation :
+- `backend/routers/projects.py::_project_dict()` : union-find sur `document_links` pour grouper les docs en chaînes, puis bucketing par état dominant. Renvoie aussi un mapping `_doc_buckets` (interne) que `get_project()` utilise pour annoter chaque doc.
+- `backend/routers/projects.py::list_projects()` strippe `_doc_buckets` (pas exposé dans la liste).
+- Frontend : `ProjectsPage.svelte` lit directement `selectedProject.budget_engaged / _validated / _invoiced / _consumed` (plus de calcul JS local). La colonne "Compte en" du tableau budget utilise `doc.bucket` renvoyé par l'API.
+- Nouvelle 4ème card "Validé" dans le panneau budget projet (entre Engagé et Facturé).
+- Les liens marqués `status='refuse'` sont ignorés du calcul.
+
 ## v6.8.6 — Card "Projets en cours" + panneau alertes par sévérité
 
 ### Card "Projets en cours" sur l'accueil
