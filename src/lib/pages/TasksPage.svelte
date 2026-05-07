@@ -1397,10 +1397,12 @@
 
   /* Project tag — differentiates tasks created from inside a project. The
      backend prefixes their category with "Projet: ", which we use as the
-     trigger so we don't need any extra field on the task response. */
+     trigger so we don't need any extra field on the task response.
+     Rose/magenta — clearly distinct from the teal "Terminée" status, the
+     yellow site tag, the purple primary tag and all priority colors. */
   .dt-tag--project {
-    background: #ccfbf1 !important;
-    color: #0f766e !important;
+    background: #fce7f3 !important;
+    color: #be185d !important;
   }
 
   .dt-priority-badge {
@@ -1897,8 +1899,8 @@
   }
 
   .kc-cat--project {
-    background: #ccfbf1;
-    color: #0f766e;
+    background: #fce7f3;
+    color: #be185d;
   }
 
   .kc-site {

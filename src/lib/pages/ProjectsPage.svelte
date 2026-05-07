@@ -1052,7 +1052,7 @@
     </div>
     <div class="progress-bar" style="margin-bottom:0.75rem"><div class="progress-fill" style="width:{selectedProject.progress}%;background:{selectedProject.color}"></div></div>
 
-    {#if budgetPrevu > 0 || budgetDocs.length > 0 || budgetEngage > 0 || budgetFacture > 0}
+    {#if budgetPrevu > 0 || budgetDocs.length > 0 || budgetEngage > 0 || budgetValide > 0 || budgetFacture > 0}
       <div class="budget-compact">
         <div class="budget-compact-cards">
           {#if budgetPrevu > 0}
@@ -1076,16 +1076,25 @@
               </div>
             </div>
           {/if}
-          <div class="budget-mini-card">
+          <div class="budget-mini-card" title="Devis dont la chaine n'a ni BPA ni facture">
             <div class="budget-mini-icon" style="background:rgba(139,92,246,0.1)">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/></svg>
             </div>
             <div>
               <div class="budget-mini-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</div>
-              <div class="budget-mini-label">Engage (devis accepte)</div>
+              <div class="budget-mini-label">Engage (devis seul)</div>
             </div>
           </div>
-          <div class="budget-mini-card">
+          <div class="budget-mini-card" title="Chaines avec BPA / Bon mais pas encore de facture">
+            <div class="budget-mini-icon" style="background:rgba(13,148,136,0.1)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0d9488" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+            </div>
+            <div>
+              <div class="budget-mini-val" style="color:#0d9488">{budgetValide.toLocaleString('fr-FR')} EUR</div>
+              <div class="budget-mini-label">Valide (BPA signe)</div>
+            </div>
+          </div>
+          <div class="budget-mini-card" title="Chaines avec au moins une facture">
             <div class="budget-mini-icon" style="background:rgba(34,197,94,0.1)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
             </div>
@@ -1289,11 +1298,15 @@
         <button class="ya-btn ya-btn--ghost ya-btn--sm" on:click={() => { fetchAllDocuments(); showLinkDocDialog = true; }}>+ Lier un document</button>
       </div>
       {#if selectedProject.documents?.length > 0}
-        {#if budgetEngage > 0 || budgetFacture > 0}
+        {#if budgetEngage > 0 || budgetValide > 0 || budgetFacture > 0}
           <div class="budget-summary">
             <div class="budget-stat">
               <span class="budget-stat-val" style="color:#8B5CF6">{budgetEngage.toLocaleString('fr-FR')} EUR</span>
               <span class="budget-stat-label">Engage</span>
+            </div>
+            <div class="budget-stat">
+              <span class="budget-stat-val" style="color:#0d9488">{budgetValide.toLocaleString('fr-FR')} EUR</span>
+              <span class="budget-stat-label">Valide</span>
             </div>
             <div class="budget-stat">
               <span class="budget-stat-val" style="color:#22C55E">{budgetFacture.toLocaleString('fr-FR')} EUR</span>

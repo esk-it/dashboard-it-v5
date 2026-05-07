@@ -4,6 +4,14 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.8 — Compléments v6.8.7 : 2 zones budget oubliées + tag projet recoloré
+
+Trois ajustements suite au feedback de la v6.8.7.
+
+- **Bandeau budget compact en haut de la fiche projet** : il n'affichait que Engagé / Facturé. Ajout de la card **Validé** entre les deux + ajout de `budgetValide` à la condition d'affichage du bloc (sinon on ne voyait rien quand toute la valeur était dans Validé). Labels précisés : "Engagé (devis seul)" / "Validé (BPA signé)".
+- **Résumé du panneau "Documents et budget"** : la condition `{#if budgetEngage > 0 || budgetFacture > 0}` masquait le résumé quand tout était en Validé. Élargi à inclure `budgetValide`. Ajout d'une 3e colonne "Validé" entre Engagé et Facturé.
+- **Couleur du tag projet** : le `#ccfbf1 / #0f766e` (teal) entrait en collision visuelle avec `.status-select--done` (`#bbe6e3 / #3A9B94`) qui marque les tâches terminées. Repassé en rose/magenta `#fce7f3 / #be185d` — clairement distinct du teal "Terminée", du violet `dt-tag--primary`, du jaune `dt-tag--secondary` et de toutes les couleurs de priorité.
+
 ## v6.8.7 — Tag projet coloré dans Tâches + budget par chaîne workflow
 
 ### Tag projet d'une couleur distincte dans le module Tâches
