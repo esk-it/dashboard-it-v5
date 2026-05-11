@@ -726,6 +726,26 @@ async def _run_migrations(db):
             "ALTER TABLE planning_events ADD COLUMN google_updated_at TEXT"
         )
 
+    # Gmail cache: cc column was added later. Older databases created before
+    # the column existed never got it (CREATE TABLE IF NOT EXISTS doesn't
+    # patch existing tables). Add it here so the "Cc" field shows up in the
+    # mail viewer and "Reply all" can pre-fill the CC line correctly.
+    # After adding the column, force re-fetch of any message that doesn't
+    # have CC yet by flipping fetched_full back to 0 — the next time the user
+    # opens such a message, get_message_local() will re-download it from
+    # Gmail with the full header parsing that captures CC.
+    try:
+        cursor = await db.execute("PRAGMA table_info(emails_cache)")
+        email_cols = [row[1] for row in await cursor.fetchall()]
+        if "cc" not in email_cols:
+            await db.execute("ALTER TABLE emails_cache ADD COLUMN cc TEXT NOT NULL DEFAULT ''")
+            # Brand new column — every cached row needs re-fetching to get CC.
+            await db.execute("UPDATE emails_cache SET fetched_full = 0")
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"emails_cache.cc migration skipped: {e}")
+
 
 async def _seed_defaults(db):
     """Insert default data into empty tables (first launch only)."""

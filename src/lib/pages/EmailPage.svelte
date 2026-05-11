@@ -943,6 +943,18 @@
           <div class="read-meta">
             <h4 class="read-from">{parseFromName(selectedMessage.from)}</h4>
             <span class="read-email">{parseFromEmail(selectedMessage.from)}</span>
+            {#if selectedMessage.to}
+              <div class="read-recipients">
+                <span class="read-rec-label">À :</span>
+                <span class="read-rec-list">{selectedMessage.to}</span>
+              </div>
+            {/if}
+            {#if selectedMessage.cc}
+              <div class="read-recipients">
+                <span class="read-rec-label">Cc :</span>
+                <span class="read-rec-list">{selectedMessage.cc}</span>
+              </div>
+            {/if}
           </div>
           <div class="read-date">{formatFullDate(selectedMessage.date)}</div>
         </div>
@@ -1641,7 +1653,7 @@
 
   .read-header {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 1rem;
     margin-bottom: 1rem;
   }
@@ -1671,6 +1683,25 @@
   .read-email {
     font-size: 0.75rem;
     color: var(--text-muted) !important;
+  }
+
+  /* Recipients block (À: / Cc:) — shown under the sender so the user can see
+     who else received the mail. Critical for "Reply all" decisions. */
+  .read-recipients {
+    display: flex;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    margin-top: 0.25rem;
+  }
+  .read-rec-label {
+    color: var(--text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .read-rec-list {
+    color: var(--text-secondary);
+    word-break: break-word;
   }
 
   .read-date {

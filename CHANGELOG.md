@@ -4,6 +4,23 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.8.9 — Email : affichage des destinataires + fix "Répondre à tous"
+
+Deux bugs liés sur le module Email.
+
+**Bug 1 — CC invisible** : la vue d'un mail reçu n'affichait pas les destinataires (`To`) ni les copies (`Cc`). Impossible de savoir qui d'autre était dans le mail.
+
+**Bug 2 — Reply All ne prend que l'expéditeur** : la logique de `openCompose(mode='replyAll')` lit bien `replyMsg.cc` pour pré-remplir le champ Cc du compose, mais ce champ était vide pour les mails déjà cachés en local.
+
+Origine : la colonne `cc` existait dans le `CREATE TABLE` d'`emails_cache` mais **aucune migration** ne l'ajoutait sur les DBs déjà créées avant son apparition. Résultat : aucun `cc` parsé n'a jamais été stocké côté SQLite, donc tout part dans le vide.
+
+Fixes :
+- **Migration `emails_cache.cc`** dans `_run_migrations()` : `ALTER TABLE ADD COLUMN cc TEXT DEFAULT ''`. Idempotente. Après ajout, on remet `fetched_full = 0` sur tous les rows existants pour qu'ils soient re-tirés depuis Gmail au prochain `openMessage()` — comme ça les anciens mails finissent par avoir leur CC eux aussi.
+- **Endpoint liste** (`list_messages_local` dans `backend/services/gmail.py`) : ajout de `cc` au `SELECT` (le détail le renvoyait déjà).
+- **Vue mail** (`EmailPage.svelte`) : nouveau bloc `read-recipients` sous l'expéditeur, affiche `À : ...` et `Cc : ...` quand présents.
+
+Après update, ouvre un mail déjà connu une fois pour déclencher le re-fetch — ensuite "Répondre à tous" pré-remplira le Cc correctement.
+
 ## v6.8.8 — Compléments v6.8.7 : 2 zones budget oubliées + tag projet recoloré
 
 Trois ajustements suite au feedback de la v6.8.7.

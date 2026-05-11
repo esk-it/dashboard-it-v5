@@ -457,7 +457,7 @@ async def list_messages_local(db, folder: str = "inbox", query: str = "", limit:
 
     params.extend([limit, offset])
     rows = await db.execute_fetchall(
-        f"""SELECT id, thread_id, sender, recipient, subject, snippet,
+        f"""SELECT id, thread_id, sender, recipient, cc, subject, snippet,
                    date_header, internal_date, is_unread, is_starred,
                    has_attachments, attachment_names
             FROM emails_cache
@@ -469,11 +469,11 @@ async def list_messages_local(db, folder: str = "inbox", query: str = "", limit:
 
     return [
         {
-            "id": r[0], "threadId": r[1], "from": r[2], "to": r[3],
-            "subject": r[4], "snippet": r[5], "date": r[6],
-            "internalDate": r[7], "unread": bool(r[8]), "starred": bool(r[9]),
-            "hasAttachments": bool(r[10]),
-            "attachmentNames": json.loads(r[11]) if r[11] else [],
+            "id": r[0], "threadId": r[1], "from": r[2], "to": r[3], "cc": r[4],
+            "subject": r[5], "snippet": r[6], "date": r[7],
+            "internalDate": r[8], "unread": bool(r[9]), "starred": bool(r[10]),
+            "hasAttachments": bool(r[11]),
+            "attachmentNames": json.loads(r[12]) if r[12] else [],
         }
         for r in rows
     ]
