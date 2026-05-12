@@ -296,17 +296,19 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
     try:
         try:
             task_rows = await db.execute_fetchall(
-                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date, COALESCE(is_milestone,0) FROM tasks WHERE project_id=? ORDER BY COALESCE(start_date, due_date, created_at) ASC, id ASC",
+                "SELECT id, title, category, priority, due_date, done, created_at, notes, site, start_date, "
+                "COALESCE(is_milestone,0), COALESCE(status, CASE WHEN done=1 THEN 'done' ELSE 'todo' END) "
+                "FROM tasks WHERE project_id=? ORDER BY COALESCE(start_date, due_date, created_at) ASC, id ASC",
                 (project_id,),
             )
             project["tasks"] = [
                 {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
                  "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8],
-                 "start_date": r[9], "is_milestone": bool(r[10])}
+                 "start_date": r[9], "is_milestone": bool(r[10]), "status": r[11] or "todo"}
                 for r in task_rows
             ]
         except Exception:
-            # Fallback without start_date / is_milestone columns — order without start_date
+            # Fallback without start_date / is_milestone / status columns
             task_rows = await db.execute_fetchall(
                 "SELECT id, title, category, priority, due_date, done, created_at, notes, site FROM tasks WHERE project_id=? ORDER BY COALESCE(due_date, created_at) ASC, id ASC",
                 (project_id,),
@@ -314,7 +316,8 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
             project["tasks"] = [
                 {"id": r[0], "title": r[1], "category": r[2], "priority": r[3], "due_date": r[4],
                  "done": bool(r[5]), "created_at": r[6], "notes": r[7], "site": r[8],
-                 "start_date": None, "is_milestone": False}
+                 "start_date": None, "is_milestone": False,
+                 "status": "done" if bool(r[5]) else "todo"}
                 for r in task_rows
             ]
         # Attach checklist counts so the Gantt can show per-task progress

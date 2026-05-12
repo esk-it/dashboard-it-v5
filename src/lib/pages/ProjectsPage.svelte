@@ -29,7 +29,7 @@
   // Task dialog (shared between create and edit)
   let showTaskDialog = false;
   let editingTaskId = null; // null = create; number = edit
-  let taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false };
+  let taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false, status: 'todo' };
 
   // Note
   let noteText = '';
@@ -237,7 +237,7 @@
   // ── Tasks ──
   function openNewTaskDialog() {
     editingTaskId = null;
-    taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false };
+    taskForm = { title: '', priority: 2, start_date: '', due_date: '', notes: '', site: '', is_milestone: false, status: 'todo' };
     showTaskDialog = true;
   }
 
@@ -251,6 +251,7 @@
       notes: task.notes || '',
       site: task.site || '',
       is_milestone: !!task.is_milestone,
+      status: task.status || (task.done ? 'done' : 'todo'),
     };
     showTaskDialog = true;
   }
@@ -271,6 +272,7 @@
           site: taskForm.site,
           recurrence: existing.recurrence || '',
           is_milestone: taskForm.is_milestone,
+          status: taskForm.status || 'todo',
         });
         success('Tache modifiee');
       } else {
@@ -744,22 +746,25 @@
 
   // Status-based color so a glance at the Gantt tells the user what needs attention.
   // Keyed by taskStatus(): done=green, late=red, soon=orange, in-progress=blue, todo=gray.
+  // Gantt bar status — driven by the stored lifecycle field `task.status`
+  // (v6.9.1) with one visual override: a non-done task whose due date is in
+  // the past is rendered "late" (red) regardless of whether it's still in
+  // 'todo' or 'in_progress'. The orange "soon" state was dropped in v6.9.1
+  // because the user didn't find it useful.
   function taskStatus(task) {
-    if (task.done) return 'done';
+    const stored = task.status || (task.done ? 'done' : 'todo');
+    if (stored === 'done') return 'done';
+
     const today = (() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime(); })();
-    const start = taskStartMs(task);
     const end = taskEndMs(task);
-    if (end !== null && end < today) return 'late';              // due date passed, not done
-    if (start !== null && start > today) return 'todo';          // scheduled for the future
-    // In or approaching the task window
-    if (end !== null && end - today <= 3 * 86400000) return 'soon'; // due within 3 days
-    return 'in-progress';
+    if (end !== null && end < today) return 'late';  // overdue override
+
+    return stored === 'in_progress' ? 'in-progress' : 'todo';
   }
 
   const STATUS_COLORS = {
     done: '#22C55E',
     late: '#EF4444',
-    soon: '#F59E0B',
     'in-progress': '#3B82F6',
     todo: '#94A3B8',
   };
@@ -1007,7 +1012,7 @@
           <div class="project-card__header">
             <h3>{p.title}</h3>
             {#if p.site}
-              <EstablishmentBadge code={p.site} size="sm" showLabel={false} />
+              <EstablishmentBadge code={p.site} size="md" showLabel={false} />
             {/if}
             <span class="status-badge" style="background:{statusInfo(p.status).color}20;color:{statusInfo(p.status).color}">{statusInfo(p.status).label}</span>
           </div>
@@ -1166,11 +1171,10 @@
             {/each}
           </div>
           <div class="gantt-legend">
-            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#22C55E"></span>Termine</span>
-            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#3B82F6"></span>En cours</span>
-            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#F59E0B"></span>Bientot du</span>
-            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#EF4444"></span>En retard</span>
             <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#94A3B8"></span>A faire</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#3B82F6"></span>En cours</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#22C55E"></span>Termine</span>
+            <span class="gantt-legend-item"><span class="gantt-legend-dot" style="background:#EF4444"></span>En retard</span>
           </div>
         </div>
         <div class="gantt">
@@ -1508,11 +1512,20 @@
         <input type="checkbox" bind:checked={taskForm.is_milestone} />
         <span>Cette tache est un jalon ({'\u25C6'}) — affichage ponctuel sur le Gantt</span>
       </label>
-      <label>Site
-        <select bind:value={taskForm.site}>
-          {#each SITES as s}<option value={s.value}>{s.label}</option>{/each}
-        </select>
-      </label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem">
+        <label>Site
+          <select bind:value={taskForm.site}>
+            {#each SITES as s}<option value={s.value}>{s.label}</option>{/each}
+          </select>
+        </label>
+        <label>Statut
+          <select bind:value={taskForm.status}>
+            <option value="todo">À faire</option>
+            <option value="in_progress">En cours</option>
+            <option value="done">Terminée</option>
+          </select>
+        </label>
+      </div>
       <label>Notes <textarea bind:value={taskForm.notes} rows="2" placeholder="Notes..."></textarea></label>
     </div>
     <div class="ya-dialog__footer">

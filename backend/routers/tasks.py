@@ -33,13 +33,18 @@ def _row_to_task(r) -> dict:
         "recurrence": r[9] or "",
         "start_date": r[10] if len(r) > 10 else None,
         "is_milestone": bool(r[11]) if len(r) > 11 else False,
+        # Lifecycle status: 'todo' | 'in_progress' | 'done'.
+        # Fall back to a value derived from `done` for safety (e.g. callers
+        # that fetched rows before the migration ran).
+        "status": (r[12] if len(r) > 12 and r[12] else ("done" if r[5] else "todo")),
     }
 
 
 _TASK_SELECT = """SELECT id, title, COALESCE(category,''), priority, due_date,
                          done, COALESCE(created_at,''), COALESCE(notes,''),
                          COALESCE(site,''), COALESCE(recurrence,''), start_date,
-                         COALESCE(is_milestone, 0)"""
+                         COALESCE(is_milestone, 0),
+                         COALESCE(status, CASE WHEN done=1 THEN 'done' ELSE 'todo' END) AS status"""
 
 
 @router.get("/categories")
@@ -95,17 +100,30 @@ async def get_task(task_id: int, db=Depends(get_raw_db)):
     return TaskResponse(**_row_to_task(rows[0]))
 
 
+def _normalise_status(s: str | None) -> str:
+    """Coerce any incoming status value to one of the 3 supported states.
+    Anything unknown silently defaults to 'todo' so a bad payload never wedges
+    a row (e.g. an old client posting without the field)."""
+    if s in ("todo", "in_progress", "done"):
+        return s
+    return "todo"
+
+
 @router.post("", response_model=TaskResponse, status_code=201)
 async def create_task(body: TaskCreate, db=Depends(get_raw_db)):
     now = datetime.now().isoformat(timespec="seconds")
+    status = _normalise_status(body.status)
+    done = 1 if status == "done" else 0
     cursor = await db.execute(
-        """INSERT INTO tasks (title, category, priority, due_date, done, created_at, notes, site, recurrence, start_date, is_milestone)
-           VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?)""",
+        """INSERT INTO tasks (title, category, priority, due_date, done, status, created_at, notes, site, recurrence, start_date, is_milestone)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.category,
             body.priority,
             body.due_date,
+            done,
+            status,
             now,
             body.notes,
             body.site,
@@ -129,8 +147,10 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
     if not rows:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    status = _normalise_status(body.status)
+    done = 1 if status == "done" else 0
     await db.execute(
-        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?, start_date=?, is_milestone=?
+        """UPDATE tasks SET title=?, category=?, priority=?, due_date=?, notes=?, site=?, recurrence=?, start_date=?, is_milestone=?, status=?, done=?
            WHERE id=?""",
         (
             body.title,
@@ -142,6 +162,8 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
             body.recurrence,
             body.start_date,
             1 if body.is_milestone else 0,
+            status,
+            done,
             task_id,
         ),
     )
@@ -151,12 +173,40 @@ async def update_task(task_id: int, body: TaskUpdate, db=Depends(get_raw_db)):
 
 @router.patch("/{task_id}/done", response_model=TaskResponse)
 async def toggle_done(task_id: int, db=Depends(get_raw_db)):
+    """Toggle done — kept for legacy callers (kanban drop, checkbox).
+    Now also syncs `status`:
+      - checking done  → status='done'
+      - unchecking done → status='in_progress' (user said "I'm resuming this",
+        which feels more natural than starting from scratch).
+    """
     rows = await db.execute_fetchall("SELECT done FROM tasks WHERE id = ?", (task_id,))
     if not rows:
         raise HTTPException(status_code=404, detail="Task not found")
 
     new_done = 0 if rows[0][0] else 1
-    await db.execute("UPDATE tasks SET done = ? WHERE id = ?", (new_done, task_id))
+    new_status = "done" if new_done else "in_progress"
+    await db.execute(
+        "UPDATE tasks SET done = ?, status = ? WHERE id = ?",
+        (new_done, new_status, task_id),
+    )
+    await db.commit()
+    return await get_task(task_id, db)
+
+
+@router.patch("/{task_id}/status", response_model=TaskResponse)
+async def set_status(task_id: int, body: dict, db=Depends(get_raw_db)):
+    """Explicit status update — used by the 3-option dropdown (À faire /
+    En cours / Terminée). Keeps `done` mirrored so legacy code still works."""
+    rows = await db.execute_fetchall("SELECT id FROM tasks WHERE id = ?", (task_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    new_status = _normalise_status(body.get("status"))
+    new_done = 1 if new_status == "done" else 0
+    await db.execute(
+        "UPDATE tasks SET status = ?, done = ? WHERE id = ?",
+        (new_status, new_done, task_id),
+    )
     await db.commit()
     return await get_task(task_id, db)
 

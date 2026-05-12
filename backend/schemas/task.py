@@ -13,6 +13,9 @@ class TaskCreate(BaseModel):
     site: str = ""
     recurrence: str = ""
     is_milestone: bool = False
+    # Lifecycle status: 'todo' | 'in_progress' | 'done'. The frontend dropdown
+    # is the source of truth — defaults to 'todo' on creation.
+    status: str = "todo"
 
 
 class TaskUpdate(TaskCreate):
@@ -32,6 +35,7 @@ class TaskResponse(BaseModel):
     site: str
     recurrence: str
     is_milestone: bool = False
+    status: str = "todo"
 
     model_config = ConfigDict(from_attributes=True)
 

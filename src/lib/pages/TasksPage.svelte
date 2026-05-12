@@ -69,7 +69,7 @@
 
   // ── Helpers ────────────────────────────────────────────────
   function resetDialogForm() {
-    return { title: '', site: '', category: '', priority: 2, due_date: '', recurrence: '', notes: '' };
+    return { title: '', site: '', category: '', priority: 2, due_date: '', recurrence: '', notes: '', status: 'todo' };
   }
 
   function resetTemplateForm() {
@@ -86,25 +86,23 @@
     return d.toISOString().slice(0, 10);
   }
 
+  // Effective lifecycle state for display: the stored `status` wins, but
+  // an unfinished task whose due_date is past gets bumped to 'overdue' as
+  // a visual override (kept un-persisted — once you finish it the status
+  // becomes 'done' and overdue evaporates).
   function getDueStatus(task) {
-    if (task.done) return 'done';
-    if (!task.due_date) return 'nodate';
-    const today = todayStr();
-    const weekEnd = endOfWeekStr();
-    if (task.due_date < today) return 'overdue';
-    if (task.due_date === today) return 'today';
-    if (task.due_date <= weekEnd) return 'week';
-    return 'future';
+    const s = task.status || (task.done ? 'done' : 'todo');
+    if (s === 'done') return 'done';
+    if (task.due_date && task.due_date < todayStr()) return 'overdue';
+    return s; // 'todo' or 'in_progress'
   }
 
   function getDueLabel(status) {
     switch (status) {
-      case 'overdue': return 'En retard';
-      case 'today': return "Aujourd'hui";
-      case 'week': return 'Bientôt';
-      case 'future': return 'À venir';
-      case 'nodate': return 'Sans date';
+      case 'todo': return 'À faire';
+      case 'in_progress': return 'En cours';
       case 'done': return 'Terminée';
+      case 'overdue': return 'En retard';
       default: return '';
     }
   }
@@ -112,10 +110,9 @@
   function getDueColor(status) {
     switch (status) {
       case 'overdue': return '#EF4444';
-      case 'today': return '#F59E0B';
-      case 'week': return '#3B82F6';
-      case 'future': return '#94A3B8';
-      case 'nodate': return '#94A3B8';
+      case 'in_progress': return '#3B82F6';
+      case 'done': return '#22C55E';
+      case 'todo': return '#94A3B8';
       default: return '#94A3B8';
     }
   }
@@ -231,13 +228,45 @@
     return { total, done, open, overdue, completionRate, byCat, byPrio, bySite, weekData };
   }
 
+  // Kanban — 3 columns by lifecycle status (v6.9.1). Drag a card between
+  // columns to set its status. Note: a task whose due_date is past appears
+  // in its real column (todo or in_progress) — overdueness is a visual chip,
+  // not a separate column. Done tasks always go to the rightmost column.
   function buildKanban(list) {
-    const open = list.filter(t => !t.done);
+    const getStatus = (t) => t.status || (t.done ? 'done' : 'todo');
     return [
-      { priority: 3, label: 'Urgente', color: '#EF4444', tasks: open.filter(t => t.priority === 3) },
-      { priority: 2, label: 'Normale', color: '#3B82F6', tasks: open.filter(t => t.priority === 2) },
-      { priority: 1, label: 'Basse', color: '#22C55E', tasks: open.filter(t => t.priority === 1) },
+      { status: 'todo',        label: 'À FAIRE',  color: '#94A3B8', tasks: list.filter(t => getStatus(t) === 'todo') },
+      { status: 'in_progress', label: 'EN COURS', color: '#3B82F6', tasks: list.filter(t => getStatus(t) === 'in_progress') },
+      { status: 'done',        label: 'TERMINÉES', color: '#22C55E', tasks: list.filter(t => getStatus(t) === 'done') },
     ];
+  }
+
+  // Drag & drop on kanban columns. Native HTML5 — `draggedTaskId` is kept
+  // module-local so it survives the gap between dragstart and drop without
+  // depending on dataTransfer (which has quirks across browsers).
+  let draggedTaskId = null;
+  function kanbanDragStart(e, taskId) {
+    draggedTaskId = taskId;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(taskId));
+    }
+  }
+  function kanbanDragEnd() {
+    draggedTaskId = null;
+  }
+  function kanbanDragOver(e) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  }
+  async function kanbanDrop(e, targetStatus) {
+    e.preventDefault();
+    const id = draggedTaskId;
+    draggedTaskId = null;
+    if (id == null) return;
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    await changeTaskStatus(task, targetStatus);
   }
 
   // ── API calls ──────────────────────────────────────────────
@@ -256,14 +285,16 @@
     } catch (_) {}
   }
 
-  // Inline status change from table dropdown
-  async function changeTaskStatus(task, newDone) {
-    const wasDone = task.done;
-    if (newDone === wasDone) return;
+  // Inline status change from table dropdown (3 options now: todo / in_progress / done).
+  async function changeTaskStatus(task, newStatus) {
+    const currentStatus = task.status || (task.done ? 'done' : 'todo');
+    if (newStatus === currentStatus) return;
     try {
-      const updated = await api.patch(`/api/tasks/${task.id}/done`);
+      const updated = await api.patch(`/api/tasks/${task.id}/status`, { status: newStatus });
       tasks = tasks.map(t => t.id === updated.id ? updated : t);
-    } catch {}
+    } catch {
+      toastError('Échec du changement de statut');
+    }
   }
 
   // Inline priority change from table dropdown
@@ -309,6 +340,7 @@
       due_date: dialogNoDueDate ? null : dialogForm.due_date || null,
       recurrence: dialogForm.recurrence,
       notes: dialogForm.notes,
+      status: dialogForm.status || 'todo',
     };
 
     try {
@@ -391,6 +423,7 @@
       due_date: task.due_date || '',
       recurrence: task.recurrence || '',
       notes: task.notes || '',
+      status: task.status || (task.done ? 'done' : 'todo'),
     };
     dialogNoDueDate = !task.due_date;
     showTaskDialog = true;
@@ -678,15 +711,18 @@
                       <span class="dt-name__ref">TSK-{String(100000 + task.id).slice(1)}</span>
                     </div>
                   </td>
-                  <!-- Status dropdown — YashAdmin style -->
+                  <!-- Status dropdown — 3 lifecycle states. The class reflects the
+                       effective state (incl. overdue override) so the chip color
+                       updates when a non-done task crosses its due date. -->
                   <td on:click|stopPropagation>
                     <select
-                      class="status-select status-select--{task.done ? 'done' : getDueStatus(task)}"
-                      value={task.done ? 'done' : 'open'}
-                      on:change={(e) => changeTaskStatus(task, e.target.value === 'done')}
+                      class="status-select status-select--{getDueStatus(task)}"
+                      value={task.status || (task.done ? 'done' : 'todo')}
+                      on:change={(e) => changeTaskStatus(task, e.target.value)}
                     >
-                      <option value="open">En cours</option>
-                      <option value="done">Terminee</option>
+                      <option value="todo">À faire</option>
+                      <option value="in_progress">En cours</option>
+                      <option value="done">Terminée</option>
                     </select>
                   </td>
                   <!-- Start/Due date -->
@@ -778,10 +814,16 @@
       </div>
     </div>
   {:else if viewMode === 'kanban'}
-    <!-- Kanban view -->
+    <!-- Kanban view — 3 status columns, drag a card to move it -->
     <div class="kanban-board">
       {#each kanbanColumns as col}
-        <div class="kanban-column">
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="kanban-column"
+          class:kanban-column--drop={draggedTaskId !== null}
+          on:dragover={kanbanDragOver}
+          on:drop={(e) => kanbanDrop(e, col.status)}
+        >
           <div class="kanban-header" style="border-bottom-color: {col.color}">
             <span>{col.label}</span>
             <span class="kanban-count">{col.tasks.length}</span>
@@ -790,6 +832,9 @@
             {#each col.tasks as task (task.id)}
               <div
                 class="kanban-card"
+                draggable="true"
+                on:dragstart={(e) => kanbanDragStart(e, task.id)}
+                on:dragend={kanbanDragEnd}
                 on:dblclick={() => openEditDialog(task)}
               >
                 <div class="kc-title">{task.title}</div>
@@ -989,6 +1034,15 @@
           {#if !dialogNoDueDate}
             <input type="date" class="form-input" bind:value={dialogForm.due_date} />
           {/if}
+        </label>
+
+        <label class="form-label">
+          Statut
+          <select class="form-input" bind:value={dialogForm.status}>
+            <option value="todo">À faire</option>
+            <option value="in_progress">En cours</option>
+            <option value="done">Terminée</option>
+          </select>
         </label>
 
         <label class="form-label">
@@ -1362,9 +1416,13 @@
     text-align: center;
   }
 
-  /* Status colors */
-  .status-select--done     { background: #bbe6e3 !important; color: #3A9B94 !important; }
-  .status-select--overdue  { background: #ffdede !important; color: #FF5E5E !important; }
+  /* Lifecycle status colors (v6.9.1) — aligned with Gantt for consistency. */
+  .status-select--done        { background: #d1fae5 !important; color: #047857 !important; }
+  .status-select--in_progress { background: #dbeafe !important; color: #1d4ed8 !important; }
+  .status-select--todo        { background: #e5e7eb !important; color: #4b5563 !important; }
+  /* "En retard" = visual override when status != 'done' but the due date is past */
+  .status-select--overdue     { background: #ffdede !important; color: #dc2626 !important; }
+  /* Legacy fallbacks for any code path still computing the old states. */
   .status-select--today    { background: #ffeccc !important; color: #FF9F00 !important; }
   .status-select--week     { background: #d3edf5 !important; color: #58bad7 !important; }
   .status-select--future   { background: #eeeeee !important; color: #6e6e6e !important; }
@@ -1842,6 +1900,19 @@
     min-height: 200px;
     display: flex;
     flex-direction: column;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  /* Soft highlight while a card is being dragged anywhere — makes the drop
+     zones obvious without needing per-column dragenter tracking. */
+  .kanban-column--drop {
+    border-color: var(--primary);
+    background: rgba(99, 102, 241, 0.04);
+  }
+  .kanban-card {
+    cursor: grab;
+  }
+  .kanban-card:active {
+    cursor: grabbing;
   }
 
   .kanban-header {

@@ -192,6 +192,10 @@ async def init_db():
             PRIMARY KEY (project_id, document_id)
         )""",
         # --- Tasks ---
+        # `status` carries the lifecycle state ('todo' / 'in_progress' / 'done');
+        # `done` is kept as a compat boolean (1 iff status='done') so older
+        # queries (kanban, count, dashboard KPIs) keep working without rewriting
+        # every consumer at once.
         """CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -199,6 +203,7 @@ async def init_db():
             priority INTEGER NOT NULL DEFAULT 2,
             due_date TEXT NULL,
             done INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'todo',
             created_at TEXT NOT NULL,
             notes TEXT NOT NULL DEFAULT '',
             site TEXT NOT NULL DEFAULT '',
@@ -674,6 +679,21 @@ async def _run_migrations(db):
     if "is_milestone" not in task_cols:
         await db.execute("ALTER TABLE tasks ADD COLUMN is_milestone INTEGER NOT NULL DEFAULT 0")
         await db.commit()
+
+    # Task lifecycle status — added in v6.9.1 to differentiate "à faire" /
+    # "en cours" / "terminé" instead of the binary `done` boolean. Backfill:
+    # every existing task with done=1 becomes status='done', others 'todo'.
+    # The `done` column stays in sync with status='done' going forward so
+    # downstream consumers (kanban grouping, KPI counters, etc.) keep
+    # functioning without simultaneous rewrites.
+    if "status" not in task_cols:
+        try:
+            await db.execute("ALTER TABLE tasks ADD COLUMN status TEXT NOT NULL DEFAULT 'todo'")
+            await db.execute("UPDATE tasks SET status = 'done' WHERE done = 1")
+            await db.commit()
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"tasks.status migration skipped: {e}")
 
     # is_acompte flag on documents — marks a Facture as a partial / down-payment invoice.
     # Users want to visually distinguish acomptes from final invoices on the list.

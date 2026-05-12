@@ -4,6 +4,47 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.9.1 — Status complet sur les tâches (todo / en cours / terminé) + Gantt aligné
+
+Le `done` booléen ne suffisait plus pour piloter le Gantt : il manquait l'état intermédiaire "en cours". Cette version introduit un vrai champ `status` à 3 états et propage la couleur partout.
+
+### Modèle de données
+
+- Nouvelle colonne `tasks.status` (`'todo'` / `'in_progress'` / `'done'`)
+- Migration : `ALTER TABLE ADD COLUMN`, backfill `done=1 → 'done'`, sinon `'todo'`
+- Le booléen `done` est **conservé** et reste synchronisé avec `status='done'` (compat avec kanban legacy, KPIs dashboard, etc.)
+- Endpoints :
+  - `POST /api/tasks` accepte `status` (défaut `'todo'`)
+  - `PUT /api/tasks/{id}` accepte `status`
+  - **Nouveau** `PATCH /api/tasks/{id}/status` pour les changements rapides depuis le dropdown
+  - `PATCH /api/tasks/{id}/done` (toggle existant) synchronise désormais aussi `status` : check → `'done'`, uncheck → `'in_progress'` (reprise du travail, pas redémarrage à zéro)
+
+### UX dans le module Tâches
+
+- Le dropdown de la colonne Statut passe de 2 options à **3 options** : À faire / En cours / Terminée
+- Nouveau champ "Statut" dans le dialog de création/édition d'une tâche
+- Couleurs alignées avec le Gantt : gris (todo), bleu (in_progress), vert (done), rouge (overdue computed)
+- **Vue Kanban** : 3 colonnes par statut (au lieu de 3 par priorité). **Drag & drop** d'une card entre colonnes change le statut côté backend.
+
+### Gantt projet
+
+- Les barres lisent désormais `task.status` au lieu de deviner depuis `done` + dates
+- L'orange "bientôt dû" (`soon`) est **supprimé**
+- Couleurs finales : todo (gris) / in_progress (bleu) / done (vert) / late (rouge, override visuel sur status != 'done' avec end_date passée)
+- Légende Gantt nettoyée : 4 entrées au lieu de 5
+- Le dialog tâche-dans-projet a aussi son dropdown Statut
+
+### Bonus visuel
+
+- Le logo établissement sur les project-cards de la page Projets passe de `size=sm` à `size=md` (un peu plus présent comme demandé)
+
+### À tester après update
+
+1. Ouvre une tâche existante → tu vois "À faire" dans le dropdown si elle n'était pas done, sinon "Terminée"
+2. Passe-la en "En cours" → vérifie que la couleur du chip change (bleu)
+3. Sur le Gantt projet : tâches non-done deviennent grises (todo) ou bleues (in_progress) au lieu d'être systématiquement bleues
+4. Vue Kanban tâches : 3 colonnes, drag d'une card entre elles
+
 ## v6.9.0 — Logos établissements (NDK / SU / NDE) dans 4 modules
 
 Première version du système d'établissements : chaque module clé carry maintenant un logo + couleur identifiant l'école concernée (Lycée Notre Dame du Kreisker, Collège Sainte Ursule, Collège Notre Dame d'Espérance).
