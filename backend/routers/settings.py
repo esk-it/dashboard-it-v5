@@ -71,6 +71,13 @@ def _do_backup(prefix: str = "backup") -> str | None:
                 for f in logos_dir.iterdir():
                     if f.is_file():
                         zf.write(f, f"logos/{f.name}")
+            # Establishment logos live in data/establishments — separate
+            # folder so backups also need to scoop them up explicitly.
+            estab_dir = BACKEND_DIR / "data" / "establishments"
+            if estab_dir.exists():
+                for f in estab_dir.iterdir():
+                    if f.is_file():
+                        zf.write(f, f"establishments/{f.name}")
 
         # Rotation: keep last N backups per type
         for pattern, keep in [("backup_*.zip", 10), ("auto_backup_*.zip", 10), ("pre_update_*.zip", 5), ("pre_reset_*.zip", 3)]:
@@ -527,6 +534,16 @@ async def restore_backup(filename: str):
                     with zf.open(n) as src, open(logo_dest, "wb") as out:
                         out.write(src.read())
                     staged_files.append(logo_dest)
+
+            # 3b. Establishment logos → same pattern, staged folder swapped at startup.
+            pending_estab = (BACKEND_DIR / "data" / "establishments.pending-restore")
+            for n in names:
+                if n.startswith("establishments/") and not n.endswith("/"):
+                    pending_estab.mkdir(parents=True, exist_ok=True)
+                    estab_dest = pending_estab / Path(n).name
+                    with zf.open(n) as src, open(estab_dest, "wb") as out:
+                        out.write(src.read())
+                    staged_files.append(estab_dest)
 
         # 4. Marker — read by database.init_db at next startup.
         marker.write_text(json.dumps({

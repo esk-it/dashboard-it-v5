@@ -9,6 +9,7 @@
   import EventsCard from '../components/cards/EventsCard.svelte';
   import ActiveProjectsCard from '../components/cards/ActiveProjectsCard.svelte';
   import RunningProjectsCard from '../components/cards/RunningProjectsCard.svelte';
+  import EstablishmentSummaryRow from '../components/cards/EstablishmentSummaryRow.svelte';
   import SysMonCard from '../components/cards/SysMonCard.svelte';
   import ActivityCard from '../components/cards/ActivityCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
@@ -37,6 +38,7 @@
   let eventsCard;
   let activeProjectsCard;
   let runningProjectsCard;
+  let establishmentSummaryRow;
   let sysMonCard;
   let activityCard;
   let gaugeChart;
@@ -95,6 +97,7 @@
     if (eventsCard?.refresh) eventsCard.refresh();
     if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
     if (runningProjectsCard?.refresh) runningProjectsCard.refresh();
+    if (establishmentSummaryRow?.refresh) establishmentSummaryRow.refresh();
     if (sysMonCard?.refresh) sysMonCard.refresh();
     if (activityCard?.refresh) activityCard.refresh();
     if (gaugeChart?.refresh) gaugeChart.refresh();
@@ -119,6 +122,7 @@
       if (eventsCard?.refresh) eventsCard.refresh();
       if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
       if (runningProjectsCard?.refresh) runningProjectsCard.refresh();
+      if (establishmentSummaryRow?.refresh) establishmentSummaryRow.refresh();
       if (activityCard?.refresh) activityCard.refresh();
       if (gaugeChart?.refresh) gaugeChart.refresh();
     }, 500);
@@ -298,7 +302,21 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 2: Projets en cours (col-12, horizontal scroll) ═══ -->
+  <!-- ═══ ROW 2 : 1 card par établissement (NDK / SU / NDE) avec KPIs ═══ -->
+  <div class="row">
+    <div class="col-12">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Par établissement</h4>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <EstablishmentSummaryRow bind:this={establishmentSummaryRow} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 3: Projets en cours (col-12, horizontal scroll) ═══ -->
   <div class="row">
     <div class="col-12">
       <div class="w-card">

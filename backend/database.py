@@ -104,6 +104,25 @@ def _apply_pending_restore():
             except Exception: pass
             print(f"[restore] logos swapped")
 
+        # 3b. Establishment logos — same swap pattern.
+        pending_estab = BASE_DIR / "data" / "establishments.pending-restore"
+        if pending_estab.exists() and pending_estab.is_dir():
+            estab_dir = BASE_DIR / "data" / "establishments"
+            estab_dir.mkdir(parents=True, exist_ok=True)
+            for f in estab_dir.iterdir():
+                if f.is_file():
+                    try: f.unlink()
+                    except Exception: pass
+            for f in pending_estab.iterdir():
+                if f.is_file():
+                    try:
+                        f.rename(estab_dir / f.name)
+                    except Exception as e:
+                        print(f"[restore] couldn't move establishment logo {f.name}: {e}")
+            try: _shutil.rmtree(pending_estab)
+            except Exception: pass
+            print(f"[restore] establishments swapped")
+
     except Exception as e:
         # Never crash startup over a failed restore — leave the marker so the user can
         # see the staged files and recover manually if needed.
@@ -230,7 +249,22 @@ async def init_db():
             person      TEXT NOT NULL DEFAULT '',
             notes       TEXT NOT NULL DEFAULT '',
             task_id     INTEGER NULL,
+            site        TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL
+        )""",
+        # --- Establishments (Lycée NDK, Collège SU, Collège NDE) ---
+        # Each row carries a stable `code` (NDK/SU/NDE) that other modules
+        # reference via their `site` column. `aliases` is a JSON array of
+        # strings used to match free-form values (e.g. GLPI locations) onto
+        # the right establishment when we extend to the Parc module later.
+        """CREATE TABLE IF NOT EXISTS establishments (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            code        TEXT NOT NULL UNIQUE,
+            name        TEXT NOT NULL,
+            color       TEXT NOT NULL DEFAULT '#3B82F6',
+            logo_path   TEXT NOT NULL DEFAULT '',
+            aliases     TEXT NOT NULL DEFAULT '[]',
+            sort_order  INTEGER NOT NULL DEFAULT 0
         )""",
         # --- Email cache (offline Outlook-style) ---
         """CREATE TABLE IF NOT EXISTS emails_cache (
@@ -746,6 +780,30 @@ async def _run_migrations(db):
         import logging
         logging.getLogger(__name__).warning(f"emails_cache.cc migration skipped: {e}")
 
+    # Site (establishment) column on projects + planning_events. The Tasks
+    # module already has `site` since v6.x; we extend the same idea to
+    # projects and planning so each entity can carry the NDK/SU/NDE code
+    # and the frontend renders the establishment's logo accordingly.
+    try:
+        cursor = await db.execute("PRAGMA table_info(projects)")
+        proj_cols = [row[1] for row in await cursor.fetchall()]
+        if "site" not in proj_cols:
+            await db.execute("ALTER TABLE projects ADD COLUMN site TEXT NOT NULL DEFAULT ''")
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"projects.site migration skipped: {e}")
+
+    try:
+        cursor = await db.execute("PRAGMA table_info(planning_events)")
+        plan_cols = [row[1] for row in await cursor.fetchall()]
+        if "site" not in plan_cols:
+            await db.execute("ALTER TABLE planning_events ADD COLUMN site TEXT NOT NULL DEFAULT ''")
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"planning_events.site migration skipped: {e}")
+
 
 async def _seed_defaults(db):
     """Insert default data into empty tables (first launch only)."""
@@ -803,4 +861,21 @@ async def _seed_defaults(db):
             await db.execute(
                 "INSERT INTO supplier_domains (name, color_hex, icon_key, sort_order, color, icon) VALUES (?, ?, ?, ?, ?, ?)",
                 (name, color, icon, order, color, icon),
+            )
+
+    # Default establishments (3 schools managed by this IT department).
+    # User uploads logos via Settings → Établissements. Colors are tweakable
+    # too — these are reasonable defaults to start with.
+    row = await db.execute("SELECT COUNT(*) FROM establishments")
+    count = (await row.fetchone())[0]
+    if count == 0:
+        establishments = [
+            ("NDK", "Lycée Notre Dame du Kreisker", "#3B82F6", 10),
+            ("SU",  "Collège Sainte Ursule",         "#22C55E", 20),
+            ("NDE", "Collège Notre Dame d'Espérance", "#F59E0B", 30),
+        ]
+        for code, name, color, order in establishments:
+            await db.execute(
+                "INSERT INTO establishments (code, name, color, logo_path, aliases, sort_order) VALUES (?, ?, ?, '', '[]', ?)",
+                (code, name, color, order),
             )

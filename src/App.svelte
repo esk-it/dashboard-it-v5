@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { currentPage, sidebarOpen, navItems, whatsNew, seenNewKeys } from './lib/stores/navigation.js';
   import { loadSettings } from './lib/stores/settings.js';
+  import { loadEstablishments } from './lib/stores/establishments.js';
   import { isAuthenticated, checkAuth, logout } from './lib/stores/auth.js';
   import { isOnline, startHealthPolling, recheckNow } from './lib/stores/health.js';
   import SplashScreen from './lib/components/SplashScreen.svelte';
@@ -72,6 +73,7 @@
 
   onMount(async () => {
     loadSettings();
+    loadEstablishments();
     startHealthPolling();
     // Check "remember me" — if active and not expired, skip login
     const rememberUntil = parseInt(localStorage.getItem('auth_remember_until') || '0');

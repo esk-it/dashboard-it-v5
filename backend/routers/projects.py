@@ -24,6 +24,7 @@ class ProjectCreate(BaseModel):
     end_date: str = ""
     budget: float = 0
     budget_spent: float = 0
+    site: str = ""  # establishment code (NDK / SU / NDE) or empty
 
 
 class ProjectUpdate(BaseModel):
@@ -35,6 +36,7 @@ class ProjectUpdate(BaseModel):
     end_date: str | None = None
     budget: float | None = None
     budget_spent: float | None = None
+    site: str | None = None
 
 
 class NoteCreate(BaseModel):
@@ -222,6 +224,7 @@ async def _project_dict(db, row) -> dict:
         "supplier_count": sup_count,
         "budget": row[9] if len(row) > 9 else 0,
         "budget_spent": row[10] if len(row) > 10 else 0,
+        "site": row[11] if len(row) > 11 else "",
         "budget_engaged": budget_engaged,
         "budget_validated": budget_validated,
         "budget_invoiced": budget_invoiced,
@@ -257,7 +260,7 @@ async def project_stats(db=Depends(get_raw_db)):
 @router.get("")
 async def list_projects(db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0) "
+        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0), COALESCE(site,'') "
         "FROM projects ORDER BY CASE status WHEN 'in_progress' THEN 0 WHEN 'not_started' THEN 1 WHEN 'paused' THEN 2 ELSE 3 END, updated_at DESC"
     )
     out = []
@@ -272,8 +275,8 @@ async def list_projects(db=Depends(get_raw_db)):
 async def create_project(body: ProjectCreate, db=Depends(get_raw_db)):
     now = _now()
     cursor = await db.execute(
-        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (body.title, body.description, body.status, body.color, body.start_date, body.end_date, body.budget, body.budget_spent, now, now),
+        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, site, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (body.title, body.description, body.status, body.color, body.start_date, body.end_date, body.budget, body.budget_spent, body.site, now, now),
     )
     await db.commit()
     return {"ok": True, "id": cursor.lastrowid}
@@ -282,7 +285,7 @@ async def create_project(body: ProjectCreate, db=Depends(get_raw_db)):
 @router.get("/{project_id}")
 async def get_project(project_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0) FROM projects WHERE id=?",
+        "SELECT id, title, description, status, color, start_date, end_date, created_at, updated_at, COALESCE(budget,0), COALESCE(budget_spent,0), COALESCE(site,'') FROM projects WHERE id=?",
         (project_id,),
     )
     if not rows:
@@ -429,7 +432,7 @@ async def get_project(project_id: int, db=Depends(get_raw_db)):
 @router.put("/{project_id}")
 async def update_project(project_id: int, body: ProjectUpdate, db=Depends(get_raw_db)):
     updates, params = [], []
-    for field in ("title", "description", "status", "color", "start_date", "end_date", "budget", "budget_spent"):
+    for field in ("title", "description", "status", "color", "start_date", "end_date", "budget", "budget_spent", "site"):
         val = getattr(body, field)
         if val is not None:
             updates.append(f"{field}=?")
@@ -449,7 +452,7 @@ async def duplicate_project(project_id: int, body: dict = Body(default={}), db=D
     suppliers, and linked-document amounts. Notes/journal are NOT copied since they
     belong to the original project's history."""
     rows = await db.execute_fetchall(
-        "SELECT title, description, status, color, start_date, end_date, COALESCE(budget,0), COALESCE(budget_spent,0) FROM projects WHERE id=?",
+        "SELECT title, description, status, color, start_date, end_date, COALESCE(budget,0), COALESCE(budget_spent,0), COALESCE(site,'') FROM projects WHERE id=?",
         (project_id,),
     )
     if not rows:
@@ -459,8 +462,8 @@ async def duplicate_project(project_id: int, body: dict = Body(default={}), db=D
     now = _now()
 
     cursor = await db.execute(
-        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
-        (new_title, src[1], "not_started", src[3], "", "", src[6], 0, now, now),
+        "INSERT INTO projects (title, description, status, color, start_date, end_date, budget, budget_spent, site, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        (new_title, src[1], "not_started", src[3], "", "", src[6], 0, src[8], now, now),
     )
     new_id = cursor.lastrowid
 

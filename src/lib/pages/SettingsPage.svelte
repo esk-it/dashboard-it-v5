@@ -2,10 +2,18 @@
   import { onMount } from 'svelte';
   import { API_BASE } from '../api/client.js';
   import { settings as settingsStore } from '../stores/settings.js';
+  import { establishments, loadEstablishments, logoUrl } from '../stores/establishments.js';
+  import { success, error as toastError } from '../stores/toast.js';
 
   const API = `${API_BASE}/api/settings`;
 
   let activePanel = 0;
+
+  // Establishments — local working copies (one per row) for inline editing
+  // of name/color/aliases. Saved to backend on blur of each field. The
+  // logo upload uses a file input that triggers a multipart POST.
+  let estabSavingId = null;
+  let estabAliasesDraft = {}; // {establishment_id: textarea_string}
 
   // General settings
   let general = {
@@ -132,6 +140,7 @@
     { label: 'S\u00e9curit\u00e9 DB', emoji: '\u{1F512}' },
     { label: 'Flux RSS', emoji: '\u{1F4E1}' },
     { label: 'Sauvegarde', emoji: '\u{1F4BE}' },
+    { label: '\u00c9tablissements', emoji: '\u{1F3EB}' },
   ];
 
   onMount(async () => {
@@ -646,6 +655,75 @@
   $: if (activePanel === 1) { loadGlpiConfig(); loadWsConfig(); loadGcalConfig(); loadZabbixConfig(); }
   $: if (activePanel === 2) loadDbInfo();
   $: if (activePanel === 4) { loadBackups(); loadDataPaths(); }
+  $: if (activePanel === 5) loadEstablishments();
+
+  // Establishment edit handlers. We avoid debouncing or auto-save to keep
+  // the UX explicit: the user clicks "Enregistrer" on the row once happy
+  // with name/color/aliases. Logo upload is its own button → triggers a
+  // file picker → POSTs immediately because users expect immediate feedback
+  // after picking a file.
+  async function saveEstablishment(estab) {
+    estabSavingId = estab.id;
+    try {
+      const aliasesText = estabAliasesDraft[estab.id] ?? (estab.aliases || []).join('\n');
+      const aliases = aliasesText
+        .split('\n')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      const updated = await fetch(`${API_BASE}/api/establishments/${estab.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: estab.name, color: estab.color, aliases }),
+      });
+      if (!updated.ok) throw new Error(`HTTP ${updated.status}`);
+      await loadEstablishments();
+      success(`${estab.code} enregistré`);
+    } catch (e) {
+      toastError(`Échec de la sauvegarde : ${e.message || e}`);
+    } finally {
+      estabSavingId = null;
+    }
+  }
+
+  async function uploadEstablishmentLogo(estab, fileInputEvent) {
+    const file = fileInputEvent.target.files?.[0];
+    if (!file) return;
+    estabSavingId = estab.id;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(`${API_BASE}/api/establishments/${estab.id}/logo`, {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.detail || `HTTP ${res.status}`);
+      }
+      await loadEstablishments();
+      success(`Logo ${estab.code} mis à jour`);
+    } catch (e) {
+      toastError(`Échec de l'upload : ${e.message || e}`);
+    } finally {
+      estabSavingId = null;
+      fileInputEvent.target.value = '';
+    }
+  }
+
+  async function deleteEstablishmentLogo(estab) {
+    if (!confirm(`Supprimer le logo de ${estab.code} ?`)) return;
+    estabSavingId = estab.id;
+    try {
+      const res = await fetch(`${API_BASE}/api/establishments/${estab.id}/logo`, { method: 'DELETE' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await loadEstablishments();
+      success(`Logo ${estab.code} supprimé`);
+    } catch (e) {
+      toastError(`Échec : ${e.message || e}`);
+    } finally {
+      estabSavingId = null;
+    }
+  }
 
 </script>
 
@@ -1293,6 +1371,89 @@
                 </div>
               </div>
             </div>
+          {/if}
+        </div>
+
+      <!-- ═══════════════ 6: ÉTABLISSEMENTS ═══════════════ -->
+      {:else if activePanel === 5}
+        <div class="panel">
+          <h2>{'\u{1F3EB}'} Établissements</h2>
+          <p class="setting-desc">
+            Configure les 3 établissements que tu gères. Les logos remontent automatiquement dans les modules Tâches, Planning et Projets.
+            Les champs <em>Alias</em> ne servent pas encore (réservés pour la Phase 2 — mapping GLPI).
+          </p>
+
+          <div class="estab-grid">
+            {#each $establishments as estab (estab.id)}
+              <div class="estab-card" style="--accent: {estab.color}">
+                <div class="estab-card__top">
+                  <div class="estab-logo-area">
+                    {#if estab.has_logo}
+                      <img src={logoUrl(estab)} alt={estab.code} class="estab-logo-img" />
+                    {:else}
+                      <div class="estab-logo-fallback" style="background: {estab.color}">
+                        {estab.code}
+                      </div>
+                    {/if}
+                  </div>
+                  <div class="estab-info">
+                    <div class="estab-code">{estab.code}</div>
+                    <input
+                      class="estab-name-input"
+                      type="text"
+                      bind:value={estab.name}
+                      placeholder="Nom complet de l'établissement"
+                    />
+                    <label class="estab-color-row">
+                      <span class="estab-color-label">Couleur</span>
+                      <input
+                        type="color"
+                        bind:value={estab.color}
+                        class="estab-color-input"
+                      />
+                      <code class="estab-color-hex">{estab.color}</code>
+                    </label>
+                  </div>
+                </div>
+
+                <details class="estab-aliases">
+                  <summary>Alias <span class="estab-aliases-hint">(un par ligne, utilisé plus tard pour matcher des libellés GLPI / externes)</span></summary>
+                  <textarea
+                    rows="3"
+                    placeholder="Ex: Notre Dame d'Espérance&#10;NDE - Site principal"
+                    on:input={(e) => estabAliasesDraft[estab.id] = e.target.value}
+                  >{(estabAliasesDraft[estab.id] ?? (estab.aliases || []).join('\n'))}</textarea>
+                </details>
+
+                <div class="estab-actions">
+                  <label class="btn-secondary">
+                    {'\u{1F4F7}'} Changer le logo
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif"
+                      style="display:none"
+                      on:change={(e) => uploadEstablishmentLogo(estab, e)}
+                    />
+                  </label>
+                  {#if estab.has_logo}
+                    <button class="btn-link-danger" on:click={() => deleteEstablishmentLogo(estab)}>
+                      Retirer le logo
+                    </button>
+                  {/if}
+                  <button
+                    class="btn-primary"
+                    on:click={() => saveEstablishment(estab)}
+                    disabled={estabSavingId === estab.id}
+                  >
+                    {estabSavingId === estab.id ? '...' : 'Enregistrer'}
+                  </button>
+                </div>
+              </div>
+            {/each}
+          </div>
+
+          {#if $establishments.length === 0}
+            <p class="empty-text">Chargement…</p>
           {/if}
         </div>
       {/if}
@@ -2378,5 +2539,198 @@
   .toggle-row input[type="checkbox"] {
     width: 18px; height: 18px; accent-color: var(--accent, #06A6C9);
     cursor: pointer;
+  }
+
+  /* ─── Establishments panel ───────────────────────────── */
+  .estab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+  .estab-card {
+    background: var(--bg-base);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.625rem;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    /* Accent bar on the left using the establishment color so each card is
+       visually anchored to its identity, even when no logo is uploaded. */
+    border-left: 3px solid var(--accent, var(--primary));
+  }
+  .estab-card__top {
+    display: flex;
+    gap: 0.875rem;
+    align-items: flex-start;
+  }
+  .estab-logo-area {
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.04);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .estab-logo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .estab-logo-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.25rem;
+    letter-spacing: 0.04em;
+  }
+  .estab-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+  }
+  .estab-code {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+  }
+  .estab-name-input {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.375rem;
+    padding: 0.4rem 0.625rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-weight: 600;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .estab-color-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+  }
+  .estab-color-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+  .estab-color-input {
+    width: 32px;
+    height: 24px;
+    border: 1px solid var(--border-subtle);
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .estab-color-hex {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-family: inherit;
+  }
+
+  .estab-aliases {
+    border-top: 1px solid var(--border-subtle);
+    padding-top: 0.625rem;
+  }
+  .estab-aliases > summary {
+    cursor: pointer;
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .estab-aliases > summary::before {
+    content: '▸';
+    transition: transform 0.15s;
+  }
+  .estab-aliases[open] > summary::before { transform: rotate(90deg); }
+  .estab-aliases-hint {
+    color: var(--text-muted);
+    font-size: 0.6875rem;
+    font-weight: 400;
+  }
+  .estab-aliases textarea {
+    margin-top: 0.5rem;
+    width: 100%;
+    box-sizing: border-box;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.8125rem;
+    resize: vertical;
+  }
+
+  .estab-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 0.25rem;
+  }
+  .estab-actions .btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 0.4rem 0.75rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .estab-actions .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .estab-actions .btn-primary {
+    background: var(--accent, var(--primary));
+    color: #fff;
+    border: none;
+    padding: 0.4rem 1rem;
+    border-radius: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: auto;
+    font-family: inherit;
+  }
+  .estab-actions .btn-primary:disabled {
+    opacity: 0.5;
+    cursor: wait;
+  }
+  .estab-actions .btn-link-danger {
+    background: transparent;
+    border: none;
+    color: #EF4444;
+    font-size: 0.75rem;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+    font-family: inherit;
+  }
+  .empty-text {
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    text-align: center;
+    padding: 1rem 0;
   }
 </style>

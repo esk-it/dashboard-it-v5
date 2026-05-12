@@ -1,7 +1,14 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { api } from '../api/client.js';
+  import { get } from 'svelte/store';
+  import { api, API_BASE } from '../api/client.js';
   import { currentPage } from '../stores/navigation.js';
+  import { establishments } from '../stores/establishments.js';
+  import EstablishmentBadge from '../components/EstablishmentBadge.svelte';
+
+  // Sync read for FullCalendar's eventDidMount (called per-event during render).
+  const getEstablishments = () => get(establishments);
+  const API_BASE_URL = API_BASE;
   import { Calendar } from '@fullcalendar/core';
   import dayGridPlugin from '@fullcalendar/daygrid';
   import timeGridPlugin from '@fullcalendar/timegrid';
@@ -59,6 +66,7 @@
       person: '',
       notes: '',
       task_id: null,
+      site: '',
     };
   }
 
@@ -255,6 +263,7 @@
       person: evt.person || '',
       notes: evt.notes || '',
       task_id: evt.task_id || null,
+      site: evt.site || '',
     };
     fetchOpenTasks();
     showDialog = true;
@@ -407,6 +416,43 @@
       eventClick: (info) => {
         const props = info.event.extendedProps;
         openEditEvent(props);
+      },
+
+      // Prepend the establishment logo (or its colored fallback) to every
+      // event that has a `site`. We read the store synchronously — by the
+      // time the calendar mounts events, App.svelte has already kicked off
+      // loadEstablishments(); even on a cold race we just render without a
+      // logo for that one mount, and a later `refetchEvents()` re-applies.
+      eventDidMount: (info) => {
+        const code = info.event.extendedProps?.site;
+        if (!code) return;
+        const list = getEstablishments();
+        const e = list.find(x => x.code === code);
+        if (!e) return;
+
+        const wrap = document.createElement('span');
+        wrap.className = 'fc-site-badge';
+        wrap.title = e.name;
+        if (e.has_logo) {
+          const img = document.createElement('img');
+          img.src = `${API_BASE_URL}/api/establishments/${e.id}/logo`;
+          img.alt = e.code;
+          img.decoding = 'async';
+          wrap.appendChild(img);
+        } else {
+          const dot = document.createElement('span');
+          dot.className = 'fc-site-badge__dot';
+          dot.style.background = e.color;
+          dot.textContent = e.code.slice(0, 3);
+          wrap.appendChild(dot);
+        }
+
+        // Slot it at the very start of the event content. FullCalendar's
+        // mainEl is the content wrapper for daygrid; the title node lives
+        // a few children deep depending on view, so we lean on the
+        // top-level event element and prepend our badge.
+        const target = info.el.querySelector('.fc-event-title-container, .fc-event-title, .fc-event-main') || info.el;
+        target.prepend(wrap);
       },
 
       // Drag & drop from sidebar — create event directly (no dialog)
@@ -660,15 +706,26 @@
           <textarea bind:value={form.notes} rows="3" placeholder="Notes optionnelles"></textarea>
         </label>
 
-        <label class="field">
-          <span>Lier a une tache</span>
-          <select bind:value={form.task_id}>
-            <option value={null}>-- Aucune --</option>
-            {#each openTasks as t}
-              <option value={t.id}>{t.title}</option>
-            {/each}
-          </select>
-        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Lier a une tache</span>
+            <select bind:value={form.task_id}>
+              <option value={null}>-- Aucune --</option>
+              {#each openTasks as t}
+                <option value={t.id}>{t.title}</option>
+              {/each}
+            </select>
+          </label>
+          <label class="field">
+            <span>Etablissement</span>
+            <select bind:value={form.site}>
+              <option value="">-- Aucun --</option>
+              {#each $establishments as e}
+                <option value={e.code}>{e.code} · {e.name}</option>
+              {/each}
+            </select>
+          </label>
+        </div>
       </div>
 
       <div class="ya-dialog__footer">
@@ -763,6 +820,36 @@
   /* ── FullCalendar overrides (scoped) ── */
   /* Base styling handled by global .app-fullcalendar in app.css */
   /* Extra scoped overrides here */
+
+  /* Establishment badge prepended to each event via eventDidMount. Kept
+     compact so it doesn't fight the event title for space. */
+  :global(.fc-site-badge) {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 4px;
+    vertical-align: middle;
+    line-height: 1;
+  }
+  :global(.fc-site-badge img) {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.85);
+    padding: 1px;
+  }
+  :global(.fc-site-badge__dot) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 12px;
+    border-radius: 3px;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.04em;
+  }
 
   :global(.app-fullcalendar .fc-event) {
     cursor: pointer;

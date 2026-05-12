@@ -11,6 +11,8 @@
     return name.slice(0, 2).toUpperCase();
   }
   import { success, error as toastError } from '../stores/toast.js';
+  import { establishments } from '../stores/establishments.js';
+  import EstablishmentBadge from '../components/EstablishmentBadge.svelte';
 
   // ── State ──
   let projects = [];
@@ -21,7 +23,7 @@
   // Dialog
   let showDialog = false;
   let editingProject = null;
-  let form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0 };
+  let form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0, site: '' };
   let saving = false;
 
   // Task dialog (shared between create and edit)
@@ -172,7 +174,7 @@
   // ── CRUD ──
   function openNewDialog() {
     editingProject = null;
-    form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0 };
+    form = { title: '', description: '', status: 'not_started', color: '#3B82F6', start_date: '', end_date: '', budget: 0, budget_spent: 0, site: '' };
     showDialog = true;
   }
 
@@ -184,6 +186,7 @@
       status: selectedProject.status, color: selectedProject.color,
       start_date: selectedProject.start_date, end_date: selectedProject.end_date,
       budget: selectedProject.budget || 0, budget_spent: selectedProject.budget_spent || 0,
+      site: selectedProject.site || '',
     };
     showDialog = true;
   }
@@ -362,17 +365,44 @@
       const p = selectedProject;
       const today = new Date().toLocaleDateString('fr-FR');
 
-      // Header
+      // Header: establishment logo (top-right) if the project has a site
+      // and that establishment has a logo uploaded. We embed it as a base64
+      // data URI because jsPDF's addImage doesn't accept remote URLs.
+      if (p.site) {
+        const estab = $establishments.find(e => e.code === p.site);
+        if (estab && estab.has_logo) {
+          try {
+            const logoBlob = await fetch(`${API_BASE}/api/establishments/${estab.id}/logo`).then(r => r.blob());
+            const logoDataUri = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(logoBlob);
+            });
+            // PNG/JPEG inferred from data URI; format auto-detected by jsPDF.
+            // Position: top-right, ~20\u00d720mm so it's legible without dominating.
+            doc.addImage(logoDataUri, 'PNG', 175, 10, 22, 22, undefined, 'FAST');
+          } catch (e) {
+            console.warn('Logo PDF embed failed', e);  // non-blocking
+          }
+        }
+      }
+
       doc.setFontSize(18);
       doc.text(p.title, 14, 18);
       doc.setFontSize(9);
       doc.setTextColor(100);
       doc.text(`Exporte le ${today} \u2014 Statut : ${statusInfo(p.status).label}`, 14, 25);
+      if (p.site) {
+        const estab = $establishments.find(e => e.code === p.site);
+        if (estab) doc.text(`Etablissement : ${estab.code} \u2014 ${estab.name}`, 14, 31);
+      }
       if (p.start_date || p.end_date) {
-        doc.text(`Periode : ${p.start_date ? formatDate(p.start_date) : '...'} \u2192 ${p.end_date ? formatDate(p.end_date) : '...'}`, 14, 31);
+        const dateY = p.site ? 37 : 31;
+        doc.text(`Periode : ${p.start_date ? formatDate(p.start_date) : '...'} \u2192 ${p.end_date ? formatDate(p.end_date) : '...'}`, 14, dateY);
       }
       doc.setTextColor(0);
-      let y = 38;
+      let y = p.site && (p.start_date || p.end_date) ? 44 : (p.site || p.start_date || p.end_date) ? 38 : 32;
 
       // Description
       if (p.description) {
@@ -976,6 +1006,9 @@
         <div class="project-card" style="border-left-color:{p.color}" on:click={() => openProject(p)}>
           <div class="project-card__header">
             <h3>{p.title}</h3>
+            {#if p.site}
+              <EstablishmentBadge code={p.site} size="sm" showLabel={false} />
+            {/if}
             <span class="status-badge" style="background:{statusInfo(p.status).color}20;color:{statusInfo(p.status).color}">{statusInfo(p.status).label}</span>
           </div>
           {#if p.description}<p class="project-card__desc">{p.description}</p>{/if}
@@ -1041,6 +1074,9 @@
         <h2>{selectedProject.title}</h2>
         {#if selectedProject.description}<p>{selectedProject.description}</p>{/if}
         <div class="project-header-card__meta">
+          {#if selectedProject.site}
+            <EstablishmentBadge code={selectedProject.site} size="md" />
+          {/if}
           {#if selectedProject.start_date}<span>{formatDate(selectedProject.start_date)} → {formatDate(selectedProject.end_date)}</span>{/if}
           <span class="status-badge" style="background:{statusInfo(selectedProject.status).color}20;color:{statusInfo(selectedProject.status).color}">{statusInfo(selectedProject.status).label}</span>
         </div>
@@ -1430,6 +1466,14 @@
             <button class="color-dot" class:active={form.color === c} style="background:{c}" on:click={() => form.color = c}></button>
           {/each}
         </div>
+      </label>
+      <label>Etablissement
+        <select bind:value={form.site}>
+          <option value="">-- Aucun --</option>
+          {#each $establishments as e}
+            <option value={e.code}>{e.code} · {e.name}</option>
+          {/each}
+        </select>
       </label>
     </div>
     <div class="ya-dialog__footer">

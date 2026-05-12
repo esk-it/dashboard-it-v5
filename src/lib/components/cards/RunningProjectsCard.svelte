@@ -11,6 +11,7 @@
   import { onMount } from 'svelte';
   import { api } from '../../api/client.js';
   import { currentPage } from '../../stores/navigation.js';
+  import EstablishmentBadge from '../EstablishmentBadge.svelte';
 
   let projects = [];
   let loaded = false;
@@ -76,6 +77,11 @@
         <article class="rp-card" on:click={() => openProject(p)}>
           <div class="rp-banner" style="background:linear-gradient(135deg, {p.color} 0%, {p.color}cc 100%)">
             <span class="rp-initial">{projectInitial(p.title)}</span>
+            {#if p.site}
+              <span class="rp-site-pill">
+                <EstablishmentBadge code={p.site} size="xs" showLabel={true} />
+              </span>
+            {/if}
             {#if ds}
               <span class="rp-due-pill rp-due-pill--{ds.kind}">{ds.label}</span>
             {/if}
@@ -180,6 +186,19 @@
     border-radius: 1rem;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+  }
+  /* Establishment badge on the banner — top-left, semi-transparent backing so
+     it reads on any project color. */
+  .rp-site-pill {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 0.625rem;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
   }
   .rp-due-pill--ok {
     background: rgba(255,255,255,0.25);

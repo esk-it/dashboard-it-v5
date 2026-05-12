@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { api } from '../api/client.js';
   import { success, error as toastError } from '../stores/toast.js';
+  import EstablishmentBadge from '../components/EstablishmentBadge.svelte';
 
   // ── Constants ──────────────────────────────────────────────
   const SITES = [
@@ -515,6 +516,16 @@
 
   // ── Lifecycle ──────────────────────────────────────────────
   onMount(() => {
+    // Cross-page navigation: HomePage cards (per-establishment) can request
+    // the Tasks module pre-filtered on a specific site by writing
+    // `tasks.filterSite` to sessionStorage right before navigating here.
+    try {
+      const pending = sessionStorage.getItem('tasks.filterSite');
+      if (pending) {
+        filterSite = pending;
+        sessionStorage.removeItem('tasks.filterSite');
+      }
+    } catch { /* private mode etc. — silently ignore */ }
     fetchTasks();
     fetchCategories();
   });
@@ -685,16 +696,15 @@
                   <!-- Site -->
                   <td>
                     {#if task.site}
-                      <span class="dt-site">{task.site}</span>
+                      <EstablishmentBadge code={task.site} size="sm" />
                     {/if}
                   </td>
-                  <!-- Tags (category + recurrence) -->
+                  <!-- Tags (category + recurrence). Site no longer duplicated
+                       here since it now has its own visual badge in the Site
+                       column — keeping it on both rows was noisy. -->
                   <td>
                     {#if task.category}
                       <span class="dt-tag" class:dt-tag--project={task.category.startsWith('Projet: ')} class:dt-tag--primary={!task.category.startsWith('Projet: ')}>{task.category}</span>
-                    {/if}
-                    {#if task.site}
-                      <span class="dt-tag dt-tag--secondary">{task.site}</span>
                     {/if}
                   </td>
                   <!-- Priority dropdown — YashAdmin style -->
@@ -792,7 +802,7 @@
                   </span>
                 {/if}
                 {#if task.site}
-                  <span class="kc-site">{task.site}</span>
+                  <span class="kc-site-wrap"><EstablishmentBadge code={task.site} size="xs" showLabel={true} /></span>
                 {/if}
               </div>
             {/each}
@@ -1884,6 +1894,11 @@
     margin-bottom: 6px;
   }
 
+  .kc-site-wrap {
+    display: inline-block;
+    margin-right: 6px;
+    margin-top: 2px;
+  }
   .kc-cat, .kc-due, .kc-site {
     font-size: 11px;
     display: inline-block;

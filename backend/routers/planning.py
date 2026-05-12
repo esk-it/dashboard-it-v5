@@ -29,6 +29,7 @@ class PlanningEventCreate(BaseModel):
     person: str = ""
     notes: str = ""
     task_id: int | None = None
+    site: str = ""  # establishment code (NDK / SU / NDE) or empty
 
 
 class PlanningEventUpdate(BaseModel):
@@ -42,6 +43,7 @@ class PlanningEventUpdate(BaseModel):
     person: str | None = None
     notes: str | None = None
     task_id: int | None = None
+    site: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -64,6 +66,7 @@ def _row_to_event(r) -> dict:
         "created_at": r[11] or "",
         "google_event_id": r[12] if len(r) > 12 else None,
         "google_updated_at": r[13] if len(r) > 13 else None,
+        "site": r[14] if len(r) > 14 else "",
     }
 
 
@@ -71,7 +74,8 @@ _SELECT_COLS = """id, title, COALESCE(event_type,'other'), date_start, date_end,
                   all_day, time_start, time_end,
                   COALESCE(person,''), COALESCE(notes,''),
                   task_id, COALESCE(created_at,''),
-                  google_event_id, google_updated_at"""
+                  google_event_id, google_updated_at,
+                  COALESCE(site,'')"""
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +116,8 @@ async def create_event(body: PlanningEventCreate, db=Depends(get_raw_db)):
     cursor = await db.execute(
         """INSERT INTO planning_events
            (title, event_type, date_start, date_end, all_day,
-            time_start, time_end, person, notes, task_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            time_start, time_end, person, notes, task_id, site, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
             body.title,
             body.event_type,
@@ -125,6 +129,7 @@ async def create_event(body: PlanningEventCreate, db=Depends(get_raw_db)):
             body.person,
             body.notes,
             body.task_id,
+            body.site,
             now,
         ),
     )

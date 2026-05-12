@@ -4,6 +4,47 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.9.0 — Logos établissements (NDK / SU / NDE) dans 4 modules
+
+Première version du système d'établissements : chaque module clé carry maintenant un logo + couleur identifiant l'école concernée (Lycée Notre Dame du Kreisker, Collège Sainte Ursule, Collège Notre Dame d'Espérance).
+
+### Fondations
+
+- Table `establishments` (id, code, name, color, logo_path, aliases, sort_order) avec seed NDK / SU / NDE au premier lancement
+- Router `backend/routers/establishments.py` : `GET /api/establishments`, `PUT /api/establishments/{id}`, `POST/GET/DELETE /api/establishments/{id}/logo` — pattern copié sur celui des suppliers
+- Logos stockés dans `data/establishments/` (séparé des logos prestataires), inclus dans les backups + flux de restauration
+- Migrations : ajout d'une colonne `site` (TEXT, défaut '') sur `projects` et `planning_events`
+- Store Svelte `establishments.js` (chargé au démarrage de l'app) + composant `<EstablishmentBadge code size showLabel />` réutilisable (logo si uploadé, sinon fallback colored chip avec le code)
+
+### Settings → Établissements (nouvel onglet)
+
+Nouvelle section avec 3 cards (une par établissement) :
+- Édition du nom complet
+- Color picker pour la teinte d'accent
+- Upload de logo (PNG/JPG/SVG/WebP/GIF, accepte multipart)
+- Champ aliases (textarea, un par ligne — réservé pour la Phase 2 Parc, pas encore utilisé)
+- Bouton retirer le logo
+
+### Modules câblés
+
+- **Tâches** — colonne Site rend un `<EstablishmentBadge>` (logo + code). En vue kanban, badge inline dans la card. Tag dupliqué dans la colonne Tags retiré (redondant). Le tag projet `Projet: X` reste indépendant (couleur rose magenta).
+- **Planning** — dropdown "Établissement" ajouté au dialog create/edit event. Sur le calendrier, un mini-logo est préfixé à chaque event via le hook `eventDidMount` de FullCalendar (img de 14×14 ou fallback colored).
+- **Projets** — dropdown "Établissement" dans le dialog projet, badge dans la fiche projet (à côté du status), petit badge sur chaque project-card de la liste, gros badge sur la tuile "Projets en cours" de l'accueil (top-left du bandeau coloré).
+- **Accueil** — nouvelle row "Par établissement" sous les KPI cards : 3 cards (NDK / SU / NDE) chacune avec logo + nom + 4 stats (tâches, en retard, projets in_progress, events 7j). Clic sur une card → navigue vers `/tasks` filtré sur ce site (via sessionStorage).
+- **Export PDF projet** — logo de l'établissement embedded en haut à droite du header PDF, ligne "Etablissement : NDK — Lycée Notre Dame du Kreisker" ajoutée sous la date.
+
+### Notes d'utilisation après installation
+
+1. Aller dans **Paramètres → Établissements** et uploader les 3 logos (PNG ou SVG, fond transparent recommandé).
+2. Éditer les projets existants pour leur assigner un site (dropdown dans le dialog d'édition) — sinon ils restent "sans logo".
+3. Pareil pour les events Planning existants (édition au cas par cas).
+4. Les tâches existantes ont déjà leur `site` rempli (NDK/SU/NDE/Global) — les logos remontent automatiquement.
+
+### Reporté à plus tard
+
+- Module Parc (GLPI) : impose un travail d'aliasing entre `glpi_location` et nos codes établissement, reporté à v6.9.x si pertinent
+- Module Documents : pas convaincus que la friction d'ajouter un champ site à chaque upload soit justifiée — on reverra si le besoin émerge
+
 ## v6.8.9 — Email : affichage des destinataires + fix "Répondre à tous"
 
 Deux bugs liés sur le module Email.
