@@ -123,6 +123,25 @@ def _apply_pending_restore():
             except Exception: pass
             print(f"[restore] establishments swapped")
 
+        # 3c. Launcher icons — same swap pattern.
+        pending_launcher = BASE_DIR / "data" / "launcher_icons.pending-restore"
+        if pending_launcher.exists() and pending_launcher.is_dir():
+            launcher_dir = BASE_DIR / "data" / "launcher_icons"
+            launcher_dir.mkdir(parents=True, exist_ok=True)
+            for f in launcher_dir.iterdir():
+                if f.is_file():
+                    try: f.unlink()
+                    except Exception: pass
+            for f in pending_launcher.iterdir():
+                if f.is_file():
+                    try:
+                        f.rename(launcher_dir / f.name)
+                    except Exception as e:
+                        print(f"[restore] couldn't move launcher icon {f.name}: {e}")
+            try: _shutil.rmtree(pending_launcher)
+            except Exception: pass
+            print(f"[restore] launcher icons swapped")
+
     except Exception as e:
         # Never crash startup over a failed restore — leave the marker so the user can
         # see the staged files and recover manually if needed.

@@ -5,29 +5,37 @@
 
   const API = `${API_BASE}/api/launcher`;
 
-  // Simple Icons CDN for tech brand logos (white SVG on transparent)
-  const SI = (name) => `https://cdn.simpleicons.org/${name}/white`;
+  // Google's favicon service — reliable for ANY domain that has a favicon
+  // (which is virtually every public site). Used to replace cdn.simpleicons.org
+  // (v6.9.2) which had inconsistent coverage — Microsoft removed Windows from
+  // the catalog, Broadcom pulled VMware, and the GLPI URL was a brittle
+  // WordPress upload path. The favicon service auto-handles fallbacks and is
+  // sized appropriately at 128px. Users can still swap in their own logo via
+  // the file upload tab in the dialog.
+  const FAV = (domain) => `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 
-  // Predefined presets with real logos
+  // Predefined presets with real logos. Each preset suggests a URL when the
+  // service has a clear public endpoint, otherwise leaves it for the user to
+  // fill in (typically on-prem tools like Zabbix, Proxmox, etc.).
   const PRESETS = [
-    { name: 'Google', logo: SI('google'), color: '#4285F4', url: 'https://google.com' },
-    { name: 'Gmail', logo: SI('gmail'), color: '#EA4335', url: 'https://mail.google.com' },
-    { name: 'Google Admin', logo: SI('googlecloud'), color: '#4285F4', url: 'https://admin.google.com' },
-    { name: 'Zyxel Nebula', logo: SI('zyxel'), color: '#FF6600', url: 'https://nebula.zyxel.com' },
-    { name: 'GLPI', logo: 'https://glpi-project.org/wp-content/uploads/2024/04/glpi-favicon.png', color: '#6C63FF', url: '' },
-    { name: 'Windows', logo: SI('windows'), color: '#0078D4', url: '' },
-    { name: 'Active Directory', logo: SI('microsoftazure'), color: '#0078D4', url: '' },
-    { name: 'WithSecure', logo: SI('withsecure'), color: '#2D6CDF', url: 'https://elements.withsecure.com' },
-    { name: 'GitHub', logo: SI('github'), color: '#6e40c9', url: 'https://github.com' },
-    { name: 'Office 365', logo: SI('microsoft365'), color: '#D83B01', url: 'https://portal.office.com' },
-    { name: 'Azure Portal', logo: SI('microsoftazure'), color: '#0089D6', url: 'https://portal.azure.com' },
-    { name: 'OVH', logo: SI('ovh'), color: '#123F6D', url: 'https://www.ovh.com/manager' },
-    { name: 'Zabbix', logo: SI('zabbix'), color: '#D40000', url: '' },
-    { name: 'Grafana', logo: SI('grafana'), color: '#F46800', url: '' },
-    { name: 'Proxmox', logo: SI('proxmox'), color: '#E57000', url: '' },
-    { name: 'VMware', logo: SI('vmware'), color: '#607078', url: '' },
-    { name: 'Nextcloud', logo: SI('nextcloud'), color: '#0082C9', url: '' },
-    { name: 'pfSense', logo: SI('pfsense'), color: '#212121', url: '' },
+    { name: 'Google',           logo: FAV('google.com'),         color: '#4285F4', url: 'https://google.com' },
+    { name: 'Gmail',            logo: FAV('mail.google.com'),    color: '#EA4335', url: 'https://mail.google.com' },
+    { name: 'Google Admin',     logo: FAV('admin.google.com'),   color: '#4285F4', url: 'https://admin.google.com' },
+    { name: 'GitHub',           logo: FAV('github.com'),         color: '#6e40c9', url: 'https://github.com' },
+    { name: 'Office 365',       logo: FAV('office.com'),         color: '#D83B01', url: 'https://portal.office.com' },
+    { name: 'Azure Portal',     logo: FAV('azure.microsoft.com'),color: '#0089D6', url: 'https://portal.azure.com' },
+    { name: 'OVH',              logo: FAV('ovh.com'),            color: '#123F6D', url: 'https://www.ovh.com/manager' },
+    { name: 'WithSecure',       logo: FAV('withsecure.com'),     color: '#2D6CDF', url: 'https://elements.withsecure.com' },
+    { name: 'Zyxel Nebula',     logo: FAV('nebula.zyxel.com'),   color: '#FF6600', url: 'https://nebula.zyxel.com' },
+    { name: 'GLPI',             logo: FAV('glpi-project.org'),   color: '#6C63FF', url: '' },
+    { name: 'Windows',          logo: FAV('microsoft.com'),      color: '#0078D4', url: '' },
+    { name: 'Active Directory', logo: FAV('microsoft.com'),      color: '#0078D4', url: '' },
+    { name: 'Zabbix',           logo: FAV('zabbix.com'),         color: '#D40000', url: '' },
+    { name: 'Grafana',          logo: FAV('grafana.com'),        color: '#F46800', url: '' },
+    { name: 'Proxmox',          logo: FAV('proxmox.com'),        color: '#E57000', url: '' },
+    { name: 'VMware',           logo: FAV('vmware.com'),         color: '#607078', url: '' },
+    { name: 'Nextcloud',        logo: FAV('nextcloud.com'),      color: '#0082C9', url: '' },
+    { name: 'pfSense',          logo: FAV('pfsense.org'),        color: '#212121', url: '' },
   ];
 
   // Icon display logic — local icons served from backend
@@ -57,6 +65,12 @@
   let editingLink = null;
   let form = defaultForm();
   let showPresets = false;
+
+  // File upload tab: keep the chosen file in memory until save, then POST it
+  // to /api/launcher/{id}/icon/upload (which sets icon_type='local'). Preview
+  // is a data: URI so the user sees the file immediately without a round trip.
+  let iconFile = null;
+  let iconFilePreview = null;
 
   // Delete
   let confirmDeleteId = null;
@@ -107,6 +121,8 @@
   function openNew() {
     editingLink = null;
     form = defaultForm();
+    iconFile = null;
+    iconFilePreview = null;
     showPresets = false;
     showDialog = true;
   }
@@ -114,6 +130,8 @@
   function openEdit(link) {
     editingLink = link;
     form = { ...link };
+    iconFile = null;
+    iconFilePreview = null;
     showPresets = false;
     showDialog = true;
   }
@@ -124,7 +142,25 @@
     form.icon_value = preset.logo;
     form.color = preset.color;
     if (preset.url) form.url = preset.url;
+    iconFile = null;
+    iconFilePreview = null;
     showPresets = false;
+  }
+
+  // File picker handler \u2014 pre-loads a data: URL so the preview swaps in
+  // immediately without an extra fetch. The file itself is uploaded in
+  // saveLink() once we have a link id to attach it to.
+  function onIconFilePicked(e) {
+    const f = e.target?.files?.[0];
+    if (!f) return;
+    iconFile = f;
+    const reader = new FileReader();
+    reader.onload = () => { iconFilePreview = reader.result; };
+    reader.readAsDataURL(f);
+    // Hint the form state so the preview renders the file (icon_type='local'
+    // is what get_icon serves once the upload finishes). Until then the
+    // preview block reads `iconFilePreview` directly.
+    form.icon_type = 'local';
   }
 
   async function saveLink() {
@@ -138,12 +174,26 @@
         savedLink = await api.post('/api/launcher', form);
         success('Lien cr\u00e9\u00e9');
       }
-      // If icon_type is 'url', download icon locally for offline use
-      if (form.icon_type === 'url' && form.icon_value && form.icon_value.startsWith('http')) {
+      // Icon handling \u2014 only one of the two paths runs:
+      //  - File picked in the dialog \u2192 multipart POST to /icon/upload (sets icon_type='local')
+      //  - URL mode \u2192 server downloads from the remote URL and caches locally
+      if (iconFile) {
+        try {
+          const fd = new FormData();
+          fd.append('file', iconFile);
+          await fetch(`${API_BASE}/api/launcher/${savedLink.id}/icon/upload`, {
+            method: 'POST', body: fd,
+          });
+        } catch (e) {
+          toastError('Upload de l\'ic\u00f4ne \u00e9chou\u00e9 \u2014 le lien est sauvegard\u00e9 mais l\'ic\u00f4ne est manquante');
+        }
+      } else if (form.icon_type === 'url' && form.icon_value && form.icon_value.startsWith('http')) {
         try {
           await api.post(`/api/launcher/${savedLink.id}/icon`, { url: form.icon_value });
         } catch { /* icon download failed, will use emoji fallback */ }
       }
+      iconFile = null;
+      iconFilePreview = null;
       showDialog = false;
       await loadLinks();
     } catch (e) { toastError('Erreur: ' + e.message); }
@@ -342,10 +392,13 @@
           <label class="form-label form-half">
             Ic{'\u00f4'}ne
             <div class="icon-type-toggle">
-              <button class="icon-type-btn" class:active={form.icon_type === 'url'} on:click={() => form.icon_type = 'url'}>
-                {'\u{1F5BC}\uFE0F'} Logo
+              <button class="icon-type-btn" class:active={form.icon_type === 'url'} on:click={() => { form.icon_type = 'url'; iconFile = null; iconFilePreview = null; }}>
+                {'\u{1F5BC}\uFE0F'} URL
               </button>
-              <button class="icon-type-btn" class:active={form.icon_type === 'emoji'} on:click={() => form.icon_type = 'emoji'}>
+              <button class="icon-type-btn" class:active={form.icon_type === 'local'} on:click={() => { form.icon_type = 'local'; }}>
+                {'\u{1F4C1}'} Fichier
+              </button>
+              <button class="icon-type-btn" class:active={form.icon_type === 'emoji'} on:click={() => { form.icon_type = 'emoji'; iconFile = null; iconFilePreview = null; }}>
                 {'\u{1F600}'} Emoji
               </button>
             </div>
@@ -355,6 +408,24 @@
                   <button class="emoji-btn" class:emoji-selected={form.icon_value === emoji} on:click={() => form.icon_value = emoji}>{emoji}</button>
                 {/each}
               </div>
+            {:else if form.icon_type === 'local'}
+              <input type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp,image/gif,image/x-icon"
+                on:change={onIconFilePicked}
+                class="icon-file-input" />
+              {#if iconFilePreview}
+                <div class="icon-auto-preview">
+                  <img src={iconFilePreview} alt="aper{'\u00e7'}u" class="favicon-preview" />
+                  <span class="favicon-domain">Nouveau fichier \u2014 upload{'\u00e9'} en sauvegardant</span>
+                </div>
+              {:else if editingLink && editingLink.icon_type === 'local'}
+                <div class="icon-auto-preview">
+                  <img src={`${API}/${editingLink.id}/icon?v=${editingLink.icon_value}`} alt="actuel" class="favicon-preview" />
+                  <span class="favicon-domain">Ic{'\u00f4'}ne actuelle (choisis un fichier pour la remplacer)</span>
+                </div>
+              {:else}
+                <p class="icon-auto-hint">PNG, JPG, SVG ou WebP \u2014 upload{'\u00e9'} en local apr{'\u00e8'}s sauvegarde</p>
+              {/if}
             {:else}
               <input type="text" class="form-input" bind:value={form.icon_value}
                 placeholder="URL du logo (ex: https://...logo.png)" style="margin-top:4px;font-size:11px" />
@@ -364,7 +435,7 @@
                   <span class="favicon-domain">Aper{'\u00e7'}u du logo</span>
                 </div>
               {:else}
-                <p class="icon-auto-hint">Collez l'URL d'une image ou choisissez un mod{'\u00e8'}le ci-dessus</p>
+                <p class="icon-auto-hint">Collez l'URL d'une image, uploadez un fichier ou choisissez un mod{'\u00e8'}le ci-dessus</p>
               {/if}
             {/if}
           </label>
@@ -597,6 +668,26 @@
     display: flex; align-items: center; gap: 8px; margin-top: 6px;
     padding: 6px 10px; background: rgba(255,255,255,0.03); border-radius: 6px;
   }
-  .favicon-preview { width: 32px; height: 32px; border-radius: 6px; }
+  .favicon-preview { width: 32px; height: 32px; border-radius: 6px; object-fit: contain; background: rgba(255,255,255,0.04); }
   .favicon-domain { font-size: 12px; color: var(--text-secondary); }
+  .icon-file-input {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    width: 100%;
+  }
+  .icon-file-input::file-selector-button {
+    background: rgba(var(--accent-rgb), 0.15);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11px;
+    margin-right: 8px;
+  }
+  .icon-file-input::file-selector-button:hover {
+    background: rgba(var(--accent-rgb), 0.25);
+  }
 </style>

@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -158,14 +158,57 @@ async def download_icon(link_id: int, body: dict, db=Depends(get_raw_db)):
         raise HTTPException(502, f"Failed to download icon: {e}")
 
 
+@router.post("/{link_id}/icon/upload")
+async def upload_icon(link_id: int, file: UploadFile = File(...), db=Depends(get_raw_db)):
+    """Upload an icon directly from the local filesystem (multipart) instead of
+    fetching from a URL. Same on-disk layout as `download_icon` so the GET
+    endpoint serves either flavour transparently. We blow away any previous
+    icon files for this link to avoid stale extensions (e.g. user replaces a
+    .png with a .svg)."""
+    rows = await db.execute_fetchall("SELECT id FROM quick_links WHERE id=?", (link_id,))
+    if not rows:
+        raise HTTPException(404, "Launcher introuvable")
+
+    allowed = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".gif", ".ico"}
+    src_name = (file.filename or "icon.png").lower()
+    ext = Path(src_name).suffix.lower()
+    if ext == ".jpeg":
+        ext = ".jpg"
+    if ext not in allowed:
+        raise HTTPException(400, f"Format {ext or 'inconnu'} non autorisé (png/jpg/svg/webp/gif/ico acceptés)")
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(400, "Fichier vide")
+
+    # Sweep older icon files for this link — extensions can change between uploads.
+    for old_ext in (".svg", ".png", ".jpg", ".webp", ".gif", ".ico"):
+        old = ICONS_DIR / f"{link_id}{old_ext}"
+        if old.exists():
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
+    icon_path = ICONS_DIR / f"{link_id}{ext}"
+    icon_path.write_bytes(content)
+
+    await db.execute(
+        "UPDATE quick_links SET icon_type='local', icon_value=? WHERE id=?",
+        (f"{link_id}{ext}", link_id),
+    )
+    await db.commit()
+    return {"status": "ok", "icon_file": f"{link_id}{ext}"}
+
+
 @router.get("/{link_id}/icon")
 async def get_icon(link_id: int, db=Depends(get_raw_db)):
     """Serve a locally stored icon."""
     # Find the icon file
-    for ext in [".svg", ".png", ".jpg", ".webp", ".ico"]:
+    for ext in [".svg", ".png", ".jpg", ".webp", ".gif", ".ico"]:
         icon_path = ICONS_DIR / f"{link_id}{ext}"
         if icon_path.exists():
             media = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
-                     ".webp": "image/webp", ".ico": "image/x-icon"}
+                     ".webp": "image/webp", ".gif": "image/gif", ".ico": "image/x-icon"}
             return FileResponse(icon_path, media_type=media.get(ext, "image/png"))
     raise HTTPException(404, "Icon not found")

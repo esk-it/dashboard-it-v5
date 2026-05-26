@@ -78,6 +78,12 @@ def _do_backup(prefix: str = "backup") -> str | None:
                 for f in estab_dir.iterdir():
                     if f.is_file():
                         zf.write(f, f"establishments/{f.name}")
+            # Launcher icons (downloaded or uploaded by the user).
+            launcher_dir = BACKEND_DIR / "data" / "launcher_icons"
+            if launcher_dir.exists():
+                for f in launcher_dir.iterdir():
+                    if f.is_file():
+                        zf.write(f, f"launcher_icons/{f.name}")
 
         # Rotation: keep last N backups per type
         for pattern, keep in [("backup_*.zip", 10), ("auto_backup_*.zip", 10), ("pre_update_*.zip", 5), ("pre_reset_*.zip", 3)]:
@@ -544,6 +550,16 @@ async def restore_backup(filename: str):
                     with zf.open(n) as src, open(estab_dest, "wb") as out:
                         out.write(src.read())
                     staged_files.append(estab_dest)
+
+            # 3c. Launcher icons.
+            pending_launcher = (BACKEND_DIR / "data" / "launcher_icons.pending-restore")
+            for n in names:
+                if n.startswith("launcher_icons/") and not n.endswith("/"):
+                    pending_launcher.mkdir(parents=True, exist_ok=True)
+                    launcher_dest = pending_launcher / Path(n).name
+                    with zf.open(n) as src, open(launcher_dest, "wb") as out:
+                        out.write(src.read())
+                    staged_files.append(launcher_dest)
 
         # 4. Marker — read by database.init_db at next startup.
         marker.write_text(json.dumps({

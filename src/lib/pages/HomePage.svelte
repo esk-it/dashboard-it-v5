@@ -10,6 +10,7 @@
   import ActiveProjectsCard from '../components/cards/ActiveProjectsCard.svelte';
   import RunningProjectsCard from '../components/cards/RunningProjectsCard.svelte';
   import EstablishmentSummaryRow from '../components/cards/EstablishmentSummaryRow.svelte';
+  import LauncherFavoritesCard from '../components/cards/LauncherFavoritesCard.svelte';
   import SysMonCard from '../components/cards/SysMonCard.svelte';
   import ActivityCard from '../components/cards/ActivityCard.svelte';
   import GaugeChart from '../components/cards/GaugeChart.svelte';
@@ -39,6 +40,7 @@
   let activeProjectsCard;
   let runningProjectsCard;
   let establishmentSummaryRow;
+  let launcherFavoritesCard;
   let sysMonCard;
   let activityCard;
   let gaugeChart;
@@ -98,6 +100,7 @@
     if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
     if (runningProjectsCard?.refresh) runningProjectsCard.refresh();
     if (establishmentSummaryRow?.refresh) establishmentSummaryRow.refresh();
+    if (launcherFavoritesCard?.refresh) launcherFavoritesCard.refresh();
     if (sysMonCard?.refresh) sysMonCard.refresh();
     if (activityCard?.refresh) activityCard.refresh();
     if (gaugeChart?.refresh) gaugeChart.refresh();
@@ -123,6 +126,7 @@
       if (activeProjectsCard?.refresh) activeProjectsCard.refresh();
       if (runningProjectsCard?.refresh) runningProjectsCard.refresh();
       if (establishmentSummaryRow?.refresh) establishmentSummaryRow.refresh();
+      if (launcherFavoritesCard?.refresh) launcherFavoritesCard.refresh();
       if (activityCard?.refresh) activityCard.refresh();
       if (gaugeChart?.refresh) gaugeChart.refresh();
     }, 500);
@@ -316,7 +320,26 @@
     </div>
   </div>
 
-  <!-- ═══ ROW 3: Projets en cours (col-12, horizontal scroll) ═══ -->
+  <!-- ═══ ROW 3 : Favoris du Lanceur — accès rapide aux outils utilisés au quotidien ═══ -->
+  <div class="row">
+    <div class="col-12">
+      <div class="w-card">
+        <div class="w-card__header">
+          <h4 class="w-card__title">Favoris</h4>
+          <div class="w-card__actions">
+            <!-- svelte-ignore a11y_click_events_have_key_events -->
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
+            <span class="w-link" on:click={() => currentPage.set('/launcher')}>Gérer</span>
+          </div>
+        </div>
+        <div class="w-card__body w-card__body--flush">
+          <LauncherFavoritesCard bind:this={launcherFavoritesCard} />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ ROW 4: Projets en cours (col-12, horizontal scroll) ═══ -->
   <div class="row">
     <div class="col-12">
       <div class="w-card">

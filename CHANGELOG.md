@@ -4,6 +4,45 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v6.9.2 — Lanceur : upload de fichier, card favoris sur l'accueil, presets fiabilisés
+
+Trois fixes sur le module Lanceur.
+
+### 1. Upload de fichier pour l'icône
+
+Le champ icône avait deux modes (Logo URL / Emoji). Ajout d'un troisième : **Fichier**.
+
+- Nouveau bouton "📁 Fichier" dans le dialog création/édition d'un launcher (à côté de URL et Emoji)
+- Drag & drop ou click sur le file picker pour choisir un PNG/JPG/SVG/WebP/GIF/ICO
+- Aperçu instantané via FileReader, upload effectué après la sauvegarde du launcher
+- Nouvel endpoint backend `POST /api/launcher/{id}/icon/upload` (multipart, pattern copié de suppliers/établissements)
+- Le dossier `data/launcher_icons/` est inclus dans les backups + flux de restauration
+- En mode édition d'un launcher qui a déjà une icône uploadée, l'icône actuelle est affichée — choisir un nouveau fichier la remplace
+
+### 2. Card "Favoris" sur l'accueil
+
+La feature avait été oubliée : la colonne `favorite` existait, le toggle fonctionnait dans le module Lanceur, mais aucune card n'apparaissait sur le dashboard.
+
+- Nouveau composant `LauncherFavoritesCard.svelte`
+- Position : nouvelle row "Favoris" sur la Home, entre "Par établissement" et "Projets en cours"
+- Grille auto-fit de boutons cliquables (logo + nom), bord gauche coloré avec la couleur du launcher
+- Clic → ouvre l'URL dans le navigateur par défaut (via `@tauri-apps/plugin-shell`, fallback `window.open` en dev)
+- Si aucun favori : message d'accroche cliquable qui ouvre le module Lanceur
+- Refresh automatique avec le bouton "Actualiser" + auto-refresh toutes les 5 min comme les autres cards
+
+### 3. Presets fiabilisés
+
+Les 18 modèles utilisaient presque tous `cdn.simpleicons.org` qui a perdu plusieurs marques (Windows retiré par Microsoft, VMware retiré après acquisition Broadcom, etc.). L'icône "Active Directory" pointait par erreur vers `microsoftazure`. GLPI utilisait une URL WordPress fragile.
+
+- Bascule complète vers **Google's favicon service** : `https://www.google.com/s2/favicons?domain={domain}&sz=128`
+- Marche pour TOUT site avec un favicon — pas de risque qu'une marque soit retirée du catalogue
+- Tous les 18 presets mis à jour avec le bon domaine
+- L'utilisateur peut toujours uploader son propre logo via le nouveau mode Fichier si la favicon ne plaît pas
+
+### Fichiers supprimés
+
+- `src/lib/components/cards/LauncherFavCard.svelte` (orphelin, jamais utilisé)
+
 ## v6.9.1 — Status complet sur les tâches (todo / en cours / terminé) + Gantt aligné
 
 Le `done` booléen ne suffisait plus pour piloter le Gantt : il manquait l'état intermédiaire "en cours". Cette version introduit un vrai champ `status` à 3 états et propage la couleur partout.
