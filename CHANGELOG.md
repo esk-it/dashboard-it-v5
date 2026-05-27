@@ -4,6 +4,41 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.2 — Dossiers : 4 ajustements après retour utilisateur
+
+### 1. Status dropdown invisible en thème clair
+
+Le `<select>` du statut avait `background: transparent` et `color: <couleur du statut>`. Sur le thème sombre la couleur ressortait, sur le thème clair le composant disparaissait dans le fond.
+
+Fix : fond explicite (`var(--bg-input, rgba(0,0,0,0.04))`) qui s'adapte aux deux thèmes, label "STATUT" repassé sur `--text-secondary` (au lieu de `--text-muted` qui s'effaçait en clair), styles `<option>` forcés.
+
+### 2. Auto-détection du prestataire dans le titre du dossier
+
+Le backfill v7.0.1 ne marchait que si AU MOINS un document du dossier avait un `supplier_id`. Pour des docs uploadés à l'époque où la colonne presta n'existait pas / n'était pas remplie, le backfill ne trouvait rien.
+
+Nouveau pass : pour chaque dossier encore sans presta, on scanne son **titre + titres/références des docs rattachés** à la recherche d'un nom de prestataire connu. Si "Devis 16122 **ageona** licences" et que "Ageona" est dans ta table prestataires → lien fait automatiquement.
+
+Garde-fous :
+- Noms de prestataires < 4 caractères ignorés (évite les faux positifs "OVH" ou "SU")
+- Match sur le nom le plus long en premier ("Notre-Dame du Kreisker" gagne sur "Notre-Dame")
+- Pass idempotente, tournée à chaque démarrage tant qu'il reste des dossiers à compléter
+
+Si un match est mauvais, tu peux toujours corriger via le ✏️.
+
+### 3. Dialogs trop transparents
+
+`background: var(--ds-card)` pouvait résoudre vers une valeur semi-transparente. Fix : `background: var(--bg-card, #ffffff)` (fallback opaque) + overlay plus sombre (72% au lieu de 55%) + shadow plus marquée. Le dialog se découpe maintenant clairement du fond.
+
+### 4. Champ "Validé" restreint aux Devis
+
+La logique derrière la double saisie :
+
+- **Devis** = "ce que le presta propose". On a `Montant` (prix devisé) + `Négocié` (prix après négo). Le champ Négocié reste vide si tu acceptes le devis tel quel.
+- **BPA** = "ce que la direction a validé". Un seul champ `Montant` suffit, il EST déjà la validation.
+- **Facture** = "ce qui est facturé". Un seul champ `Montant`.
+
+Du coup l'input "Négocié" n'apparaît plus que sur les Devis et Propositions. Renommé : `€` → `Montant`, `Validé` → `Négocié` (plus parlant).
+
 ## v7.0.1 — Dossiers : correctifs après premier passage en prod
 
 Cinq correctifs sur la base v7.0.0 d'hier.

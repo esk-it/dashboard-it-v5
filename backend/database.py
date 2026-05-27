@@ -958,6 +958,53 @@ async def _run_migrations(db):
         import logging
         logging.getLogger(__name__).warning(f"dossier supplier backfill skipped: {e}")
 
+    # v7.0.2 — fuzzy supplier match on dossier title.
+    # When the user's documents predate supplier-tagging, the previous
+    # backfill finds nothing. As a fallback we scan the dossier title (and
+    # rattached doc titles) for an occurrence of any known supplier name.
+    # Only triggered for dossiers still NULL after the strict pass above.
+    # We restrict matches to names >= 4 chars to avoid false positives on
+    # generic words.
+    try:
+        sup_rows = await db.execute_fetchall("SELECT id, name FROM suppliers")
+        # Sort by name length desc so "Notre-Dame du Kreisker" matches before
+        # a shorter alias would. Keep only meaningful names.
+        candidates = [
+            (sid, (name or "").strip())
+            for sid, name in sup_rows
+            if (name or "").strip() and len(name.strip()) >= 4
+        ]
+        candidates.sort(key=lambda x: len(x[1]), reverse=True)
+
+        dossier_rows = await db.execute_fetchall(
+            "SELECT id, COALESCE(title,'') FROM dossiers WHERE supplier_id IS NULL"
+        )
+        for did, title in dossier_rows:
+            haystack = (title or "").lower()
+            # Concat rattached doc titles + references — sometimes the
+            # supplier name shows up in the file name rather than the dossier.
+            doc_meta = await db.execute_fetchall(
+                "SELECT COALESCE(title,''), COALESCE(reference,'') FROM documents WHERE dossier_id = ?",
+                (did,),
+            )
+            for r in doc_meta:
+                haystack += " " + (r[0] or "").lower() + " " + (r[1] or "").lower()
+
+            matched_id = None
+            for sid, name in candidates:
+                if name.lower() in haystack:
+                    matched_id = sid
+                    break
+            if matched_id:
+                await db.execute(
+                    "UPDATE dossiers SET supplier_id = ? WHERE id = ?",
+                    (matched_id, did),
+                )
+        await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"dossier supplier fuzzy-match skipped: {e}")
+
 
 async def _backfill_dossiers(db):
     """Group existing documents into dossiers (v7.0.0 migration).

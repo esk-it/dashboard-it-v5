@@ -619,7 +619,10 @@
             {#each selectedDossier.documents as doc}
               {@const dtype = (doc.doc_type || '').toUpperCase()}
               {@const dcolor = DOC_TYPE_COLORS[dtype] || '#6B7280'}
-              {@const showAccepted = ['DEVIS', 'BPA', 'BON', 'PROPOSITION'].includes(dtype)}
+              <!-- "Validé" only makes sense for DEVIS : un devis propose un prix
+                   qui peut être négocié. Le BPA EST déjà la validation, et la
+                   facture est l'état final → un seul champ Montant suffit. -->
+              {@const showAccepted = dtype === 'DEVIS' || dtype === 'PROPOSITION'}
               <div class="ds-doc-item">
                 <div class="ds-doc-badge" style="background:linear-gradient(160deg, {dcolor}, color-mix(in srgb, {dcolor} 70%, black))">
                   {dtype.slice(0, 3) || 'DOC'}
@@ -633,9 +636,11 @@
                     {#if doc.internal_ref}<span class="ds-doc-ref">{doc.internal_ref}</span>{/if}
                     {#if doc.doc_date}<span>{formatDate(doc.doc_date)}</span>{/if}
                   </div>
-                  <!-- Inline amount edit. amount = "demandé/déclaré", amount_accepted = "validé après négo" (devis/BPA only). -->
+                  <!-- Inline amount edit. amount = montant écrit sur le doc.
+                       amount_accepted = montant final négocié (DEVIS uniquement). -->
                   <div class="ds-doc-amount-edit">
-                    <label class="ds-mini-label">€
+                    <label class="ds-mini-label" title={dtype === 'DEVIS' ? 'Montant proposé par le presta sur le devis' : 'Montant inscrit sur le document'}>
+                      Montant €
                       <input
                         type="number"
                         min="0"
@@ -647,14 +652,15 @@
                       />
                     </label>
                     {#if showAccepted}
-                      <label class="ds-mini-label">Validé
+                      <label class="ds-mini-label" title="Montant final après négociation. Laisse vide si le devis est accepté tel quel.">
+                        Négocié €
                         <input
                           type="number"
                           min="0"
                           step="1"
                           class="ds-amount-input"
                           value={doc.amount_accepted || ''}
-                          placeholder="0"
+                          placeholder="—"
                           on:blur={(e) => saveDocAmount(doc.id, 'amount_accepted', e.target.value)}
                         />
                       </label>
@@ -1267,20 +1273,30 @@
   }
   .ds-status-label {
     font-size: 11px;
-    color: var(--ds-text-muted);
+    /* Was `--ds-text-muted` which renders nearly invisible in light theme.
+       Bump to `--text-secondary` so the label stays readable on both themes. */
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    font-weight: 600;
+    font-weight: 700;
   }
   .ds-status-select {
-    background: transparent;
+    /* Explicit theme-aware backing so the select isn't transparent on light
+       theme (where the parent panel goes white and the colored text vanished). */
+    background: var(--bg-input, rgba(0,0,0,0.04));
     border: 1.5px solid;
     border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 12.5px;
+    padding: 5px 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
+    appearance: auto;
+  }
+  .ds-status-select option {
+    /* Option dropdown menu inherits page colors; make sure it's legible. */
+    background: var(--bg-card);
+    color: var(--text-heading);
   }
 
   .ds-description {
@@ -1487,22 +1503,25 @@
   .ds-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.55);
+    /* Stronger backdrop so the dialog stands out clearly on both themes. */
+    background: rgba(15, 20, 35, 0.72);
     z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-    backdrop-filter: blur(2px);
+    backdrop-filter: blur(4px);
   }
   .ds-dialog {
-    background: var(--ds-card);
-    border: 1px solid var(--ds-border);
+    /* Force a fully opaque background — explicit fallback for the rare case
+       where `--bg-card` resolves to a semi-transparent token. */
+    background: var(--bg-card, #ffffff);
+    border: 1px solid var(--ds-border-strong);
     border-radius: 12px;
     width: min(480px, 92vw);
     max-height: 90vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+    box-shadow: 0 24px 70px rgba(0,0,0,0.55), 0 4px 12px rgba(0,0,0,0.3);
   }
   .ds-dialog-header {
     padding: 14px 18px;
