@@ -107,15 +107,19 @@ class StatusChange(BaseModel):
 async def _doc_summary_for_dossier(db, dossier_id: int) -> dict:
     """Aggregate per-dossier doc stats (amounts, counts, types).
 
+    v7.0.1: reads amounts straight from `documents.amount` / `amount_accepted`
+    (so docs without a project link still contribute). The old join-on-
+    project_documents path is gone; the data has been backfilled by the
+    migration in database.py.
+
     Returns: { 'doc_count', 'chain_types', 'devis_total',
                'bpa_total', 'facture_total', 'has_acompte' }
     """
     rows = await db.execute_fetchall(
-        """SELECT d.id, COALESCE(d.doc_type,''), COALESCE(d.is_acompte, 0),
-                  COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0)
-           FROM documents d
-           LEFT JOIN project_documents pd ON pd.document_id = d.id
-           WHERE d.dossier_id = ?""",
+        """SELECT id, COALESCE(doc_type,''), COALESCE(is_acompte, 0),
+                  COALESCE(amount, 0), COALESCE(amount_accepted, 0)
+           FROM documents
+           WHERE dossier_id = ?""",
         (dossier_id,),
     )
     chain_types: set[str] = set()
@@ -123,17 +127,13 @@ async def _doc_summary_for_dossier(db, dossier_id: int) -> dict:
     bpa_total = 0.0
     facture_total = 0.0
     has_acompte = False
-    seen_doc_ids: set[int] = set()
 
     for r in rows:
-        did = r[0]
-        if did in seen_doc_ids:
-            continue  # join may duplicate if doc has multiple project_documents links
-        seen_doc_ids.add(did)
         dtype = (r[1] or "").upper()
         is_acompte = bool(r[2])
         amount = r[3] or 0
         accepted = r[4] or 0
+        # "Validated" amount wins when set, else fall back to the declared one.
         value = accepted if accepted > 0 else amount
 
         if dtype:
@@ -148,7 +148,7 @@ async def _doc_summary_for_dossier(db, dossier_id: int) -> dict:
             facture_total += value
 
     return {
-        "doc_count": len(seen_doc_ids),
+        "doc_count": len(rows),
         "chain_types": sorted(chain_types),
         "devis_total": devis_total,
         "bpa_total": bpa_total,
@@ -330,18 +330,16 @@ async def get_dossier(dossier_id: int, db=Depends(get_raw_db)):
     d["project"] = await _project_brief(db, d["project_id"])
     d["summary"] = await _doc_summary_for_dossier(db, d["id"])
 
-    # Docs in this dossier.
+    # Docs in this dossier (amounts read from document row directly — v7.0.1).
     doc_rows = await db.execute_fetchall(
-        """SELECT d.id, d.title, COALESCE(d.doc_type,''), d.doc_date,
-                  COALESCE(d.reference,''), COALESCE(d.internal_ref,''),
-                  COALESCE(d.is_acompte, 0),
-                  COALESCE(pd.amount, 0), COALESCE(pd.amount_accepted, 0), COALESCE(pd.status,'')
-           FROM documents d
-           LEFT JOIN project_documents pd ON pd.document_id = d.id
-           WHERE d.dossier_id = ?
-           GROUP BY d.id
+        """SELECT id, title, COALESCE(doc_type,''), doc_date,
+                  COALESCE(reference,''), COALESCE(internal_ref,''),
+                  COALESCE(is_acompte, 0),
+                  COALESCE(amount, 0), COALESCE(amount_accepted, 0)
+           FROM documents
+           WHERE dossier_id = ?
            ORDER BY
-             CASE COALESCE(d.doc_type,'')
+             CASE COALESCE(doc_type,'')
                WHEN 'DEVIS' THEN 1
                WHEN 'PROPOSITION' THEN 2
                WHEN 'BPA' THEN 3
@@ -351,7 +349,7 @@ async def get_dossier(dossier_id: int, db=Depends(get_raw_db)):
                WHEN 'RAPPORT' THEN 6
                ELSE 7
              END,
-             COALESCE(d.doc_date, d.created_at) ASC""",
+             COALESCE(doc_date, created_at) ASC""",
         (dossier_id,),
     )
     d["documents"] = [
@@ -365,7 +363,6 @@ async def get_dossier(dossier_id: int, db=Depends(get_raw_db)):
             "is_acompte": bool(r[6]),
             "amount": r[7],
             "amount_accepted": r[8],
-            "status": r[9],
         }
         for r in doc_rows
     ]

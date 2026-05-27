@@ -585,6 +585,36 @@ async def delete_document(doc_id: int, db=Depends(get_raw_db)):
     await db.commit()
 
 
+# ── Amounts (v7.0.1) ─────────────────────────────────────────────
+# Amounts are now first-class fields on the document itself (so a doc not
+# linked to any project still carries its devis/facture amount). project_documents
+# remains the per-project override for the legacy ProjectsPage view.
+
+@router.put("/{doc_id}/amount")
+async def update_document_amount(doc_id: int, body: dict, db=Depends(get_raw_db)):
+    rows = await db.execute_fetchall("SELECT id FROM documents WHERE id = ?", (doc_id,))
+    if not rows:
+        raise HTTPException(404, "Document introuvable")
+    try:
+        amount = float(body.get("amount") or 0)
+        amount_accepted = float(body.get("amount_accepted") or 0)
+    except (TypeError, ValueError):
+        raise HTTPException(400, "Montants invalides")
+
+    await db.execute(
+        "UPDATE documents SET amount = ?, amount_accepted = ? WHERE id = ?",
+        (amount, amount_accepted, doc_id),
+    )
+    # Keep project_documents in sync so the ProjectsPage budget panel reflects
+    # the change without us touching it.
+    await db.execute(
+        "UPDATE project_documents SET amount = ?, amount_accepted = ? WHERE document_id = ?",
+        (amount, amount_accepted, doc_id),
+    )
+    await db.commit()
+    return {"id": doc_id, "amount": amount, "amount_accepted": amount_accepted}
+
+
 # ── Document Links ──────────────────────────────────────────────
 
 

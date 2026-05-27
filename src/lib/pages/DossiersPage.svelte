@@ -35,23 +35,33 @@
   // For supplier filter chips
   let allSuppliers = [];
 
-  // Dialogs
-  let showCreateDialog = false;
-  let createForm = blankForm();
+  // Dialogs — single form reused for both create and edit modes. `editingDossierId`
+  // is null in create mode, set to a dossier.id in edit mode.
+  let showDossierDialog = false;
+  let editingDossierId = null;
+  let dossierForm = blankForm();
   let saving = false;
 
   let showAttachDialog = false;
   let attachableDocs = [];
   let attachLoading = false;
 
+  // Track in-flight amount edits so we don't double-fire on every keystroke.
+  let pendingAmountSaves = {};
+
+  let allProjects = [];
+
   // ── Constants ─────────────────────────────────────────────
+  // Order matters: it drives the dropdown ordering AND the sidebar filter order.
+  // `hint` is shown as a tooltip on the filter item so the user understands that
+  // each state = "stage actuel", not "le dossier contient ce type de doc".
   const STATUSES = [
-    { value: 'demande_envoyee', label: 'Demande envoyée', color: '#94A3B8', shortLabel: 'Demande' },
-    { value: 'devis_recu',      label: 'Devis reçu',      color: '#3B82F6', shortLabel: 'Devis' },
-    { value: 'bpa_signe',       label: 'BPA signé',       color: '#8B5CF6', shortLabel: 'BPA' },
-    { value: 'commande',        label: 'Commandé',        color: '#22C55E', shortLabel: 'Commandé' },
-    { value: 'livre',           label: 'Livré / Installé', color: '#16A34A', shortLabel: 'Livré' },
-    { value: 'archive',         label: 'Archivé',         color: '#6B7280', shortLabel: 'Archivé' },
+    { value: 'demande_envoyee', label: 'Demande envoyée',     color: '#94A3B8', shortLabel: 'Demande',  hint: 'En attente d\'un devis du presta' },
+    { value: 'devis_recu',      label: 'Devis · sans BPA',    color: '#3B82F6', shortLabel: 'Devis',    hint: 'Devis reçu, BPA pas encore signé' },
+    { value: 'bpa_signe',       label: 'BPA · sans commande', color: '#8B5CF6', shortLabel: 'BPA',      hint: 'BPA signé, commande pas encore passée/facturée' },
+    { value: 'commande',        label: 'Commandé',            color: '#22C55E', shortLabel: 'Commandé', hint: 'Facture reçue, en attente de livraison' },
+    { value: 'livre',           label: 'Livré / Installé',    color: '#16A34A', shortLabel: 'Livré',    hint: 'Matériel reçu et déployé' },
+    { value: 'archive',         label: 'Archivé',             color: '#6B7280', shortLabel: 'Archivé',  hint: 'Clos, plus de suivi à faire' },
   ];
 
   const DOC_TYPE_COLORS = {
@@ -83,8 +93,14 @@
 
   // ── Loading ───────────────────────────────────────────────
   onMount(async () => {
-    await Promise.all([loadDossiers(), loadStats(), loadSuppliers()]);
+    await Promise.all([loadDossiers(), loadStats(), loadSuppliers(), loadProjects()]);
   });
+
+  async function loadProjects() {
+    try {
+      allProjects = await api.get('/api/projects');
+    } catch { allProjects = []; }
+  }
 
   async function loadDossiers() {
     loading = true;
@@ -141,20 +157,56 @@
   }
 
   // ── Mutations ─────────────────────────────────────────────
-  async function createDossier() {
-    if (!createForm.title.trim()) return;
+  function openCreateDialog() {
+    editingDossierId = null;
+    dossierForm = blankForm();
+    showDossierDialog = true;
+  }
+
+  function openEditDialog() {
+    if (!selectedDossier) return;
+    editingDossierId = selectedDossier.id;
+    dossierForm = {
+      title: selectedDossier.title || '',
+      description: selectedDossier.description || '',
+      status: selectedDossier.status || 'demande_envoyee',
+      supplier_id: selectedDossier.supplier_id || null,
+      project_id: selectedDossier.project_id || null,
+      site: selectedDossier.site || '',
+      estimated_budget: selectedDossier.estimated_budget || 0,
+      notes: selectedDossier.notes || '',
+    };
+    showDossierDialog = true;
+  }
+
+  async function saveDossier() {
+    if (!dossierForm.title.trim()) return;
     saving = true;
     try {
-      const created = await api.post('/api/dossiers', createForm);
-      showCreateDialog = false;
-      createForm = blankForm();
+      // Coerce empty selects ('' from <select>) to null for FK fields so the
+      // backend doesn't try to UPDATE with the empty string.
+      const payload = {
+        ...dossierForm,
+        supplier_id: dossierForm.supplier_id || null,
+        project_id: dossierForm.project_id || null,
+      };
+      let result;
+      if (editingDossierId) {
+        result = await api.put(`/api/dossiers/${editingDossierId}`, payload);
+        success('Dossier modifié');
+      } else {
+        result = await api.post('/api/dossiers', payload);
+        success('Dossier créé');
+      }
+      showDossierDialog = false;
+      dossierForm = blankForm();
+      editingDossierId = null;
       await loadDossiers();
       await loadStats();
-      selectedDossierId = created.id;
-      selectedDossier = created;
-      success('Dossier créé');
+      selectedDossierId = result.id;
+      selectedDossier = result;
     } catch (e) {
-      toastError('Erreur création : ' + (e.message || ''));
+      toastError('Erreur : ' + (e.message || ''));
     } finally {
       saving = false;
     }
@@ -247,6 +299,31 @@
     }
   }
 
+  // ── Document amount edit (inline) ─────────────────────────
+  // Triggered on blur — coerces the input value to a number, saves it, and
+  // refreshes the dossier so the budget summary stays in sync.
+  async function saveDocAmount(docId, field, rawValue) {
+    if (!selectedDossier) return;
+    const doc = (selectedDossier.documents || []).find(d => d.id === docId);
+    if (!doc) return;
+    const num = Number(rawValue) || 0;
+    if (num === (doc[field] || 0)) return;  // no change, skip
+    const payload = {
+      amount: field === 'amount' ? num : (doc.amount || 0),
+      amount_accepted: field === 'amount_accepted' ? num : (doc.amount_accepted || 0),
+    };
+    pendingAmountSaves[docId] = true;
+    try {
+      await api.put(`/api/documents/${docId}/amount`, payload);
+      selectedDossier = await api.get(`/api/dossiers/${selectedDossier.id}`);
+      await loadDossiers();
+    } catch {
+      toastError('Échec mise à jour montant');
+    } finally {
+      pendingAmountSaves[docId] = false;
+    }
+  }
+
   // ── Helpers ───────────────────────────────────────────────
   function formatDate(iso) {
     if (!iso) return '—';
@@ -323,7 +400,7 @@
       <button class="active">Dossiers</button>
       <button on:click={() => viewMode = 'flat'}>Documents (à plat)</button>
     </div>
-    <button class="ds-btn-primary" on:click={() => { createForm = blankForm(); showCreateDialog = true; }}>
+    <button class="ds-btn-primary" on:click={openCreateDialog}>
       + Nouveau dossier
     </button>
   </header>
@@ -339,7 +416,12 @@
           <span class="ds-count">{stats.total}</span>
         </div>
         {#each STATUSES as s}
-          <div class="ds-filter-item" class:active={filterStatus === s.value} on:click={() => filterStatus = s.value}>
+          <div
+            class="ds-filter-item"
+            class:active={filterStatus === s.value}
+            on:click={() => filterStatus = s.value}
+            title={s.hint}
+          >
             <span class="ds-filter-icon">
               <span class="ds-filter-dot" style="background:{s.color}"></span>
               {s.label}
@@ -482,6 +564,7 @@
         <header class="ds-detail-header">
           <div class="ds-detail-header__top">
             <h2>{selectedDossier.title}</h2>
+            <button class="ds-icon-btn" on:click={openEditDialog} title="Éditer le dossier">✏️</button>
             <button class="ds-icon-btn" on:click={deleteDossier} title="Supprimer le dossier">🗑</button>
           </div>
 
@@ -504,7 +587,14 @@
 
           <div class="ds-status-row">
             <span class="ds-status-label">Statut</span>
-            <select class="ds-status-select" style="border-color:{status.color}; color:{status.color}" value={selectedDossier.status} on:change={(e) => changeStatus(e.target.value)}>
+            <!-- bind:value ensures the <select> always reflects the model;
+                 we re-issue the API call on change explicitly. -->
+            <select
+              class="ds-status-select"
+              style="border-color:{status.color}; color:{status.color}"
+              bind:value={selectedDossier.status}
+              on:change={(e) => changeStatus(e.target.value)}
+            >
               {#each STATUSES as s}
                 <option value={s.value}>{s.label}</option>
               {/each}
@@ -529,7 +619,7 @@
             {#each selectedDossier.documents as doc}
               {@const dtype = (doc.doc_type || '').toUpperCase()}
               {@const dcolor = DOC_TYPE_COLORS[dtype] || '#6B7280'}
-              {@const value = doc.amount_accepted > 0 ? doc.amount_accepted : doc.amount}
+              {@const showAccepted = ['DEVIS', 'BPA', 'BON', 'PROPOSITION'].includes(dtype)}
               <div class="ds-doc-item">
                 <div class="ds-doc-badge" style="background:linear-gradient(160deg, {dcolor}, color-mix(in srgb, {dcolor} 70%, black))">
                   {dtype.slice(0, 3) || 'DOC'}
@@ -543,11 +633,33 @@
                     {#if doc.internal_ref}<span class="ds-doc-ref">{doc.internal_ref}</span>{/if}
                     {#if doc.doc_date}<span>{formatDate(doc.doc_date)}</span>{/if}
                   </div>
-                </div>
-                <div class="ds-doc-amount">
-                  {#if value > 0}
-                    <div class="ds-doc-amount__main">{fmtEur(value)}</div>
-                  {/if}
+                  <!-- Inline amount edit. amount = "demandé/déclaré", amount_accepted = "validé après négo" (devis/BPA only). -->
+                  <div class="ds-doc-amount-edit">
+                    <label class="ds-mini-label">€
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        class="ds-amount-input"
+                        value={doc.amount || ''}
+                        placeholder="0"
+                        on:blur={(e) => saveDocAmount(doc.id, 'amount', e.target.value)}
+                      />
+                    </label>
+                    {#if showAccepted}
+                      <label class="ds-mini-label">Validé
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          class="ds-amount-input"
+                          value={doc.amount_accepted || ''}
+                          placeholder="0"
+                          on:blur={(e) => saveDocAmount(doc.id, 'amount_accepted', e.target.value)}
+                        />
+                      </label>
+                    {/if}
+                  </div>
                 </div>
                 <button class="ds-icon-btn" on:click={() => detachDoc(doc.id)} title="Détacher">✕</button>
               </div>
@@ -605,33 +717,33 @@
   </div>
 </div>
 
-<!-- ─── CREATE DIALOG ─── -->
-{#if showCreateDialog}
-  <div class="ds-overlay" on:mousedown|self={() => showCreateDialog = false}>
+<!-- ─── CREATE / EDIT DIALOG (unified) ─── -->
+{#if showDossierDialog}
+  <div class="ds-overlay" on:mousedown|self={() => showDossierDialog = false}>
     <div class="ds-dialog">
       <div class="ds-dialog-header">
-        <h2>Nouveau dossier</h2>
-        <button class="ds-icon-btn" on:click={() => showCreateDialog = false}>✕</button>
+        <h2>{editingDossierId ? 'Éditer le dossier' : 'Nouveau dossier'}</h2>
+        <button class="ds-icon-btn" on:click={() => showDossierDialog = false}>✕</button>
       </div>
       <div class="ds-dialog-body">
         <label class="ds-field">
           <span>Titre *</span>
-          <input type="text" bind:value={createForm.title} placeholder="Ex : Renouvellement firewall NDK" autofocus />
+          <input type="text" bind:value={dossierForm.title} placeholder="Ex : Renouvellement firewall NDK" autofocus />
         </label>
         <label class="ds-field">
           <span>Description</span>
-          <textarea bind:value={createForm.description} rows="2" placeholder="Optionnel — quelques mots de contexte"></textarea>
+          <textarea bind:value={dossierForm.description} rows="2" placeholder="Optionnel — quelques mots de contexte"></textarea>
         </label>
         <div class="ds-field-row">
           <label class="ds-field">
             <span>Statut</span>
-            <select bind:value={createForm.status}>
+            <select bind:value={dossierForm.status}>
               {#each STATUSES as s}<option value={s.value}>{s.label}</option>{/each}
             </select>
           </label>
           <label class="ds-field">
             <span>Établissement</span>
-            <select bind:value={createForm.site}>
+            <select bind:value={dossierForm.site}>
               <option value="">— Aucun —</option>
               {#each $establishments as e}<option value={e.code}>{e.code} · {e.name}</option>{/each}
             </select>
@@ -640,21 +752,32 @@
         <div class="ds-field-row">
           <label class="ds-field">
             <span>Prestataire</span>
-            <select bind:value={createForm.supplier_id}>
+            <select bind:value={dossierForm.supplier_id}>
               <option value={null}>— Aucun —</option>
               {#each allSuppliers as s}<option value={s.id}>{s.name}</option>{/each}
             </select>
           </label>
           <label class="ds-field">
-            <span>Budget estimé (€)</span>
-            <input type="number" min="0" step="100" bind:value={createForm.estimated_budget} />
+            <span>Projet lié</span>
+            <select bind:value={dossierForm.project_id}>
+              <option value={null}>— Aucun —</option>
+              {#each allProjects as p}<option value={p.id}>{p.title}</option>{/each}
+            </select>
           </label>
         </div>
+        <label class="ds-field">
+          <span>Budget estimé (€)</span>
+          <input type="number" min="0" step="100" bind:value={dossierForm.estimated_budget} />
+        </label>
+        <label class="ds-field">
+          <span>Notes internes</span>
+          <textarea bind:value={dossierForm.notes} rows="2" placeholder="Optionnel — contact référent, conditions particulières…"></textarea>
+        </label>
       </div>
       <div class="ds-dialog-footer">
-        <button class="ds-btn-secondary" on:click={() => showCreateDialog = false}>Annuler</button>
-        <button class="ds-btn-primary" on:click={createDossier} disabled={saving || !createForm.title.trim()}>
-          {saving ? 'En cours…' : 'Créer'}
+        <button class="ds-btn-secondary" on:click={() => showDossierDialog = false}>Annuler</button>
+        <button class="ds-btn-primary" on:click={saveDossier} disabled={saving || !dossierForm.title.trim()}>
+          {saving ? 'En cours…' : editingDossierId ? 'Enregistrer' : 'Créer'}
         </button>
       </div>
     </div>
@@ -1273,6 +1396,37 @@
     color: var(--ds-text-heading);
     font-variant-numeric: tabular-nums;
   }
+
+  /* Inline amount edit on each doc row — two narrow fields side by side. */
+  .ds-doc-amount-edit {
+    display: flex;
+    gap: 8px;
+    margin-top: 4px;
+    align-items: center;
+  }
+  .ds-mini-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--ds-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .ds-amount-input {
+    width: 80px;
+    background: var(--ds-bg);
+    border: 1px solid var(--ds-border);
+    border-radius: 4px;
+    padding: 3px 7px;
+    color: var(--ds-text);
+    font-size: 12px;
+    font-family: inherit;
+    outline: none;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .ds-amount-input:focus { border-color: var(--ds-primary); }
 
   /* Budget block */
   .ds-budget {

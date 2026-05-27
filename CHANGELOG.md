@@ -4,6 +4,54 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.1 — Dossiers : correctifs après premier passage en prod
+
+Cinq correctifs sur la base v7.0.0 d'hier.
+
+### 1. Prestataires manquants sur les dossiers migrés
+
+La migration v7.0.0 ne prenait le `supplier_id` que sur le "main doc" du dossier (le devis en général). Si ce doc n'avait pas de prestataire renseigné mais qu'un autre doc de la chaîne en avait un, le dossier finissait en "(sans prestataire)".
+
+Nouveau backfill au démarrage : pour chaque dossier sans prestataire, on prend le `supplier_id` du premier doc de la chaîne qui en a un. Tournée idempotente, donc rejouée à chaque démarrage tant qu'il reste des dossiers sans presta.
+
+### 2. Édition des dossiers existants
+
+Bouton ✏️ ajouté à côté de la corbeille dans le panneau détail. Ouvre un dialog "Éditer le dossier" qui réutilise le formulaire de création (titre, description, statut, presta, projet lié, établissement, budget estimé, notes internes).
+
+### 3. Montants invisibles + non éditables
+
+Les montants étaient stockés uniquement dans `project_documents`. Donc tout doc pas rattaché à un projet n'affichait aucun montant.
+
+- Nouvelles colonnes `documents.amount` et `documents.amount_accepted` (source de vérité directe)
+- Migration : copie depuis `project_documents` au premier démarrage v7.0.1
+- Nouveau endpoint `PUT /api/documents/{id}/amount` qui met à jour la doc ET synchronise `project_documents` (pour que la page Projets reste cohérente)
+- Inputs inline dans le panel détail Dossier : chaque doc a un champ "€" (montant déclaré) et — pour les devis/BPA — un champ "Validé" (montant après négo). Sauvegarde au blur.
+- Le bloc "Budget · pour info" en bas du panel se recalcule automatiquement.
+
+### 4. Dropdown statut affichait une case blanche vide
+
+Svelte n'évalue pas `value={x}` comme attendu sur un `<select>` — il faut un `bind:value`. Correction faite : le dropdown affiche maintenant correctement le statut courant, et conserve la couleur du statut sur le bord du select.
+
+### 5. Filtres latéraux ambigus ("Devis reçu : 0")
+
+Les labels suggéraient "dossiers qui contiennent un X" alors qu'ils filtrent en réalité par état courant. Reformulés pour lever l'ambiguïté + tooltip de description :
+
+- "Devis reçu" → **"Devis · sans BPA"** *(devis reçu, BPA pas encore signé)*
+- "BPA signé" → **"BPA · sans commande"** *(BPA signé, commande/facture pas encore reçue)*
+- "Commandé" *(facture reçue, en attente de livraison)*
+- "Livré / Installé" *(matériel reçu et déployé)*
+- "Archivé" *(clos, plus de suivi)*
+
+Survole un filtre pour voir le détail dans la bulle d'aide.
+
+### À tester après update
+
+1. Recharge le module Documents → les dossiers existants devraient maintenant afficher le bon prestataire (si l'un des docs du dossier en avait un)
+2. Clique sur un dossier → bouton ✏️ ouvre le dialog d'édition
+3. Dans le panel détail, les montants apparaissent sous chaque doc + sont éditables au clic
+4. Le dropdown statut affiche bien le statut courant en couleur
+5. Survol des filtres : tooltip explique chaque état
+
 ## v7.0.0 — Refonte du module Documents autour des "Dossiers"
 
 Première version d'une refonte majeure du module Documents. Le module pivote de "liste de documents avec ensembles" vers "**Dossiers**" — un dossier représente une opération d'achat IT complète (ex. "Renouvellement firewall NDK") et agrège tous ses documents (Devis, BPA, Facture) + son état d'avancement + son fil d'activité.

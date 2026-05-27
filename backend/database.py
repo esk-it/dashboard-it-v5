@@ -910,6 +910,54 @@ async def _run_migrations(db):
         import logging
         logging.getLogger(__name__).warning(f"dossiers backfill skipped: {e}")
 
+    # v7.0.1 — direct amount columns on documents (so amounts persist even
+    # for docs that aren't linked to a project). Backfilled from
+    # project_documents.amount on first run; afterwards the dossier UI edits
+    # `documents.amount` and `documents.amount_accepted` directly.
+    try:
+        cursor = await db.execute("PRAGMA table_info(documents)")
+        doc_cols = [row[1] for row in await cursor.fetchall()]
+        if "amount" not in doc_cols:
+            await db.execute("ALTER TABLE documents ADD COLUMN amount REAL NOT NULL DEFAULT 0")
+            await db.execute(
+                """UPDATE documents SET amount = COALESCE(
+                    (SELECT MAX(COALESCE(amount, 0)) FROM project_documents WHERE document_id = documents.id),
+                    0
+                )"""
+            )
+            await db.commit()
+        if "amount_accepted" not in doc_cols:
+            await db.execute("ALTER TABLE documents ADD COLUMN amount_accepted REAL NOT NULL DEFAULT 0")
+            await db.execute(
+                """UPDATE documents SET amount_accepted = COALESCE(
+                    (SELECT MAX(COALESCE(amount_accepted, 0)) FROM project_documents WHERE document_id = documents.id),
+                    0
+                )"""
+            )
+            await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"documents.amount migration skipped: {e}")
+
+    # v7.0.1 — backfill dossier suppliers when the initial v7.0.0 migration
+    # left them empty. The v7.0.0 logic only looked at the "main" doc of the
+    # chain (= earliest by workflow rank); if THAT doc was missing supplier_id
+    # the dossier ended up `(sans prestataire)`. Now we accept any doc in the
+    # chain that has a supplier set — runs idempotently every startup.
+    try:
+        await db.execute(
+            """UPDATE dossiers SET supplier_id = (
+                SELECT d.supplier_id FROM documents d
+                WHERE d.dossier_id = dossiers.id AND d.supplier_id IS NOT NULL
+                ORDER BY d.doc_date ASC, d.id ASC
+                LIMIT 1
+            ) WHERE supplier_id IS NULL"""
+        )
+        await db.commit()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"dossier supplier backfill skipped: {e}")
+
 
 async def _backfill_dossiers(db):
     """Group existing documents into dossiers (v7.0.0 migration).
