@@ -576,6 +576,12 @@
                 </span>
                 {selectedDossier.supplier.name}
               </span>
+            {:else}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <span class="ds-chip ds-chip--empty" on:click={openEditDialog} title="Cliquer pour assigner un prestataire">
+                ⚠ Aucun prestataire — cliquer pour assigner
+              </span>
             {/if}
             {#if selectedDossier.site}
               <span class="ds-chip"><EstablishmentBadge code={selectedDossier.site} size="xs" showLabel={true} /></span>
@@ -587,18 +593,21 @@
 
           <div class="ds-status-row">
             <span class="ds-status-label">Statut</span>
-            <!-- bind:value ensures the <select> always reflects the model;
-                 we re-issue the API call on change explicitly. -->
-            <select
-              class="ds-status-select"
-              style="border-color:{status.color}; color:{status.color}"
-              bind:value={selectedDossier.status}
-              on:change={(e) => changeStatus(e.target.value)}
-            >
-              {#each STATUSES as s}
-                <option value={s.value}>{s.label}</option>
-              {/each}
-            </select>
+            <!-- Dot + plain-text select : the dot carries the color (visible
+                 on both themes), the select text uses the standard heading
+                 color so it never fades on a light background. -->
+            <div class="ds-status-wrap" style:--status-color={status.color}>
+              <span class="ds-status-dot"></span>
+              <select
+                class="ds-status-select"
+                bind:value={selectedDossier.status}
+                on:change={(e) => changeStatus(e.target.value)}
+              >
+                {#each STATUSES as s}
+                  <option value={s.value}>{s.label}</option>
+                {/each}
+              </select>
+            </div>
           </div>
 
           {#if selectedDossier.description}
@@ -758,16 +767,25 @@
         <div class="ds-field-row">
           <label class="ds-field">
             <span>Prestataire</span>
-            <select bind:value={dossierForm.supplier_id}>
-              <option value={null}>— Aucun —</option>
-              {#each allSuppliers as s}<option value={s.id}>{s.name}</option>{/each}
+            <!-- Manual value + on:change instead of bind:value : Svelte's auto
+                 type-coercion was randomly dropping the supplier_id on save
+                 when the initial value was null and the user picked a number. -->
+            <select
+              value={dossierForm.supplier_id == null ? '' : String(dossierForm.supplier_id)}
+              on:change={(e) => dossierForm.supplier_id = e.target.value === '' ? null : parseInt(e.target.value, 10)}
+            >
+              <option value="">— Aucun —</option>
+              {#each allSuppliers as s}<option value={String(s.id)}>{s.name}</option>{/each}
             </select>
           </label>
           <label class="ds-field">
             <span>Projet lié</span>
-            <select bind:value={dossierForm.project_id}>
-              <option value={null}>— Aucun —</option>
-              {#each allProjects as p}<option value={p.id}>{p.title}</option>{/each}
+            <select
+              value={dossierForm.project_id == null ? '' : String(dossierForm.project_id)}
+              on:change={(e) => dossierForm.project_id = e.target.value === '' ? null : parseInt(e.target.value, 10)}
+            >
+              <option value="">— Aucun —</option>
+              {#each allProjects as p}<option value={String(p.id)}>{p.title}</option>{/each}
             </select>
           </label>
         </div>
@@ -1258,12 +1276,20 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    background: rgba(255,255,255,0.04);
+    background: var(--bg-input, rgba(0,0,0,0.04));
     padding: 3px 9px;
     border-radius: 6px;
     font-size: 11.5px;
     color: var(--ds-text-secondary);
   }
+  /* Placeholder chip when a field isn't filled — yellow accent, cliquable. */
+  .ds-chip--empty {
+    background: color-mix(in srgb, var(--warning, #F59E0B) 18%, transparent);
+    color: var(--warning, #F59E0B);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .ds-chip--empty:hover { filter: brightness(1.1); }
 
   .ds-status-row {
     display: flex;
@@ -1280,21 +1306,37 @@
     letter-spacing: 0.06em;
     font-weight: 700;
   }
-  .ds-status-select {
-    /* Explicit theme-aware backing so the select isn't transparent on light
-       theme (where the parent panel goes white and the colored text vanished). */
+  /* Status pill — colored dot beside a plain text select. The dot carries
+     the status color so we can keep the text on a neutral, always-readable
+     color (var(--text-heading)) that works in both light and dark themes. */
+  .ds-status-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px;
     background: var(--bg-input, rgba(0,0,0,0.04));
-    border: 1.5px solid;
+    border: 1px solid color-mix(in srgb, var(--status-color, #94A3B8) 35%, transparent);
     border-radius: 6px;
-    padding: 5px 12px;
+  }
+  .ds-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--status-color, #94A3B8);
+    flex-shrink: 0;
+  }
+  .ds-status-select {
+    background: transparent;
+    border: none;
+    color: var(--text-heading);
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
-    appearance: auto;
+    outline: none;
+    padding: 0;
   }
   .ds-status-select option {
-    /* Option dropdown menu inherits page colors; make sure it's legible. */
     background: var(--bg-card);
     color: var(--text-heading);
   }

@@ -4,6 +4,24 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.3 — Dossiers : prestataire qui ne se sauvait pas + statut illisible en clair
+
+### 1. Le prestataire ne s'enregistrait pas après édition
+
+Bug subtil de Svelte avec `bind:value` sur le dropdown du prestataire : quand l'option de départ était `null` (— Aucun —) et que l'utilisateur sélectionnait un presta (ex : Ageona, id=5), Svelte coerçait la valeur en string `"5"` plutôt qu'en number, et le backend recevait parfois la mauvaise donnée.
+
+Fix : remplacement de `bind:value` par `value=... on:change=...` avec coercion explicite (`parseInt`). Maintenant la valeur envoyée au backend est garantie d'être soit `null`, soit un number. Même fix appliqué au dropdown du projet lié.
+
+### 2. Dropdown statut invisible en thème clair
+
+Précédente version : le `<select>` avait un fond légèrement teinté (rgba 4%) et le TEXTE en couleur du statut (vert pour Livré, gris pour Demande). Sur fond sombre OK, sur fond cream/clair le contraste tombait à 2-3:1, c'était illisible.
+
+Refonte : remplacement par un pattern **dot + texte**. La pastille colorée à gauche porte le code couleur (toujours visible), et le texte du select utilise `var(--text-heading)` (noir/blanc selon thème) → lisible à 100% sur les deux modes.
+
+### 3. Affichage explicite quand un dossier n'a pas de prestataire
+
+Avant : si pas de presta, la ligne meta du panel détail était simplement vide → l'utilisateur ne voyait pas qu'il manquait une info. Maintenant : chip jaune cliquable **"⚠ Aucun prestataire — cliquer pour assigner"** qui ouvre directement le dialog d'édition.
+
 ## v7.0.2 — Dossiers : 4 ajustements après retour utilisateur
 
 ### 1. Status dropdown invisible en thème clair
