@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Maquette — Module Documents repensé (Dossiers, IT-focused)</title>
+  <style>
+    /* ─────────────────────────────────────────────────────────────
+       Reset + base — palette qui matche l'app actuelle
+       ──────────────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-base: #0e0f1a;
+      --bg-card: #1a1b2e;
+      --bg-hover: #232542;
+      --bg-input: #14152b;
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-card: rgba(255, 255, 255, 0.08);
+      --border-hover: rgba(255, 255, 255, 0.18);
+      --text-heading: #E6EAF2;
+      --text-primary: #D5DCE8;
+      --text-secondary: #9AA3B4;
+      --text-muted: #6B7280;
+      --primary: #8869e1;
+      --primary-rgb: 136, 105, 225;
+      --secondary: #F8B940;
+      --success: #22C55E;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --info: #3B82F6;
+
+      /* Doc type accents */
+      --devis: #3B82F6;
+      --bpa: #8B5CF6;
+      --facture: #22C55E;
+      --contrat: #14B8A6;
+      --rapport: #F59E0B;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+      overflow: hidden;
+      height: 100vh;
+    }
+
+    button { font-family: inherit; cursor: pointer; }
+
+    /* ─────────────────────────────────────────────────────────────
+       Top bar
+       ──────────────────────────────────────────────────────────── */
+    .topbar {
+      height: 56px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 16px;
+    }
+    .topbar h1 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-heading);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .topbar h1 .crumb-muted { color: var(--text-muted); font-weight: 400; }
+    .search {
+      flex: 1;
+      max-width: 480px;
+      position: relative;
+    }
+    .search input {
+      width: 100%;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 8px 14px 8px 38px;
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search input:focus { border-color: var(--primary); }
+    .search::before {
+      content: '🔎';
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.5;
+      font-size: 12px;
+    }
+    .topbar-spacer { flex: 1; }
+    .view-toggle {
+      display: flex;
+      gap: 2px;
+      background: var(--bg-input);
+      border-radius: 8px;
+      padding: 3px;
+      border: 1px solid var(--border-subtle);
+    }
+    .view-toggle button {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .view-toggle button.active {
+      background: var(--bg-card);
+      color: var(--text-heading);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+    .btn-primary {
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 2px 8px rgba(136, 105, 225, 0.35);
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+
+    /* ─────────────────────────────────────────────────────────────
+       Main layout — 3 columns
+       ──────────────────────────────────────────────────────────── */
+    .layout {
+      height: calc(100vh - 56px);
+      display: grid;
+      grid-template-columns: 260px 1fr 520px;
+      gap: 0;
+    }
+
+    /* ── Filters sidebar ─────────────────────────────────────── */
+    .filters {
+      background: var(--bg-card);
+      border-right: 1px solid var(--border-subtle);
+      overflow-y: auto;
+      padding: 16px;
+    }
+    .filter-section { margin-bottom: 20px; }
+    .filter-section h3 {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .filter-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: background 0.1s, color 0.1s;
+    }
+    .filter-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .filter-item.active {
+      background: rgba(var(--primary-rgb), 0.15);
+      color: var(--primary);
+      font-weight: 500;
+    }
+    .filter-item .count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.04);
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+    .filter-item.active .count {
+      background: rgba(var(--primary-rgb), 0.2);
+      color: var(--primary);
+    }
+    .filter-item .filter-icon {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .filter-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* Smart filters block — actions-driven */
+    .smart-filter {
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, rgba(248, 185, 64, 0.1), rgba(239, 68, 68, 0.05));
+      border: 1px solid rgba(248, 185, 64, 0.2);
+      margin-bottom: 6px;
+      cursor: pointer;
+    }
+    .smart-filter:hover { border-color: rgba(248, 185, 64, 0.4); }
+    .smart-filter .label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .smart-filter .desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* ── Deal list (middle column) ───────────────────────────── */
+    .deals {
+      overflow-y: auto;
+      background: var(--bg-base);
+      padding: 16px;
+    }
+    .deals-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding: 0 4px;
+    }
+    .deals-header h2 {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .deals-header h2 strong { color: var(--text-heading); }
+    .sort-select {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+
+    .deal-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      position: relative;
+    }
+    .deal-card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    }
+    .deal-card.selected {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px var(--primary), 0 4px 16px rgba(var(--primary-rgb), 0.2);
+    }
+
+    .deal-card__top {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .supplier-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: var(--bg-input);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      color: #fff;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    .deal-card__main {
+      flex: 1;
+      min-width: 0;
+    }
+    .deal-card__title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .deal-card__meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .deal-card__meta .dot { color: var(--text-muted); }
+    .estab-mini {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: rgba(var(--primary-rgb), 0.15);
+      color: var(--primary);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .status-pill {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+    .status-demande  { background: rgba(148, 163, 184, 0.15); color: #94A3B8; }
+    .status-devis    { background: rgba(59, 130, 246, 0.15); color: #3B82F6; }
+    .status-bpa      { background: rgba(139, 92, 246, 0.15); color: #8B5CF6; }
+    .status-commande { background: rgba(34, 197, 94, 0.15);  color: #22C55E; }
+    .status-livree   { background: rgba(34, 197, 94, 0.25);  color: #16A34A; font-weight: 700; }
+    .status-relance  { background: rgba(239, 68, 68, 0.15);  color: #EF4444; }
+
+    /* Mini timeline visualizing the chain */
+    .timeline-mini {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin: 10px 0;
+    }
+    .tl-step {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1;
+    }
+    .tl-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 2px solid;
+      box-sizing: border-box;
+    }
+    .tl-dot.done.devis    { background: var(--devis);   border-color: var(--devis); }
+    .tl-dot.done.bpa      { background: var(--bpa);     border-color: var(--bpa); }
+    .tl-dot.done.facture  { background: var(--facture); border-color: var(--facture); }
+    .tl-dot.pending {
+      background: transparent;
+      border-color: var(--text-muted);
+      border-style: dashed;
+    }
+    .tl-line {
+      flex: 1;
+      height: 2px;
+      background: var(--border-subtle);
+      border-radius: 1px;
+    }
+    .tl-line.done.devis    { background: var(--devis); }
+    .tl-line.done.bpa      { background: var(--bpa); }
+    .tl-line.done.facture  { background: var(--facture); }
+    .tl-label {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    /* Money breakdown */
+    .deal-amounts {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .deal-amount {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .deal-amount__label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .deal-amount__value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-heading);
+      font-variant-numeric: tabular-nums;
+    }
+    .deal-amount__value.green { color: var(--success); }
+    .deal-amount__value.muted { color: var(--text-muted); }
+
+    /* Footer line */
+    .deal-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .deal-card__footer .ref {
+      font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+      font-size: 10px;
+      background: rgba(255,255,255,0.03);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .deal-card__footer .action-due {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--warning);
+      font-weight: 500;
+    }
+
+    /* ── Detail panel (right column) ────────────────────────── */
+    .detail {
+      background: var(--bg-card);
+      border-left: 1px solid var(--border-subtle);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .detail-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .detail-header__top {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .detail-header h2 {
+      font-size: 18px;
+      color: var(--text-heading);
+      font-weight: 600;
+      flex: 1;
+      line-height: 1.3;
+    }
+    .icon-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: 13px;
+      line-height: 1;
+    }
+    .icon-btn:hover { background: var(--bg-hover); }
+    .detail-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      flex-wrap: wrap;
+    }
+    .detail-meta-row .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--bg-input);
+      border-radius: 6px;
+    }
+
+    .key-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+    .key-action {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .key-action:hover { background: rgba(255, 255, 255, 0.08); border-color: var(--border-hover); }
+    .key-action.primary {
+      background: var(--primary);
+      color: #fff;
+      border-color: var(--primary);
+    }
+    .key-action.warn {
+      background: rgba(248, 185, 64, 0.12);
+      border-color: rgba(248, 185, 64, 0.3);
+      color: var(--secondary);
+    }
+
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 0 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .tab {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      position: relative;
+    }
+    .tab.active {
+      color: var(--text-heading);
+    }
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 14px;
+      right: 14px;
+      height: 2px;
+      background: var(--primary);
+      border-radius: 1px;
+    }
+    .tab .badge {
+      font-size: 10px;
+      background: rgba(255,255,255,0.06);
+      padding: 1px 5px;
+      border-radius: 8px;
+      margin-left: 4px;
+    }
+
+    /* Detail body — scrollable */
+    .detail-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+
+    /* Document cards inside detail */
+    .doc-item {
+      background: var(--bg-base);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .doc-item:hover { border-color: var(--border-hover); }
+    .doc-type-badge {
+      width: 48px;
+      height: 56px;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      position: relative;
+    }
+    .doc-type-badge.devis   { background: linear-gradient(160deg, var(--devis), color-mix(in srgb, var(--devis) 80%, black)); }
+    .doc-type-badge.bpa     { background: linear-gradient(160deg, var(--bpa), color-mix(in srgb, var(--bpa) 80%, black)); }
+    .doc-type-badge.facture { background: linear-gradient(160deg, var(--facture), color-mix(in srgb, var(--facture) 80%, black)); }
+    .doc-type-badge.devis::after,
+    .doc-type-badge.bpa::after,
+    .doc-type-badge.facture::after {
+      content: 'PDF';
+      position: absolute;
+      bottom: 3px;
+      font-size: 8px;
+      opacity: 0.65;
+    }
+    .doc-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .doc-info__title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-heading);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .doc-info__sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      gap: 8px;
+    }
+    .doc-info__sub .ref {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      padding: 1px 5px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 3px;
+    }
+    .doc-amount {
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .doc-amount__main {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-heading);
+      font-variant-numeric: tabular-nums;
+    }
+    .doc-amount__sub {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+    .doc-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex-shrink: 0;
+    }
+    .doc-actions button {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      width: 28px;
+      height: 28px;
+      border-radius: 5px;
+      font-size: 12px;
+      line-height: 1;
+    }
+    .doc-actions button:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+    /* Add doc button */
+    .add-doc-btn {
+      width: 100%;
+      border: 1.5px dashed var(--border-subtle);
+      background: transparent;
+      border-radius: 10px;
+      padding: 10px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 500;
+      transition: border-color 0.15s, color 0.15s;
+      margin-top: 4px;
+    }
+    .add-doc-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* Activity timeline */
+    .activity-item {
+      display: flex;
+      gap: 12px;
+      padding: 8px 0;
+      position: relative;
+    }
+    .activity-item::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: 32px;
+      bottom: -8px;
+      width: 2px;
+      background: var(--border-subtle);
+    }
+    .activity-item:last-child::before { display: none; }
+    .activity-dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      border: 2px solid var(--border-card);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .activity-dot.green { background: rgba(34, 197, 94, 0.15); border-color: var(--success); color: var(--success); }
+    .activity-dot.blue  { background: rgba(59, 130, 246, 0.15); border-color: var(--info); color: var(--info); }
+    .activity-dot.purple{ background: rgba(139, 92, 246, 0.15); border-color: var(--bpa); color: var(--bpa); }
+    .activity-dot.yellow{ background: rgba(248, 185, 64, 0.15); border-color: var(--secondary); color: var(--secondary); }
+    .activity-content { flex: 1; }
+    .activity-content__text {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+    .activity-content__text strong { color: var(--text-heading); }
+    .activity-content__meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .activity-content__note {
+      background: var(--bg-base);
+      border: 1px solid var(--border-card);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    /* Budget block */
+    .budget-summary {
+      background: var(--bg-base);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .budget-summary h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .budget-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 13px;
+    }
+    .budget-row .lbl { color: var(--text-secondary); }
+    .budget-row .val { font-weight: 600; color: var(--text-heading); font-variant-numeric: tabular-nums; }
+    .budget-bar {
+      height: 6px;
+      background: var(--bg-input);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 8px 0;
+    }
+    .budget-bar__fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--success), color-mix(in srgb, var(--success) 50%, var(--info)));
+      border-radius: 3px;
+    }
+
+    /* PDF preview placeholder */
+    .pdf-preview {
+      background: linear-gradient(135deg, #1a1b2e, #14152b);
+      border: 1px solid var(--border-card);
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+    .pdf-preview-img {
+      width: 100%;
+      max-width: 280px;
+      aspect-ratio: 0.707;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 12px;
+    }
+
+    /* Empty / annotation */
+    .legend-note {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 10px 12px;
+      background: rgba(var(--primary-rgb), 0.05);
+      border: 1px dashed rgba(var(--primary-rgb), 0.2);
+      border-radius: 6px;
+      margin: 12px 0;
+    }
+    .legend-note strong { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <!-- ─────────────── TOP BAR ─────────────── -->
+  <header class="topbar">
+    <h1><span class="crumb-muted">Documents</span> · Dossiers</h1>
+    <div class="search"><input type="text" placeholder="Rechercher un dossier, un prestataire, une référence…" /></div>
+    <div class="topbar-spacer"></div>
+    <div class="view-toggle">
+      <button class="active">Dossiers</button>
+      <button>Documents</button>
+      <button>Prestataires</button>
+    </div>
+    <button class="btn-primary">+ Nouveau dossier</button>
+  </header>
+
+  <!-- ─────────────── MAIN LAYOUT ─────────────── -->
+  <div class="layout">
+
+    <!-- ─── FILTERS SIDEBAR ─── -->
+    <aside class="filters">
+
+      <div class="filter-section">
+        <h3>Mes actions</h3>
+        <div class="smart-filter">
+          <div class="label">⚡ À relancer</div>
+          <div class="desc">3 dossiers sans réponse depuis +14j</div>
+        </div>
+        <div class="smart-filter" style="background: linear-gradient(135deg, rgba(59,130,246,0.1), rgba(59,130,246,0.05)); border-color: rgba(59,130,246,0.2);">
+          <div class="label" style="color: var(--info);">📦 Livraison attendue</div>
+          <div class="desc">2 commandes en cours, dont 1 en retard</div>
+        </div>
+        <div class="smart-filter" style="background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.05)); border-color: rgba(34,197,94,0.2);">
+          <div class="label" style="color: var(--success);">🔧 À installer / mettre en service</div>
+          <div class="desc">1 matériel reçu, pas encore déployé</div>
+        </div>
+        <div class="smart-filter" style="background: linear-gradient(135deg, rgba(248,185,64,0.1), rgba(248,185,64,0.05)); border-color: rgba(248,185,64,0.2);">
+          <div class="label" style="color: var(--secondary);">⚠ Garantie expire bientôt</div>
+          <div class="desc">3 équipements, fin garantie &lt; 60j</div>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">⏳ En attente du presta</span>
+          <span class="count">5</span>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <h3>État du dossier</h3>
+        <div class="filter-item active">
+          <span class="filter-icon">Tous</span>
+          <span class="count">42</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:#94A3B8"></span>
+            Demande envoyée
+          </span>
+          <span class="count">3</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:var(--devis)"></span>
+            Devis reçu
+          </span>
+          <span class="count">8</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:var(--bpa)"></span>
+            BPA signé
+          </span>
+          <span class="count">6</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:var(--facture)"></span>
+            Commandé
+          </span>
+          <span class="count">9</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:#16A34A"></span>
+            Livré / Installé
+          </span>
+          <span class="count">14</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">
+            <span class="filter-dot" style="background:#6B7280"></span>
+            Archivé
+          </span>
+          <span class="count">2</span>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <h3>Prestataire</h3>
+        <div class="filter-item">
+          <span class="filter-icon">📦 Stormshield</span>
+          <span class="count">7</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">📦 OVH</span>
+          <span class="count">5</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">📦 Konica</span>
+          <span class="count">4</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon" style="color:var(--text-muted)">+ 12 autres</span>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <h3>Établissement</h3>
+        <div class="filter-item">
+          <span class="filter-icon">🏫 NDK</span>
+          <span class="count">18</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">🏫 SU</span>
+          <span class="count">9</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">🏫 NDE</span>
+          <span class="count">12</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon" style="color:var(--text-muted)">🌐 Multi/Global</span>
+          <span class="count">3</span>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <h3>Période</h3>
+        <div class="filter-item">
+          <span class="filter-icon">📅 30 derniers jours</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon">📅 Année en cours</span>
+        </div>
+        <div class="filter-item">
+          <span class="filter-icon" style="color:var(--text-muted)">Personnalisé…</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ─── DEAL LIST (MIDDLE) ─── -->
+    <main class="deals">
+      <div class="deals-header">
+        <h2><strong>42 dossiers</strong> · 3 nécessitent une action</h2>
+        <select class="sort-select">
+          <option>Dernière activité</option>
+          <option>Date de création</option>
+          <option>Avancement</option>
+          <option>Montant ↓</option>
+        </select>
+      </div>
+
+      <!-- Deal 1 — relance needed -->
+      <article class="deal-card">
+        <div class="deal-card__top">
+          <div class="supplier-avatar" style="background:#2563EB">SS</div>
+          <div class="deal-card__main">
+            <div class="deal-card__title">Renouvellement firewall + licence Stormshield</div>
+            <div class="deal-card__meta">
+              <span>Stormshield</span>
+              <span class="dot">·</span>
+              <span class="estab-mini">NDK</span>
+              <span class="dot">·</span>
+              <span>Modifié il y a 2j</span>
+            </div>
+          </div>
+          <span class="status-pill status-relance">À relancer</span>
+        </div>
+
+        <div class="timeline-mini">
+          <span class="tl-dot done devis" title="Demande envoyée"></span>
+          <span class="tl-line done devis"></span>
+          <span class="tl-dot done devis" title="Devis reçu"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending" title="BPA en attente"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending"></span>
+          <span class="tl-label">BPA en attente</span>
+        </div>
+
+        <div class="deal-amounts">
+          <div class="deal-amount">
+            <span class="deal-amount__label">Devis</span>
+            <span class="deal-amount__value">4 200 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Facturé</span>
+            <span class="deal-amount__value muted">—</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Reste</span>
+            <span class="deal-amount__value">4 200 €</span>
+          </div>
+        </div>
+
+        <div class="deal-card__footer">
+          <span class="ref">DEV-2026-014</span>
+          <span class="action-due">⚠ Relance prévue dans 3j</span>
+        </div>
+      </article>
+
+      <!-- Deal 2 — selected -->
+      <article class="deal-card selected">
+        <div class="deal-card__top">
+          <div class="supplier-avatar" style="background:#0F766E">OV</div>
+          <div class="deal-card__main">
+            <div class="deal-card__title">Migration serveurs OVH — Hébergement et licences VPS</div>
+            <div class="deal-card__meta">
+              <span>OVH</span>
+              <span class="dot">·</span>
+              <span class="estab-mini">NDK</span>
+              <span class="estab-mini" style="background: rgba(34,197,94,0.15); color: var(--success);">SU</span>
+              <span class="dot">·</span>
+              <span>Projet : Refonte infra 2026</span>
+            </div>
+          </div>
+          <span class="status-pill status-commande">Commandé · Déploiement en cours</span>
+        </div>
+
+        <div class="timeline-mini">
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line done devis"></span>
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line done devis"></span>
+          <span class="tl-dot done bpa"></span>
+          <span class="tl-line done bpa"></span>
+          <span class="tl-dot done facture"></span>
+          <span class="tl-label">2/3 VPS déployés</span>
+        </div>
+
+        <div class="deal-amounts">
+          <div class="deal-amount">
+            <span class="deal-amount__label">Devis</span>
+            <span class="deal-amount__value muted">13 200 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Engagé (BPA)</span>
+            <span class="deal-amount__value">12 800 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Avancement</span>
+            <span class="deal-amount__value green">66%</span>
+          </div>
+        </div>
+
+        <div class="deal-card__footer">
+          <span class="ref">DEV-2026-008</span>
+          <span>4 documents · 5 commentaires</span>
+        </div>
+      </article>
+
+      <!-- Deal 3 — closed, fully delivered -->
+      <article class="deal-card">
+        <div class="deal-card__top">
+          <div class="supplier-avatar" style="background:#9333EA">KM</div>
+          <div class="deal-card__main">
+            <div class="deal-card__title">Maintenance imprimante Konica C3070</div>
+            <div class="deal-card__meta">
+              <span>Konica Minolta</span>
+              <span class="dot">·</span>
+              <span class="estab-mini" style="background: rgba(248,185,64,0.15); color: var(--secondary);">NDE</span>
+              <span class="dot">·</span>
+              <span>Récurrent annuel · garantie jusqu'au 12/04/2027</span>
+            </div>
+          </div>
+          <span class="status-pill status-livree">✓ Renouvelée</span>
+        </div>
+
+        <div class="timeline-mini">
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line done devis"></span>
+          <span class="tl-dot done bpa"></span>
+          <span class="tl-line done bpa"></span>
+          <span class="tl-dot done facture"></span>
+          <span class="tl-line done facture"></span>
+          <span class="tl-dot done facture" style="background:#16A34A;border-color:#16A34A"></span>
+          <span class="tl-label">Archivable</span>
+        </div>
+
+        <div class="deal-amounts">
+          <div class="deal-amount">
+            <span class="deal-amount__label">Engagé</span>
+            <span class="deal-amount__value muted">1 850 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Intervention</span>
+            <span class="deal-amount__value" style="font-size:12px">12/04/2026</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Prochain renouv.</span>
+            <span class="deal-amount__value" style="font-size:12px">Mars 2027</span>
+          </div>
+        </div>
+
+        <div class="deal-card__footer">
+          <span class="ref">FAC-2026-022</span>
+          <span>Contrat tacite reconduction</span>
+        </div>
+      </article>
+
+      <!-- Deal 4 — quote phase -->
+      <article class="deal-card">
+        <div class="deal-card__top">
+          <div class="supplier-avatar" style="background:#DC2626">ST</div>
+          <div class="deal-card__main">
+            <div class="deal-card__title">Achat 5 PC portables Dell pour labo sciences</div>
+            <div class="deal-card__meta">
+              <span>Dell France</span>
+              <span class="dot">·</span>
+              <span class="estab-mini" style="background: rgba(34,197,94,0.15); color: var(--success);">SU</span>
+              <span class="dot">·</span>
+              <span>Demande envoyée il y a 6j</span>
+            </div>
+          </div>
+          <span class="status-pill status-demande">Demande envoyée</span>
+        </div>
+
+        <div class="timeline-mini">
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending"></span>
+          <span class="tl-label">Attente devis</span>
+        </div>
+
+        <div class="deal-amounts">
+          <div class="deal-amount">
+            <span class="deal-amount__label">Budget estimé</span>
+            <span class="deal-amount__value muted">~ 6 000 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Engagé</span>
+            <span class="deal-amount__value muted">—</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Facturé</span>
+            <span class="deal-amount__value muted">—</span>
+          </div>
+        </div>
+
+        <div class="deal-card__footer">
+          <span class="ref">AFF-2026-031</span>
+          <span class="action-due">📨 Relance auto dans 8j</span>
+        </div>
+      </article>
+
+      <!-- Deal 5 — partial invoice -->
+      <article class="deal-card">
+        <div class="deal-card__top">
+          <div class="supplier-avatar" style="background:#0EA5E9">CS</div>
+          <div class="deal-card__main">
+            <div class="deal-card__title">Contrat support Cisco Meraki — Renouvellement</div>
+            <div class="deal-card__meta">
+              <span>Cisco / Meraki</span>
+              <span class="dot">·</span>
+              <span class="estab-mini">NDK</span>
+              <span class="estab-mini" style="background: rgba(248,185,64,0.15); color: var(--secondary);">NDE</span>
+              <span class="estab-mini" style="background: rgba(34,197,94,0.15); color: var(--success);">SU</span>
+              <span class="dot">·</span>
+              <span>Échéance 30j</span>
+            </div>
+          </div>
+          <span class="status-pill status-bpa">BPA signé</span>
+        </div>
+
+        <div class="timeline-mini">
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line done devis"></span>
+          <span class="tl-dot done devis"></span>
+          <span class="tl-line done bpa"></span>
+          <span class="tl-dot done bpa"></span>
+          <span class="tl-line"></span>
+          <span class="tl-dot pending"></span>
+          <span class="tl-label">Facture attendue</span>
+        </div>
+
+        <div class="deal-amounts">
+          <div class="deal-amount">
+            <span class="deal-amount__label">Engagé</span>
+            <span class="deal-amount__value">9 600 €</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Facturé</span>
+            <span class="deal-amount__value muted">—</span>
+          </div>
+          <div class="deal-amount">
+            <span class="deal-amount__label">Reste</span>
+            <span class="deal-amount__value">9 600 €</span>
+          </div>
+        </div>
+
+        <div class="deal-card__footer">
+          <span class="ref">BPA-2026-011</span>
+          <span>Tacite reconduction · annuel</span>
+        </div>
+      </article>
+    </main>
+
+    <!-- ─── DETAIL PANEL (RIGHT) ─── -->
+    <aside class="detail">
+
+      <div class="detail-header">
+        <div class="detail-header__top">
+          <h2>Migration serveurs OVH — Hébergement et licences VPS</h2>
+          <button class="icon-btn" title="Plus">⋯</button>
+        </div>
+
+        <div class="detail-meta-row">
+          <span class="chip"><strong style="color:#0F766E">OV</strong>&nbsp; OVH</span>
+          <span class="chip"><span class="estab-mini">NDK</span><span class="estab-mini" style="background: rgba(34,197,94,0.15); color: var(--success);">SU</span></span>
+          <span class="chip">🎯 Projet : Refonte infra 2026</span>
+          <span class="status-pill status-commande">Commandé · Déploiement en cours</span>
+        </div>
+
+        <div class="key-actions">
+          <button class="key-action primary">📄 Ajouter un document</button>
+          <button class="key-action">✓ Marquer livré / installé</button>
+          <button class="key-action warn">⚡ Programmer relance</button>
+          <button class="key-action">📤 Exporter (ZIP)</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active">Documents <span class="badge">4</span></button>
+        <button class="tab">Activité <span class="badge">12</span></button>
+        <button class="tab">Budget</button>
+        <button class="tab">Notes <span class="badge">2</span></button>
+      </div>
+
+      <div class="detail-body">
+
+        <div class="legend-note">
+          <strong>Astuce :</strong> les pièces sont liées dans l'ordre logique de leur workflow. Glisse un nouveau PDF ici pour qu'il soit auto-classé (OCR détecte type + montant + référence).
+        </div>
+
+        <!-- Devis -->
+        <div class="doc-item">
+          <div class="doc-type-badge devis">DEV</div>
+          <div class="doc-info">
+            <div class="doc-info__title">Devis migration VPS — 3 instances</div>
+            <div class="doc-info__sub">
+              <span class="ref">DEV-2026-008</span>
+              <span>📅 02/03/2026</span>
+              <span>📎 devis_ovh_migration.pdf</span>
+            </div>
+          </div>
+          <div class="doc-amount">
+            <div class="doc-amount__main">13 200 €</div>
+            <div class="doc-amount__sub">Validé : 12 800 €</div>
+          </div>
+          <div class="doc-actions">
+            <button title="Voir">👁</button>
+            <button title="Plus">⋯</button>
+          </div>
+        </div>
+
+        <!-- BPA -->
+        <div class="doc-item">
+          <div class="doc-type-badge bpa">BPA</div>
+          <div class="doc-info">
+            <div class="doc-info__title">Bon pour accord signé — Direction NDK</div>
+            <div class="doc-info__sub">
+              <span class="ref">BPA-2026-007</span>
+              <span>📅 14/03/2026</span>
+              <span>📎 bpa_signe_dir.pdf</span>
+            </div>
+          </div>
+          <div class="doc-amount">
+            <div class="doc-amount__main">12 800 €</div>
+            <div class="doc-amount__sub">après négo</div>
+          </div>
+          <div class="doc-actions">
+            <button title="Voir">👁</button>
+            <button title="Plus">⋯</button>
+          </div>
+        </div>
+
+        <!-- Facture acompte (= preuve de commande, pas de paiement) -->
+        <div class="doc-item">
+          <div class="doc-type-badge facture">FAC</div>
+          <div class="doc-info">
+            <div class="doc-info__title">Facture acompte 30% — Avr 2026</div>
+            <div class="doc-info__sub">
+              <span class="ref">FAC-2026-014</span>
+              <span>📅 02/04/2026</span>
+              <span style="color: var(--warning); font-weight: 600;">⏱ Acompte</span>
+            </div>
+          </div>
+          <div class="doc-amount">
+            <div class="doc-amount__main green">3 840 €</div>
+            <div class="doc-amount__sub">VPS1+VPS2 livrés</div>
+          </div>
+          <div class="doc-actions">
+            <button title="Voir">👁</button>
+            <button title="Plus">⋯</button>
+          </div>
+        </div>
+
+        <!-- Facture pending -->
+        <div class="doc-item" style="border-style:dashed;opacity:0.7">
+          <div class="doc-type-badge" style="background:linear-gradient(160deg, #6B7280, #4B5563)">FAC</div>
+          <div class="doc-info">
+            <div class="doc-info__title">Facture solde (attendue après livraison VPS3)</div>
+            <div class="doc-info__sub">
+              <span style="color:var(--text-muted)">À recevoir vers 02/06/2026</span>
+            </div>
+          </div>
+          <div class="doc-amount">
+            <div class="doc-amount__main muted">~ 8 960 €</div>
+          </div>
+          <div class="doc-actions">
+            <button title="Marquer reçue">＋</button>
+          </div>
+        </div>
+
+        <button class="add-doc-btn">＋ Ajouter ou glisser-déposer un PDF</button>
+
+        <!-- Budget block — purely informational (pour reporting à la direction) -->
+        <div class="budget-summary" style="margin-top: 16px">
+          <h4>Budget engagé · pour info direction</h4>
+          <div class="budget-row"><span class="lbl">Devis initial</span><span class="val">13 200 €</span></div>
+          <div class="budget-row"><span class="lbl">Engagé (BPA signé)</span><span class="val">12 800 €</span></div>
+          <div class="budget-row" style="margin-top:6px;padding-top:8px;border-top:1px solid var(--border-subtle)"><span class="lbl">Avancement déploiement</span><span class="val" style="color:var(--success)">2 / 3 VPS · 66%</span></div>
+          <div class="budget-bar"><div class="budget-bar__fill" style="width:66%"></div></div>
+          <div class="budget-row" style="font-size:11px;color:var(--text-muted)"><span>VPS3 prévu semaine 24 (12 juin)</span></div>
+        </div>
+
+        <!-- Activity preview -->
+        <h4 style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin:18px 0 10px">Activité récente</h4>
+
+        <div class="activity-item">
+          <div class="activity-dot green">📦</div>
+          <div class="activity-content">
+            <div class="activity-content__text"><strong>Toi</strong> a confirmé la livraison de <strong>VPS2</strong></div>
+            <div class="activity-content__meta">22 avril 2026 · 16:08</div>
+            <div class="activity-content__note">Instance déployée, accès admin OK, monitoring branché. Bascule prod prévue semaine prochaine.</div>
+          </div>
+        </div>
+
+        <div class="activity-item">
+          <div class="activity-dot yellow">💬</div>
+          <div class="activity-content">
+            <div class="activity-content__text"><strong>Toi</strong> a ajouté une note</div>
+            <div class="activity-content__meta">3 avril 2026 · 09:12</div>
+            <div class="activity-content__note">Appel Pierre @ OVH : VPS3 prévu semaine 24, facture solde envoyée juste après. Configuration IP fixe à valider avec NDK.</div>
+          </div>
+        </div>
+
+        <div class="activity-item">
+          <div class="activity-dot blue">📄</div>
+          <div class="activity-content">
+            <div class="activity-content__text"><strong>Toi</strong> a ajouté <strong>FAC-2026-014</strong> (acompte) au dossier</div>
+            <div class="activity-content__meta">2 avril 2026 · 11:04</div>
+          </div>
+        </div>
+
+        <div class="activity-item">
+          <div class="activity-dot purple">✍</div>
+          <div class="activity-content">
+            <div class="activity-content__text"><strong>Direction NDK</strong> a signé le BPA</div>
+            <div class="activity-content__meta">14 mars 2026</div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+  </div>
+</body>
+</html>

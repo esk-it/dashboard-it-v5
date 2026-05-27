@@ -276,6 +276,48 @@ async def init_db():
             site        TEXT NOT NULL DEFAULT '',
             created_at  TEXT NOT NULL
         )""",
+        # --- Dossiers (v7.0.0) ---
+        # A "dossier" is the top-level workflow unit for IT procurement: one
+        # row = one purchasing case. It groups all related documents (Devis,
+        # BPA, Facture) plus an activity feed (dossier_comments below). The
+        # module pivots around dossiers; the old flat list of documents is
+        # still available as a fallback view.
+        #
+        # Lifecycle (status):
+        #   demande_envoyee → devis_recu → bpa_signe → commande → livre → archive
+        # Each transition is set by the user (no auto-derivation from doc types
+        # to keep things explicit). The mockup describes the rationale.
+        #
+        # `next_action_date` + `next_action_label` power the "À relancer" smart
+        # filter (v7.0.1).
+        """CREATE TABLE IF NOT EXISTS dossiers (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            title                TEXT NOT NULL,
+            description          TEXT NOT NULL DEFAULT '',
+            status               TEXT NOT NULL DEFAULT 'demande_envoyee',
+            supplier_id          INTEGER NULL REFERENCES suppliers(id) ON DELETE SET NULL,
+            project_id           INTEGER NULL REFERENCES projects(id) ON DELETE SET NULL,
+            site                 TEXT NOT NULL DEFAULT '',
+            estimated_budget     REAL NOT NULL DEFAULT 0,
+            received_at          TEXT NULL,
+            archived_at          TEXT NULL,
+            next_action_date     TEXT NULL,
+            next_action_label    TEXT NOT NULL DEFAULT '',
+            notes                TEXT NOT NULL DEFAULT '',
+            created_at           TEXT NOT NULL,
+            updated_at           TEXT NOT NULL
+        )""",
+        # Activity feed entries — user notes, status changes, doc attachments.
+        # `kind` controls icon/color in the UI: 'note' / 'status' / 'doc' /
+        # 'delivery' / 'system'. `meta` is free-form JSON (e.g. previous status).
+        """CREATE TABLE IF NOT EXISTS dossier_comments (
+            id           INTEGER PRIMARY KEY AUTOINCREMENT,
+            dossier_id   INTEGER NOT NULL REFERENCES dossiers(id) ON DELETE CASCADE,
+            kind         TEXT NOT NULL DEFAULT 'note',
+            body         TEXT NOT NULL DEFAULT '',
+            meta         TEXT NOT NULL DEFAULT '{}',
+            created_at   TEXT NOT NULL
+        )""",
         # --- Establishments (Lycée NDK, Collège SU, Collège NDE) ---
         # Each row carries a stable `code` (NDK/SU/NDE) that other modules
         # reference via their `site` column. `aliases` is a JSON array of
@@ -343,6 +385,7 @@ async def init_db():
             file_path TEXT NOT NULL,
             file_hash TEXT NOT NULL,
             notes TEXT NOT NULL DEFAULT '',
+            dossier_id INTEGER NULL REFERENCES dossiers(id) ON DELETE SET NULL,
             created_at TEXT NOT NULL,
             FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE SET NULL
         )""",
@@ -842,6 +885,157 @@ async def _run_migrations(db):
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning(f"planning_events.site migration skipped: {e}")
+
+    # v7.0.0 — Dossiers refactor.
+    # 1. Add `dossier_id` column on documents (FK to dossiers).
+    # 2. If documents exist but no dossiers yet, backfill: each connected
+    #    component in document_links becomes a dossier; standalone docs each
+    #    get their own single-doc dossier. Run exactly once.
+    try:
+        cursor = await db.execute("PRAGMA table_info(documents)")
+        doc_cols = [row[1] for row in await cursor.fetchall()]
+        needs_backfill = "dossier_id" not in doc_cols
+        if needs_backfill:
+            await db.execute("ALTER TABLE documents ADD COLUMN dossier_id INTEGER NULL")
+            await db.commit()
+        # Run backfill only if there are documents that aren't attached to a
+        # dossier yet. This guards against re-running on subsequent startups
+        # if the column was added but the backfill failed.
+        unbound = await db.execute_fetchall(
+            "SELECT id FROM documents WHERE dossier_id IS NULL LIMIT 1"
+        )
+        if unbound:
+            await _backfill_dossiers(db)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"dossiers backfill skipped: {e}")
+
+
+async def _backfill_dossiers(db):
+    """Group existing documents into dossiers (v7.0.0 migration).
+
+    Algorithm:
+      - Build connected components from document_links (undirected union-find).
+      - For each component, create one dossier; derive title + supplier from
+        the "earliest" doc by workflow rank (Devis > BPA > Facture).
+      - Standalone docs (no link) get their own single-doc dossier.
+      - The status is inferred from the chain composition. A user can adjust
+        it from the UI afterwards.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    rows = await db.execute_fetchall(
+        "SELECT id, COALESCE(title,''), COALESCE(doc_type,''), supplier_id, doc_date, COALESCE(created_at,'') "
+        "FROM documents WHERE dossier_id IS NULL"
+    )
+    if not rows:
+        return
+
+    doc_info = {}
+    for r in rows:
+        doc_info[r[0]] = {
+            "title": r[1] or "(sans titre)",
+            "type": (r[2] or "").upper(),
+            "supplier_id": r[3],
+            "doc_date": r[4],
+            "created_at": r[5],
+        }
+
+    # Union-find — start with each doc its own component.
+    parent = {did: did for did in doc_info}
+
+    def _find(x):
+        while parent.get(x, x) != x:
+            parent[x] = parent.get(parent[x], parent[x])
+            x = parent[x]
+        return x
+
+    def _union(a, b):
+        ra, rb = _find(a), _find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    try:
+        link_rows = await db.execute_fetchall(
+            "SELECT source_id, target_id FROM document_links"
+        )
+        for src, tgt in link_rows:
+            if src in parent and tgt in parent:
+                _union(src, tgt)
+    except Exception:
+        # document_links may not exist on very old DBs — that's fine, every
+        # doc just becomes its own dossier.
+        pass
+
+    # Group docs by union root.
+    chains = {}
+    for did in doc_info:
+        chains.setdefault(_find(did), []).append(did)
+
+    # Project mapping (any link in project_documents wins).
+    doc_projects = {}
+    try:
+        pd_rows = await db.execute_fetchall(
+            "SELECT document_id, project_id FROM project_documents"
+        )
+        for did, pid in pd_rows:
+            if did not in doc_projects:
+                doc_projects[did] = pid
+    except Exception:
+        pass
+
+    # Order: ancestor first so the dossier title comes from the Devis.
+    TYPE_ORDER = {"DEVIS": 0, "PROPOSITION": 1, "BPA": 2, "BON": 2, "CONTRAT": 3, "FACTURE": 4, "RAPPORT": 5, "AUTRE": 6}
+
+    now = datetime.now().isoformat(timespec="seconds")
+    created = 0
+
+    for root, doc_ids in chains.items():
+        ranked = sorted(
+            doc_ids,
+            key=lambda d: (
+                TYPE_ORDER.get(doc_info[d]["type"], 9),
+                doc_info[d]["doc_date"] or doc_info[d]["created_at"] or "",
+            ),
+        )
+        main = doc_info[ranked[0]]
+        types_present = {doc_info[d]["type"] for d in doc_ids}
+
+        if "FACTURE" in types_present:
+            status = "commande"  # has invoice = order placed; user can promote to "livre" later
+        elif types_present & {"BPA", "BON"}:
+            status = "bpa_signe"
+        elif "DEVIS" in types_present:
+            status = "devis_recu"
+        elif types_present & {"CONTRAT"}:
+            status = "commande"  # standalone contract → treat as ongoing
+        else:
+            status = "archive"  # reports / autre / etc.
+
+        project_id = None
+        for d in doc_ids:
+            if d in doc_projects:
+                project_id = doc_projects[d]
+                break
+
+        cursor = await db.execute(
+            """INSERT INTO dossiers
+               (title, description, status, supplier_id, project_id, site, estimated_budget, notes, created_at, updated_at)
+               VALUES (?, '', ?, ?, ?, '', 0, '', ?, ?)""",
+            (main["title"], status, main["supplier_id"], project_id, now, now),
+        )
+        dossier_id = cursor.lastrowid
+
+        for d in doc_ids:
+            await db.execute(
+                "UPDATE documents SET dossier_id = ? WHERE id = ?",
+                (dossier_id, d),
+            )
+        created += 1
+
+    await db.commit()
+    log.info(f"[v7.0.0 migration] Created {created} dossiers from {len(doc_info)} documents")
 
 
 async def _seed_defaults(db):

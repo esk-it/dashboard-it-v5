@@ -21,6 +21,7 @@
   import TasksPage from './lib/pages/TasksPage.svelte';
   import ProjectsPage from './lib/pages/ProjectsPage.svelte';
   import DocumentsPage from './lib/pages/DocumentsPage.svelte';
+  import DossiersPage from './lib/pages/DossiersPage.svelte';
   import EmailPage from './lib/pages/EmailPage.svelte';
   import NewsPage from './lib/pages/NewsPage.svelte';
   import ChangelogPage from './lib/pages/ChangelogPage.svelte';
@@ -137,7 +138,7 @@
     {:else if $currentPage === '/projects'}
       <ProjectsPage />
     {:else if $currentPage === '/documents'}
-      <DocumentsPage />
+      <DossiersPage />
     {:else if $currentPage === '/email'}
       <EmailPage />
     {:else if $currentPage === '/suppliers'}

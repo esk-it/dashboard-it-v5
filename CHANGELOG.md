@@ -4,6 +4,68 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.0 — Refonte du module Documents autour des "Dossiers"
+
+Première version d'une refonte majeure du module Documents. Le module pivote de "liste de documents avec ensembles" vers "**Dossiers**" — un dossier représente une opération d'achat IT complète (ex. "Renouvellement firewall NDK") et agrège tous ses documents (Devis, BPA, Facture) + son état d'avancement + son fil d'activité.
+
+Voir la maquette de référence : `docs/documents-redesign-mockup.html`.
+
+### Pourquoi cette refonte
+
+L'ancien module raisonnait par document isolé. Un Devis tout seul a peu de sens — ce qui compte c'est l'opération dont il fait partie. La nouvelle vue rend cette opération de premier niveau : un seul endroit pour voir où en est l'achat, plus besoin de reconstituer la chaîne mentalement.
+
+Le module est aussi recadré sur le **cycle achat IT** (et pas sur la compta) : *demande → devis → BPA → commande → livraison → archivage*. On ne suit plus le paiement (pas ton métier).
+
+### Backend
+
+- **Nouvelle table `dossiers`** : id, title, status, supplier_id, project_id, site, estimated_budget, next_action_date, notes, received_at, archived_at, created_at, updated_at
+- **Nouvelle table `dossier_comments`** : fil d'activité (notes, changements de statut, ajout de docs)
+- **Nouvelle colonne `documents.dossier_id`** : FK vers dossiers, nullable
+- **Migration automatique** au premier démarrage :
+  - Pour chaque chaîne dans `document_links`, un dossier est créé qui regroupe ces docs
+  - Les docs sans liens deviennent des dossiers mono-document
+  - Le titre, le prestataire et le statut initial sont devinés depuis la composition de la chaîne
+  - Tous les documents existants sont préservés, rien n'est supprimé
+- **Nouveau router** `backend/routers/dossiers.py` avec endpoints CRUD + stats + commentaires + attach/detach + change_status
+
+### Frontend
+
+- **Nouvelle page** `DossiersPage.svelte` avec **layout 3 colonnes** (style Inbox) :
+  - Sidebar filtres : état du dossier, établissement, prestataire
+  - Liste centrale : cards avec mini-timeline visuelle (Devis → BPA → Facture), montants 3 colonnes, statut coloré
+  - Panel détail à droite : titre + statut éditable, liste des documents avec rattachement/détachement, budget récap, fil d'activité
+- **Toggle "Documents (à plat)"** en haut : conserve l'ancienne vue comme filet de sécurité. Tu peux y revenir à tout moment et continuer d'importer des documents par l'ancien flux pendant que tu apprivoises les Dossiers.
+- **Dialog "Nouveau dossier"** : crée un dossier vide directement (sans doc), idéal pour matérialiser "j'ai envoyé une demande de devis, j'attends la réponse"
+- **Dialog "Rattacher un document"** : liste tous les docs et permet de les attacher à un dossier existant
+- **Changement de statut** depuis le panel détail : dropdown avec les 6 états, chaque transition est enregistrée dans le fil d'activité
+
+### États de dossier (lifecycle)
+
+1. **Demande envoyée** (gris) — tu as demandé un devis, en attente
+2. **Devis reçu** (bleu) — devis dans le dossier
+3. **BPA signé** (violet) — accord direction obtenu
+4. **Commandé** (vert clair) — facture reçue, commande en cours
+5. **Livré / Installé** (vert foncé) — matériel reçu et déployé
+6. **Archivé** (gris foncé) — clos, plus de suivi
+
+### Reporté à v7.0.1
+
+- **Smart filters intelligents** ("À relancer", "Livraison attendue", "À installer", "Garantie expire bientôt") — l'infrastructure backend existe (`next_action_date`, stats), reste à câbler le UI
+- **Ajout de notes / commentaires depuis le UI** — le backend les enregistre déjà (sur les changements de statut + ajouts de doc), reste à exposer un champ libre dans le panel détail
+- **OCR sur ajout de PDF** — à creuser via pdfjs côté client
+- **Drag & drop d'un PDF directement dans un dossier**
+- **Auto-création de dossier au moment de l'import d'un document** (actuellement les nouveaux docs arrivent sans dossier, à attacher à la main)
+
+### Migration côté utilisateur
+
+Au premier lancement de v7.0.0 :
+1. La table `dossiers` est créée
+2. Tes documents existants sont regroupés automatiquement en dossiers (un par chaîne workflow + un par doc orphelin)
+3. Le module Documents affiche désormais les Dossiers par défaut
+4. Tu peux revenir à la vue à plat via le toggle en haut si besoin
+
+Les titres de dossiers générés automatiquement viennent du document le plus ancien (généralement le devis). Tu pourras les renommer librement après coup.
+
 ## v6.9.2 — Lanceur : upload de fichier, card favoris sur l'accueil, presets fiabilisés
 
 Trois fixes sur le module Lanceur.
