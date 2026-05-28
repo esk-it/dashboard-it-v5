@@ -51,6 +51,13 @@
 
   let allProjects = [];
 
+  // Custom status dropdown state (replaces native <select> which had
+  // rendering quirks in light theme).
+  let statusMenuOpen = false;
+
+  // Quick-edit supplier inline in the detail header (no dialog needed).
+  let supplierMenuOpen = false;
+
   // ── Constants ─────────────────────────────────────────────
   // Order matters: it drives the dropdown ordering AND the sidebar filter order.
   // `hint` is shown as a tooltip on the filter item so the user understands that
@@ -229,13 +236,25 @@
 
   async function updateField(field, value) {
     if (!selectedDossier) return;
+    // Type-safe coercion : null OR number for IDs, raw value for strings.
+    let cleanValue = value;
+    if (field === 'supplier_id' || field === 'project_id') {
+      cleanValue = value == null || value === '' ? null : Number(value);
+    }
+    const payload = { [field]: cleanValue };
+    console.log('[updateField] PUT payload =', payload);
     try {
-      selectedDossier = await api.put(`/api/dossiers/${selectedDossier.id}`, {
-        [field]: value,
-      });
+      const result = await api.put(`/api/dossiers/${selectedDossier.id}`, payload);
+      console.log('[updateField] response =', result);
+      // Diagnostic : if backend returns a different value than what we sent
+      // for an ID field, surface it loudly so we don't silently lose data.
+      if ((field === 'supplier_id' || field === 'project_id') && result[field] !== cleanValue) {
+        toastError(`[BUG] envoyé ${field}=${cleanValue}, reçu ${result[field]} — vérifie les logs`);
+      }
+      selectedDossier = result;
       await loadDossiers();
-    } catch {
-      toastError(`Échec mise à jour ${field}`);
+    } catch (e) {
+      toastError(`Échec mise à jour ${field} : ${e.message || e}`);
     }
   }
 
@@ -568,46 +587,95 @@
             <button class="ds-icon-btn" on:click={deleteDossier} title="Supprimer le dossier">🗑</button>
           </div>
 
-          <div class="ds-detail-meta">
-            {#if selectedDossier.supplier}
-              <span class="ds-chip">
-                <span class="ds-supplier-avatar ds-supplier-avatar--xs" style="background:{selectedDossier.supplier.color}">
-                  {supplierInitials(selectedDossier.supplier)}
-                </span>
-                {selectedDossier.supplier.name}
-              </span>
-            {:else}
+          <!-- Quick-edit row : the user can change supplier and status WITHOUT
+               opening the edit dialog. Each change is a single-field PATCH
+               that returns the fresh dossier. Designed to avoid the v7.0.x
+               supplier-save bug entirely : no shared form state. -->
+          <div class="ds-quick-edits">
+            <!-- STATUS — custom dropdown (no native <select>, fully theme-aware) -->
+            <div class="ds-quick-field">
+              <span class="ds-quick-label">Statut</span>
               <!-- svelte-ignore a11y_click_events_have_key_events -->
               <!-- svelte-ignore a11y_no_static_element_interactions -->
-              <span class="ds-chip ds-chip--empty" on:click={openEditDialog} title="Cliquer pour assigner un prestataire">
-                ⚠ Aucun prestataire — cliquer pour assigner
-              </span>
-            {/if}
+              <div class="ds-quick-pill" on:click={() => statusMenuOpen = !statusMenuOpen}>
+                <span class="ds-quick-dot" style="background:{status.color}"></span>
+                <span class="ds-quick-text">{status.label}</span>
+                <span class="ds-quick-caret">▾</span>
+              </div>
+              {#if statusMenuOpen}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="ds-quick-backdrop" on:click={() => statusMenuOpen = false}></div>
+                <div class="ds-quick-menu">
+                  {#each STATUSES as s}
+                    <div
+                      class="ds-quick-menu-item"
+                      class:active={selectedDossier.status === s.value}
+                      on:click={() => { statusMenuOpen = false; changeStatus(s.value); }}
+                    >
+                      <span class="ds-quick-dot" style="background:{s.color}"></span>
+                      <span>{s.label}</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+
+            <!-- SUPPLIER — same custom-dropdown pattern, PATCH on selection. -->
+            <div class="ds-quick-field">
+              <span class="ds-quick-label">Prestataire</span>
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <!-- svelte-ignore a11y_no_static_element_interactions -->
+              <div class="ds-quick-pill" on:click={() => supplierMenuOpen = !supplierMenuOpen}
+                   class:ds-quick-pill--empty={!selectedDossier.supplier}>
+                {#if selectedDossier.supplier}
+                  <span class="ds-supplier-avatar ds-supplier-avatar--xs" style="background:{selectedDossier.supplier.color}">
+                    {supplierInitials(selectedDossier.supplier)}
+                  </span>
+                  <span class="ds-quick-text">{selectedDossier.supplier.name}</span>
+                {:else}
+                  <span class="ds-quick-text" style="color:var(--warning, #F59E0B)">⚠ Aucun — cliquer</span>
+                {/if}
+                <span class="ds-quick-caret">▾</span>
+              </div>
+              {#if supplierMenuOpen}
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <!-- svelte-ignore a11y_no_static_element_interactions -->
+                <div class="ds-quick-backdrop" on:click={() => supplierMenuOpen = false}></div>
+                <div class="ds-quick-menu ds-quick-menu--scroll">
+                  <div
+                    class="ds-quick-menu-item"
+                    class:active={!selectedDossier.supplier_id}
+                    on:click={() => { supplierMenuOpen = false; updateField('supplier_id', null); }}
+                  >
+                    <span class="ds-quick-dot" style="background:#94A3B8"></span>
+                    <span>— Aucun —</span>
+                  </div>
+                  {#each allSuppliers as s}
+                    <div
+                      class="ds-quick-menu-item"
+                      class:active={selectedDossier.supplier_id === s.id}
+                      on:click={() => { supplierMenuOpen = false; updateField('supplier_id', s.id); }}
+                    >
+                      <span class="ds-supplier-avatar ds-supplier-avatar--xs" style="background:{s.color || '#6C63FF'}">
+                        {supplierInitials({name: s.name})}
+                      </span>
+                      <span>{s.name}</span>
+                    </div>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <!-- Secondary meta (site, projet) — read-only chips, edited via the full dialog -->
+          <div class="ds-detail-meta">
             {#if selectedDossier.site}
               <span class="ds-chip"><EstablishmentBadge code={selectedDossier.site} size="xs" showLabel={true} /></span>
             {/if}
             {#if selectedDossier.project}
               <span class="ds-chip">🎯 {selectedDossier.project.title}</span>
             {/if}
-          </div>
-
-          <div class="ds-status-row">
-            <span class="ds-status-label">Statut</span>
-            <!-- Dot + plain-text select : the dot carries the color (visible
-                 on both themes), the select text uses the standard heading
-                 color so it never fades on a light background. -->
-            <div class="ds-status-wrap" style:--status-color={status.color}>
-              <span class="ds-status-dot"></span>
-              <select
-                class="ds-status-select"
-                bind:value={selectedDossier.status}
-                on:change={(e) => changeStatus(e.target.value)}
-              >
-                {#each STATUSES as s}
-                  <option value={s.value}>{s.label}</option>
-                {/each}
-              </select>
-            </div>
           </div>
 
           {#if selectedDossier.description}
@@ -1306,39 +1374,106 @@
     letter-spacing: 0.06em;
     font-weight: 700;
   }
-  /* Status pill — colored dot beside a plain text select. The dot carries
-     the status color so we can keep the text on a neutral, always-readable
-     color (var(--text-heading)) that works in both light and dark themes. */
-  .ds-status-wrap {
+  /* ── Quick-edit row (custom dropdowns) ─────────────────────
+     Replace native <select> entirely: too many cross-browser/theme quirks.
+     Each "pill" is a clickable element with a colored dot + label; clicking
+     it expands a custom menu below. Pure CSS + Svelte conditional. */
+  .ds-quick-edits {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .ds-quick-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .ds-quick-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-secondary);
+  }
+  .ds-quick-pill {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 10px;
-    background: var(--bg-input, rgba(0,0,0,0.04));
-    border: 1px solid color-mix(in srgb, var(--status-color, #94A3B8) 35%, transparent);
+    padding: 5px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--ds-border-strong);
     border-radius: 6px;
-  }
-  .ds-status-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--status-color, #94A3B8);
-    flex-shrink: 0;
-  }
-  .ds-status-select {
-    background: transparent;
-    border: none;
+    cursor: pointer;
+    user-select: none;
+    transition: border-color 0.15s, background 0.15s;
+    /* Force opaque rendering of text so light theme is never washed out. */
     color: var(--text-heading);
     font-size: 13px;
     font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
-    outline: none;
-    padding: 0;
   }
-  .ds-status-select option {
-    background: var(--bg-card);
+  .ds-quick-pill:hover {
+    border-color: var(--ds-primary);
+  }
+  .ds-quick-pill--empty {
+    border-color: color-mix(in srgb, var(--warning, #F59E0B) 60%, transparent);
+    background: color-mix(in srgb, var(--warning, #F59E0B) 8%, var(--bg-card));
+  }
+  .ds-quick-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .ds-quick-text {
     color: var(--text-heading);
+  }
+  .ds-quick-caret {
+    color: var(--text-muted);
+    font-size: 10px;
+    margin-left: 2px;
+  }
+  /* Backdrop catches clicks outside the menu to close it. */
+  .ds-quick-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: transparent;
+  }
+  .ds-quick-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 240px;
+    background: var(--bg-card);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+    z-index: 60;
+  }
+  .ds-quick-menu--scroll {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .ds-quick-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    color: var(--text-heading);
+    font-size: 13px;
+    transition: background 0.1s;
+  }
+  .ds-quick-menu-item:hover {
+    background: var(--bg-hover, rgba(127,127,127,0.1));
+  }
+  .ds-quick-menu-item.active {
+    background: color-mix(in srgb, var(--primary, #8869e1) 18%, transparent);
+    font-weight: 600;
   }
 
   .ds-description {

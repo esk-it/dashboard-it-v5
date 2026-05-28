@@ -4,6 +4,33 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.4 — Dossiers : refonte des controls statut/presta (les patches précédents n'avaient pas marché)
+
+Les 3 builds précédents (v7.0.1 / v7.0.2 / v7.0.3) tentaient de fixer les mêmes 2 bugs (prestataire qui ne se sauve pas + statut invisible en thème clair) en bricolant le `<select>` natif. Aucun n'a fonctionné. Cette fois je retire entièrement le `<select>` natif et je reconstruis from scratch.
+
+### 1. Dropdowns custom (HTML + CSS purs, plus de `<select>`)
+
+Le `<select>` natif a trop de comportements inconsistants entre les thèmes (texte coloré qui disparaît sur fond clair) et entre les browsers (la coercion `bind:value` qui ne préserve pas toujours le type number). Je le remplace par un **dropdown custom** :
+
+- Le pill cliquable affiche `dot coloré + texte` (toujours lisible : texte sur `var(--text-heading)`)
+- Le menu déroulant est un `<div>` ordinaire que je contrôle entièrement en CSS
+- Backdrop transparent qui catche les clics extérieurs pour fermer
+- Pas de coercion implicite : chaque option appelle directement une fonction avec la bonne valeur
+
+### 2. Quick-edit inline pour Statut ET Prestataire
+
+Sortie du dialog d'édition : le statut et le prestataire sont maintenant éditables **directement dans le panneau détail**. Tu cliques sur le pill, le menu s'ouvre, tu choisis → PATCH immédiat envoyé. Pas de dialog, pas de save bouton, pas de form state qui peut foirer.
+
+Le dialog d'édition complet (✏️) reste dispo pour les autres champs (titre, description, site, projet, budget, notes).
+
+### 3. Détection automatique d'un bug de sauvegarde
+
+Côté frontend, après chaque PATCH on compare la valeur envoyée avec la valeur reçue. Si elles diffèrent, on t'affiche un **toast d'erreur explicite** style `[BUG] envoyé supplier_id=5, reçu null — vérifie les logs`. Plus de bug silencieux.
+
+### 4. Logging backend
+
+L'endpoint `PUT /api/dossiers/{id}` log maintenant le payload reçu + le payload après filtrage Pydantic. Si ça reFait foirer on a les logs pour comprendre.
+
 ## v7.0.3 — Dossiers : prestataire qui ne se sauvait pas + statut illisible en clair
 
 ### 1. Le prestataire ne s'enregistrait pas après édition

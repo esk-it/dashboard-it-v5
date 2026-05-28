@@ -420,6 +420,13 @@ async def create_dossier(body: DossierCreate, db=Depends(get_raw_db)):
 
 @router.put("/{dossier_id}")
 async def update_dossier(dossier_id: int, body: DossierUpdate, db=Depends(get_raw_db)):
+    # v7.0.4 — log every PUT payload so we can diagnose missing fields when
+    # the frontend / Pydantic stack drop something silently.
+    logger.info(
+        "[update_dossier] id=%s body=%s",
+        dossier_id, body.model_dump(),
+    )
+
     existing = await db.execute_fetchall(
         "SELECT status FROM dossiers WHERE id = ?", (dossier_id,)
     )
@@ -430,6 +437,10 @@ async def update_dossier(dossier_id: int, body: DossierUpdate, db=Depends(get_ra
     fields: list[str] = []
     params: list = []
     payload = body.model_dump(exclude_unset=True)
+    logger.info(
+        "[update_dossier] id=%s payload(exclude_unset)=%s",
+        dossier_id, payload,
+    )
     if "status" in payload:
         payload["status"] = _normalise_status(payload["status"])
     for k in (
