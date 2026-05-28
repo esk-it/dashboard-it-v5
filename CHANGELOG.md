@@ -4,6 +4,33 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.7 — Documents : cache busting + nettoyage des orphelins
+
+Deux corrections autour de la liste des documents.
+
+### 1. Cache WebView qui servait des listes périmées
+
+Quand tu supprimais un document via la vue à plat, le Chromium embarqué de Tauri continuait à servir l'ancienne réponse de `/api/documents` en cache. Résultat : le doc supprimé restait visible dans la popup "Rattacher un document" jusqu'au prochain redémarrage de l'app.
+
+Fix : ajout de `cache: 'no-store'` sur toutes les requêtes de l'API client. Chaque GET refait un vrai aller-retour réseau.
+
+### 2. Documents dont le fichier a été supprimé du disque
+
+Si tu fais le ménage manuellement dans `data/documents/` (ou si un fichier est perdu pour une autre raison), l'entrée en base reste mais pointe vers le vide. Ces orphelins polluaient la liste de "Rattacher un document".
+
+Deux mesures :
+- **Filtrage auto** : chaque document expose maintenant un champ `file_missing` (calculé via `os.path.exists`). La popup "Rattacher" filtre désormais ces orphelins par défaut.
+- **Nettoyage explicite** : nouveau bouton **🧹 Nettoyer les orphelins** dans le header de la popup "Rattacher". Clic → `POST /api/documents/cleanup-orphans` qui supprime de la base les rows dont le fichier n'existe plus, et te dit combien ont été nettoyés.
+
+Aucun fichier réel n'est jamais supprimé par cette action (par définition, ils n'existent déjà plus). Seules les rows en base sont nettoyées.
+
+### À tester
+
+1. Supprime un document depuis la vue "Documents (à plat)"
+2. Bascule sur la vue Dossiers
+3. Sélectionne un dossier, clique sur "+ Rattacher" → le doc supprimé n'apparaît plus dans la liste
+4. Si tu as déjà des orphelins issus de v7.0.6 ou antérieures, ouvre "+ Rattacher" et clique sur 🧹 pour les nettoyer
+
 ## v7.0.6 — Dossiers : logos prestas, import doc, renommage auto, preview 👁
 
 4 ajouts cohérents qui complètent le flow d'utilisation des dossiers.

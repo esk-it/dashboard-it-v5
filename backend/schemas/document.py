@@ -36,6 +36,7 @@ class DocumentResponse(BaseModel):
     created_at: str
     tags: str = ""           # CSV string of tag names — present on the list endpoint, used by the UI for filter + display
     is_acompte: bool = False # only meaningful when doc_type == FACTURE
+    file_missing: bool = False  # v7.0.7 — set when the on-disk PDF is gone; UI hides these by default
 
     model_config = ConfigDict(from_attributes=True)
 

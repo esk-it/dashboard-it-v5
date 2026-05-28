@@ -45,6 +45,12 @@ router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 
 def _row_to_document(r) -> dict:
+    rel_path = r[7] or ""
+    # v7.0.7 — flag rows whose underlying PDF was deleted on disk. The
+    # frontend uses this to hide stale orphan rows in the "Rattacher un
+    # document" picker. The check is a cheap fs stat; for 1000+ docs we'd
+    # need to cache but at this scale it's fine.
+    file_missing = bool(rel_path) and not (VAULT_ROOT / rel_path).exists()
     return {
         "id": r[0],
         "title": r[1],
@@ -53,7 +59,7 @@ def _row_to_document(r) -> dict:
         "supplier_name": r[4] or "",
         "doc_date": r[5],
         "reference": r[6] or "",
-        "file_path": r[7] or "",
+        "file_path": rel_path,
         "file_hash": r[8] or "",
         "notes": r[9] or "",
         "created_at": r[10] or "",
@@ -61,6 +67,7 @@ def _row_to_document(r) -> dict:
         "tags": r[11] if len(r) > 11 and r[11] else "",
         "internal_ref": r[12] if len(r) > 12 and r[12] else "",
         "is_acompte": bool(r[13]) if len(r) > 13 else False,
+        "file_missing": file_missing,
     }
 
 
@@ -568,6 +575,39 @@ async def update_document(doc_id: int, body: DocumentUpdate, db=Depends(get_raw_
     await db.commit()
 
     return await _fetch_document_response(db, doc_id)
+
+
+@router.post("/cleanup-orphans")
+async def cleanup_orphan_documents(db=Depends(get_raw_db)):
+    """v7.0.7 — delete DB rows whose underlying file is missing on disk.
+
+    Returns the count + IDs of rows removed. Used as a one-shot cleanup
+    triggered from the UI (button in the "Rattacher un document" dialog).
+    Safe to run anytime: only touches rows whose `file_path` points to a
+    file that no longer exists.
+    """
+    rows = await db.execute_fetchall(
+        "SELECT id, COALESCE(file_path, '') FROM documents"
+    )
+    removed: list[int] = []
+    for r in rows:
+        did = r[0]
+        rel = r[1]
+        if not rel:
+            continue
+        if (VAULT_ROOT / rel).exists():
+            continue
+        # Cascade: tags + links + dossier link kept by ON DELETE SET NULL.
+        await db.execute("DELETE FROM document_tags WHERE document_id = ?", (did,))
+        await db.execute(
+            "DELETE FROM document_links WHERE source_id = ? OR target_id = ?",
+            (did, did),
+        )
+        await db.execute("DELETE FROM documents WHERE id = ?", (did,))
+        removed.append(did)
+    if removed:
+        await db.commit()
+    return {"removed": len(removed), "ids": removed}
 
 
 @router.delete("/{doc_id}", status_code=204)

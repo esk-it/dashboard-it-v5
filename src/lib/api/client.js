@@ -5,6 +5,11 @@ async function request(method, path, data = null) {
   const opts = {
     method,
     headers: { 'Content-Type': 'application/json' },
+    // v7.0.7 — disable WebView caching so DELETE/POST mutations are seen
+    // immediately by subsequent GET calls. Tauri's embedded Chromium was
+    // serving stale doc lists (e.g. deleted documents kept appearing in
+    // the "Rattacher un document" picker until app restart).
+    cache: 'no-store',
   };
   if (data) opts.body = JSON.stringify(data);
 

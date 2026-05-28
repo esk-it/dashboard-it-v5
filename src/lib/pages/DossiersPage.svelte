@@ -301,15 +301,30 @@
     attachLoading = true;
     try {
       const allDocs = await api.get('/api/documents');
-      // Show only docs not already in this dossier — backend has no filter
-      // for this yet, so we drop them client-side. List is small enough that
-      // it doesn't matter performance-wise.
+      // Show only docs not already in this dossier AND not orphans on disk.
+      // Backend has no filter for either yet, so we drop them client-side.
       const attachedIds = new Set((selectedDossier?.documents || []).map(d => d.id));
-      attachableDocs = (allDocs || []).filter(d => !attachedIds.has(d.id));
+      attachableDocs = (allDocs || []).filter(d => !attachedIds.has(d.id) && !d.file_missing);
     } catch {
       attachableDocs = [];
     } finally {
       attachLoading = false;
+    }
+  }
+
+  async function cleanupOrphans() {
+    if (!confirm("Nettoyer les documents orphelins ?\n\nCela supprime les entrées en base dont le fichier n'existe plus sur le disque. Aucun fichier réel n'est supprimé (ils sont déjà absents). Action irréversible côté base.")) return;
+    try {
+      const result = await api.post('/api/documents/cleanup-orphans');
+      if (result.removed > 0) {
+        success(`${result.removed} document${result.removed > 1 ? 's' : ''} orphelin${result.removed > 1 ? 's' : ''} nettoyé${result.removed > 1 ? 's' : ''}`);
+        // Refresh the Rattacher dialog list if it's open.
+        if (showAttachDialog) await openAttachDialog();
+      } else {
+        success('Aucun orphelin à nettoyer — tout est propre');
+      }
+    } catch (e) {
+      toastError(`Erreur nettoyage : ${e.message || e}`);
     }
   }
 
@@ -1052,6 +1067,7 @@
     <div class="ds-dialog" style="max-width:560px">
       <div class="ds-dialog-header">
         <h2>Rattacher un document</h2>
+        <button class="ds-btn-secondary" on:click={cleanupOrphans} title="Supprimer de la base les documents dont le fichier a été supprimé du disque" style="margin-left:auto; margin-right:8px">🧹 Nettoyer les orphelins</button>
         <button class="ds-icon-btn" on:click={() => showAttachDialog = false}>✕</button>
       </div>
       <div class="ds-dialog-body" style="max-height:60vh; overflow:auto">
