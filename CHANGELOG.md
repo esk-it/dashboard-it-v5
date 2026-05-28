@@ -4,6 +4,48 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.6 — Dossiers : logos prestas, import doc, renommage auto, preview 👁
+
+4 ajouts cohérents qui complètent le flow d'utilisation des dossiers.
+
+### 1. Logos prestataires affichés partout
+
+Quand un prestataire a un logo uploadé (`logo_path` non vide), le programme affiche maintenant son image au lieu de l'avatar coloré avec initiales. Appliqué à :
+- L'avatar de la card du milieu (Ageona en grand)
+- Le pill prestataire dans le panel détail
+- Chaque item du dropdown du menu prestataire
+
+Fallback gracieux : si pas de logo uploadé, les initiales colorées restent. Fond clair derrière l'image pour que les logos sombres restent lisibles sur thème sombre.
+
+### 2. Bouton "+ Importer" dans le panel détail
+
+À côté de "+ Rattacher un document" (qui prend un doc existant), un nouveau bouton **"+ Importer"** ouvre un dialog d'upload complet :
+
+- File picker (PDF / PNG / JPG / WebP)
+- Type de document (Devis / Proposition / BPA / Bon / Contrat / Facture / Rapport / Autre)
+- Date du document (avec auto-détection depuis le filename)
+- Référence externe (optionnel)
+- Checkbox "Acompte" si type = Facture
+
+À la soumission, le document est créé via `POST /api/documents/upload`, puis automatiquement rattaché au dossier sélectionné via `POST /api/dossiers/{id}/attach` dans la même action. Plus besoin de basculer en vue plate pour importer.
+
+### 3. Renommage auto intelligent
+
+Le titre du doc est **pré-rempli automatiquement** avec un format lisible : `[Type] [Prestataire] - [Date]`.
+
+Exemple : tu importes un PDF "FV202500508250.pdf" pour le dossier rattaché à Ageona, et le titre s'écrit tout seul **"Facture Ageona - 15/04/2026"**. Tu peux toujours le modifier manuellement.
+
+Le système essaie aussi de **deviner le type** depuis le nom du fichier ("FV..." → Facture, "devis_..." → Devis, etc.) et la **date** (formats YYYY-MM-DD ou DD-MM-YYYY embarqués dans le filename).
+
+### 4. Preview 👁 sur chaque document
+
+Bouton **👁 Aperçu** ajouté à côté du ✕ Détacher sur chaque ligne de document. Clic → modal plein-écran avec :
+- Header avec titre + référence interne + bouton "Ouvrir dans un onglet" (utile pour zoomer / imprimer)
+- Iframe sur `/api/documents/{id}/preview` qui sert le PDF / image en inline
+- Fermeture au clic sur l'overlay ou la croix
+
+Pareil que dans la vue à plat — la fonctionnalité que tu avais perdue est de retour.
+
 ## v7.0.5 — LE bug du prestataire enfin trouvé (table `suppliers` n'a pas de colonne `color`)
 
 Tous mes fixes v7.0.1 → v7.0.4 cherchaient dans le frontend. La cause était côté backend depuis le début.
