@@ -158,18 +158,32 @@ async def _doc_summary_for_dossier(db, dossier_id: int) -> dict:
 
 
 async def _supplier_brief(db, supplier_id: int | None) -> dict | None:
+    """Return a small dict describing a supplier (id, name, color, has_logo).
+
+    The suppliers table has no `color` column — color comes from the
+    supplier_domains table joined on suppliers.domain. Fixed in v7.0.5
+    (previously this query referenced suppliers.color and silently failed
+    with a SQLite error, leaving every dossier supplier-less in the UI even
+    when `dossiers.supplier_id` was set correctly in DB).
+    """
     if not supplier_id:
         return None
     try:
         rows = await db.execute_fetchall(
-            "SELECT id, name, COALESCE(color, '#6C63FF'), COALESCE(logo_path, '') FROM suppliers WHERE id = ?",
+            """SELECT s.id, s.name,
+                      COALESCE(sd.color_hex, '#6C63FF') AS color,
+                      COALESCE(s.logo_path, '') AS logo_path
+               FROM suppliers s
+               LEFT JOIN supplier_domains sd ON sd.name = s.domain
+               WHERE s.id = ?""",
             (supplier_id,),
         )
         if not rows:
             return None
         r = rows[0]
         return {"id": r[0], "name": r[1], "color": r[2], "has_logo": bool(r[3])}
-    except Exception:
+    except Exception as e:
+        logger.warning(f"_supplier_brief({supplier_id}) failed: {e}")
         return None
 
 

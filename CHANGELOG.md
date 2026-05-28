@@ -4,6 +4,46 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.5 — LE bug du prestataire enfin trouvé (table `suppliers` n'a pas de colonne `color`)
+
+Tous mes fixes v7.0.1 → v7.0.4 cherchaient dans le frontend. La cause était côté backend depuis le début.
+
+### Le bug
+
+`_supplier_brief()` faisait :
+```sql
+SELECT id, name, COALESCE(color, '#6C63FF'), COALESCE(logo_path, '')
+FROM suppliers WHERE id = ?
+```
+
+Mais la table `suppliers` **n'a pas de colonne `color`** (la couleur vient de `supplier_domains` joint sur `suppliers.domain`). SQLite lève une `OperationalError: no such column: color`. J'avais mis un `try/except` global qui silencait l'erreur et retournait `None`.
+
+Conséquence : que tu assignes ou non un prestataire dans le UI, le backend renvoyait toujours `supplier: null` dans la réponse → la card et le panel détail montraient "(sans prestataire)" même quand `dossiers.supplier_id` était bien à `5` en DB.
+
+Tous les patches précédents (binding, custom dropdown, detection mismatch…) étaient des fausses pistes — le supplier_id se sauvegardait CORRECTEMENT à chaque fois, mais le supplier brief de la réponse était toujours null.
+
+### Le fix
+
+Nouveau SQL avec JOIN sur supplier_domains :
+```sql
+SELECT s.id, s.name,
+       COALESCE(sd.color_hex, '#6C63FF') AS color,
+       COALESCE(s.logo_path, '') AS logo_path
+FROM suppliers s
+LEFT JOIN supplier_domains sd ON sd.name = s.domain
+WHERE s.id = ?
+```
+
+Chaque prestataire hérite de la couleur de son domaine (Réseau → bleu, Sécurité → rouge, etc.), avec un fallback violet `#6C63FF` si pas de domaine assigné.
+
+Le `try/except` n'avale plus l'erreur en silence — il log un warning explicite.
+
+### À tester
+
+Recharge le module Documents. Les dossiers avec `supplier_id` non-null devraient maintenant afficher le nom + l'avatar coloré du presta, dans la card du milieu ET dans le pill "Prestataire" du panel détail.
+
+Si tu assignes un nouveau presta via le pill, le changement doit être visible immédiatement.
+
 ## v7.0.4 — Dossiers : refonte des controls statut/presta (les patches précédents n'avaient pas marché)
 
 Les 3 builds précédents (v7.0.1 / v7.0.2 / v7.0.3) tentaient de fixer les mêmes 2 bugs (prestataire qui ne se sauve pas + statut invisible en thème clair) en bricolant le `<select>` natif. Aucun n'a fonctionné. Cette fois je retire entièrement le `<select>` natif et je reconstruis from scratch.
