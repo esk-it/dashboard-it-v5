@@ -271,9 +271,20 @@ async def list_dossiers(
         where += " AND site = ?"
         params.append(site)
     if search:
-        where += " AND (title LIKE ? OR description LIKE ? OR notes LIKE ?)"
+        # v7.0.8 — also match dossiers whose attached documents contain the
+        # query in their title or internal_ref. So searching "Konica" finds
+        # not only dossiers named "Konica…" but also dossiers that have a
+        # facture titled "Facture Konica - …" inside.
+        where += """ AND (
+            title LIKE ? OR description LIKE ? OR notes LIKE ?
+            OR id IN (
+                SELECT dossier_id FROM documents
+                WHERE dossier_id IS NOT NULL
+                AND (title LIKE ? OR COALESCE(reference,'') LIKE ? OR COALESCE(internal_ref,'') LIKE ?)
+            )
+        )"""
         like = f"%{search}%"
-        params += [like, like, like]
+        params += [like, like, like, like, like, like]
 
     # Order: archived go last, then by updated_at desc (most recent activity first).
     order = (

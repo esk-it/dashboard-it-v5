@@ -4,6 +4,39 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.8 — Documents : édition/suppression complète + retrait de la vue à plat
+
+Toutes les fonctionnalités utiles du module Documents à plat sont maintenant disponibles directement dans la vue Dossiers. La vue à plat est supprimée.
+
+### Backend
+
+- **`upload_document` accepte `supplier_id`** (form param) en plus du nom. L'ID prend précédence — sync presta ↔ doc garantie, sans ambiguïté de noms.
+- **Recherche dossiers étendue** : la barre de recherche du module matche maintenant aussi les titres et références (internes/externes) des documents rattachés. Tape "Konica" et tu trouves tous les dossiers contenant une facture Konica, même si le titre du dossier ne contient pas "Konica".
+
+### Frontend — nouveaux contrôles sur chaque document
+
+Sur chaque ligne de document dans le panel détail d'un dossier, **4 boutons** :
+
+| Icône | Action |
+|---|---|
+| 👁 | Aperçu (modal iframe sur le PDF) — déjà là depuis v7.0.6 |
+| ✏️ | **NOUVEAU** Éditer : titre, type, date, référence externe, prestataire, notes, flag acompte (sur facture) |
+| ✕ | Détacher du dossier (le document survit, juste plus dans ce dossier) |
+| 🗑 | **NOUVEAU** Supprimer définitivement (DB + fichier) — confirm explicite |
+
+### Sync presta ↔ doc
+
+Quand tu importes un doc dans un dossier qui a un presta, le doc est désormais relié au presta par son `supplier_id` (et apparaît dans "Documents liés" du module Prestataires). Si tu détaches le doc du dossier, le lien presta reste (le doc EST émis par ce presta, peu importe où on le range). Si tu supprimes définitivement, ça disparaît partout.
+
+### Cleanup — vue Documents à plat supprimée
+
+- Fichier `src/lib/pages/DocumentsPage.svelte` supprimé
+- Import retiré dans `src/App.svelte` et `src/lib/pages/DossiersPage.svelte`
+- Toggle "Documents (à plat)" retiré du topbar Dossiers
+- CSS leftover (view-switch, ds-toggle) nettoyé
+
+L'ancienne route `/documents` continue de fonctionner — elle pointe directement sur la vue Dossiers (déjà le cas depuis v7.0.0).
+
 ## v7.0.7 — Documents : cache busting + nettoyage des orphelins
 
 Deux corrections autour de la liste des documents.

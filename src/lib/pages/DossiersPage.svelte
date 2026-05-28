@@ -14,10 +14,10 @@
   import { success, error as toastError } from '../stores/toast.js';
   import { establishments } from '../stores/establishments.js';
   import EstablishmentBadge from '../components/EstablishmentBadge.svelte';
-  import DocumentsPage from './DocumentsPage.svelte';
 
   // ── State ─────────────────────────────────────────────────
-  let viewMode = 'dossiers'; // 'dossiers' | 'flat'
+  // v7.0.8 — flat view (DocumentsPage) supprimée : la vue Dossiers couvre
+  // maintenant tous les besoins (import, édition, suppression, preview…).
 
   let dossiers = [];
   let selectedDossierId = null;
@@ -79,6 +79,14 @@
 
   // Preview modal — iframe pointing at /api/documents/{id}/preview
   let previewDoc = null;
+
+  // Doc edit dialog (replaces what was only doable in the old flat view).
+  let editingDoc = null;  // null = closed; doc object when open
+  let editDocForm = {
+    title: '', doc_type: 'DEVIS', doc_date: '', reference: '',
+    notes: '', supplier_id: null, is_acompte: false,
+  };
+  let savingDoc = false;
 
   // ── Constants ─────────────────────────────────────────────
   // Order matters: it drives the dropdown ordering AND the sidebar filter order.
@@ -434,7 +442,13 @@
       fd.append('file', importFile);
       fd.append('title', importForm.title);
       fd.append('doc_type', importForm.doc_type);
-      fd.append('supplier', selectedDossier.supplier?.name || '');
+      // v7.0.8 : envoie supplier_id directement (deterministe). Fallback
+      // sur le nom uniquement si le dossier n'a pas d'ID de presta resolu.
+      if (selectedDossier.supplier_id) {
+        fd.append('supplier_id', String(selectedDossier.supplier_id));
+      } else if (selectedDossier.supplier?.name) {
+        fd.append('supplier', selectedDossier.supplier.name);
+      }
       fd.append('doc_date', importForm.doc_date || '');
       fd.append('reference', importForm.reference || '');
       fd.append('notes', importForm.notes || '');
@@ -475,6 +489,68 @@
   }
   function closePreview() {
     previewDoc = null;
+  }
+
+  // ── Document edit (✏️) — replaces what was doable only in the flat view.
+  function openEditDoc(doc) {
+    editingDoc = doc;
+    editDocForm = {
+      title: doc.title || '',
+      doc_type: (doc.doc_type || 'AUTRE').toUpperCase(),
+      doc_date: doc.doc_date || '',
+      reference: doc.reference || '',
+      notes: doc.notes || '',
+      supplier_id: doc.supplier_id || selectedDossier?.supplier_id || null,
+      is_acompte: !!doc.is_acompte,
+    };
+  }
+
+  async function saveDocEdit() {
+    if (!editingDoc || !editDocForm.title.trim()) return;
+    savingDoc = true;
+    try {
+      const payload = {
+        title: editDocForm.title,
+        doc_type: editDocForm.doc_type,
+        doc_date: editDocForm.doc_date || null,
+        reference: editDocForm.reference || '',
+        notes: editDocForm.notes || '',
+        supplier_id: editDocForm.supplier_id ? Number(editDocForm.supplier_id) : null,
+        is_acompte: editDocForm.is_acompte,
+        // Keep existing tags untouched. Tags weren't exposed in the dossier
+        // view yet; if a doc had tags from the old flat view they survive.
+        tags: editingDoc.tags || '',
+      };
+      await api.put(`/api/documents/${editingDoc.id}`, payload);
+      // Refresh the current dossier so the doc list reflects the edit.
+      selectedDossier = await api.get(`/api/dossiers/${selectedDossier.id}`);
+      await loadDossiers();
+      editingDoc = null;
+      success('Document modifié');
+    } catch (e) {
+      toastError(`Erreur : ${e.message || e}`);
+    } finally {
+      savingDoc = false;
+    }
+  }
+
+  // ── Document hard-delete (🗑) — supprime DEFINITIVEMENT le doc (DB + fichier).
+  async function hardDeleteDoc(doc) {
+    if (!confirm(
+      `SUPPRIMER DÉFINITIVEMENT "${doc.title}" ?\n\n` +
+      `Le document sera retiré de la base ET son fichier physique sera marqué pour suppression.\n` +
+      `Cette action est IRRÉVERSIBLE.\n\n` +
+      `(Pour simplement détacher du dossier sans supprimer, utilise plutôt ✕)`
+    )) return;
+    try {
+      await api.delete(`/api/documents/${doc.id}`);
+      // Reload the dossier (the doc disappears) + the dossier list (counts update).
+      selectedDossier = await api.get(`/api/dossiers/${selectedDossier.id}`);
+      await loadDossiers();
+      success('Document supprimé définitivement');
+    } catch (e) {
+      toastError(`Erreur suppression : ${e.message || e}`);
+    }
   }
 
   // ── Document amount edit (inline) ─────────────────────────
@@ -552,20 +628,7 @@
   }
 </script>
 
-{#if viewMode === 'flat'}
-  <!-- Flat-list fallback (existing DocumentsPage) — wrapped with a small
-       header so the user can switch back to Dossiers. -->
-  <div class="view-switch">
-    <div class="view-switch__title">Documents — vue à plat</div>
-    <div class="view-switch__hint">Filet de sécurité v7.0.0 — pour revenir au flot classique</div>
-    <button class="view-switch__btn" on:click={() => viewMode = 'dossiers'}>
-      ← Revenir aux Dossiers
-    </button>
-  </div>
-  <DocumentsPage />
-{:else}
-
-<!-- ─── DOSSIERS VIEW — 3 columns ─── -->
+<!-- ─── DOSSIERS VIEW — 3 columns (vue unique depuis v7.0.8) ─── -->
 <div class="dossiers-page">
 
   <!-- Top bar -->
@@ -581,10 +644,6 @@
       />
     </div>
     <div class="ds-spacer"></div>
-    <div class="ds-toggle">
-      <button class="active">Dossiers</button>
-      <button on:click={() => viewMode = 'flat'}>Documents (à plat)</button>
-    </div>
     <button class="ds-btn-primary" on:click={openCreateDialog}>
       + Nouveau dossier
     </button>
@@ -928,7 +987,9 @@
                 </div>
                 <div class="ds-doc-actions">
                   <button class="ds-icon-btn" on:click={() => openPreview(doc)} title="Aperçu">👁</button>
-                  <button class="ds-icon-btn" on:click={() => detachDoc(doc.id)} title="Détacher">✕</button>
+                  <button class="ds-icon-btn" on:click={() => openEditDoc(doc)} title="Éditer ce document">✏️</button>
+                  <button class="ds-icon-btn" on:click={() => detachDoc(doc.id)} title="Détacher du dossier (le document n'est pas supprimé)">✕</button>
+                  <button class="ds-icon-btn ds-icon-btn--danger" on:click={() => hardDeleteDoc(doc)} title="Supprimer définitivement (irréversible)">🗑</button>
                 </div>
               </div>
             {/each}
@@ -1171,6 +1232,78 @@
   </div>
 {/if}
 
+<!-- ─── EDIT DOC DIALOG — modifier titre/type/date/réf/notes/presta/acompte ─── -->
+{#if editingDoc}
+  <div class="ds-overlay" on:mousedown|self={() => editingDoc = null}>
+    <div class="ds-dialog">
+      <div class="ds-dialog-header">
+        <h2>Éditer le document</h2>
+        <button class="ds-icon-btn" on:click={() => editingDoc = null}>✕</button>
+      </div>
+      <div class="ds-dialog-body">
+        <label class="ds-field">
+          <span>Titre *</span>
+          <input type="text" bind:value={editDocForm.title} placeholder="Titre du document" />
+        </label>
+
+        <div class="ds-field-row">
+          <label class="ds-field">
+            <span>Type</span>
+            <select bind:value={editDocForm.doc_type}>
+              <option value="DEVIS">Devis</option>
+              <option value="PROPOSITION">Proposition</option>
+              <option value="BPA">BPA / Bon pour accord</option>
+              <option value="BON">Bon de commande</option>
+              <option value="CONTRAT">Contrat</option>
+              <option value="FACTURE">Facture</option>
+              <option value="RAPPORT">Rapport</option>
+              <option value="AUTRE">Autre</option>
+            </select>
+          </label>
+          <label class="ds-field">
+            <span>Date du document</span>
+            <input type="date" bind:value={editDocForm.doc_date} />
+          </label>
+        </div>
+
+        <label class="ds-field">
+          <span>Référence externe</span>
+          <input type="text" bind:value={editDocForm.reference} placeholder="N° devis du presta, etc." />
+        </label>
+
+        <label class="ds-field">
+          <span>Prestataire</span>
+          <select
+            value={editDocForm.supplier_id == null ? '' : String(editDocForm.supplier_id)}
+            on:change={(e) => editDocForm.supplier_id = e.target.value === '' ? null : parseInt(e.target.value, 10)}
+          >
+            <option value="">— Aucun —</option>
+            {#each allSuppliers as s}<option value={String(s.id)}>{s.name}</option>{/each}
+          </select>
+        </label>
+
+        <label class="ds-field">
+          <span>Notes</span>
+          <textarea rows="2" bind:value={editDocForm.notes} placeholder="Optionnel"></textarea>
+        </label>
+
+        {#if editDocForm.doc_type === 'FACTURE'}
+          <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text-secondary)">
+            <input type="checkbox" bind:checked={editDocForm.is_acompte} />
+            Cette facture est un acompte
+          </label>
+        {/if}
+      </div>
+      <div class="ds-dialog-footer">
+        <button class="ds-btn-secondary" on:click={() => editingDoc = null}>Annuler</button>
+        <button class="ds-btn-primary" on:click={saveDocEdit} disabled={savingDoc || !editDocForm.title.trim()}>
+          {savingDoc ? 'Enregistrement…' : 'Enregistrer'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <!-- ─── PREVIEW MODAL (PDF / image dans une iframe) ─── -->
 {#if previewDoc}
   <div class="ds-overlay" on:mousedown|self={closePreview}>
@@ -1194,8 +1327,6 @@
   </div>
 {/if}
 
-{/if}
-
 <style>
   /* ═════ Color tokens lokal au module ═════ */
   .dossiers-page {
@@ -1216,39 +1347,6 @@
     height: calc(100vh - var(--header-height));
     overflow: hidden;
     margin: -1.875rem;
-  }
-
-  /* ── View switch banner (flat mode) ── */
-  .view-switch {
-    background: linear-gradient(90deg, rgba(var(--primary-rgb,136,105,225),0.18), transparent);
-    border-left: 3px solid var(--primary);
-    padding: 12px 18px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    margin-bottom: 16px;
-    border-radius: 8px;
-  }
-  .view-switch__title {
-    font-weight: 600;
-    color: var(--text-heading);
-    font-size: 14px;
-  }
-  .view-switch__hint {
-    color: var(--text-muted);
-    font-size: 12px;
-    flex: 1;
-  }
-  .view-switch__btn {
-    background: var(--primary);
-    color: #fff;
-    border: none;
-    border-radius: 6px;
-    padding: 6px 12px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: inherit;
   }
 
   /* ── Top bar ── */
@@ -1295,30 +1393,6 @@
     opacity: 0.5;
   }
   .ds-spacer { flex: 1; }
-  .ds-toggle {
-    display: flex;
-    gap: 2px;
-    background: var(--bg-input, rgba(255,255,255,0.04));
-    border: 1px solid var(--ds-border);
-    border-radius: 8px;
-    padding: 3px;
-  }
-  .ds-toggle button {
-    background: transparent;
-    border: none;
-    color: var(--ds-text-secondary);
-    padding: 5px 10px;
-    border-radius: 5px;
-    font-size: 12px;
-    font-weight: 500;
-    cursor: pointer;
-    font-family: inherit;
-  }
-  .ds-toggle button.active {
-    background: var(--ds-card);
-    color: var(--ds-text-heading);
-    box-shadow: 0 1px 2px rgba(0,0,0,0.3);
-  }
   .ds-btn-primary {
     background: var(--ds-primary);
     color: #fff;
@@ -1621,6 +1695,11 @@
     font-family: inherit;
   }
   .ds-icon-btn:hover { background: rgba(255,255,255,0.06); color: var(--ds-text); }
+  .ds-icon-btn--danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.5);
+    color: #EF4444;
+  }
 
   .ds-detail-meta {
     display: flex;

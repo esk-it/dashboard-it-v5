@@ -220,6 +220,7 @@ async def upload_document(
     title: str = Form(""),
     doc_type: str = Form(""),
     supplier: str = Form(""),
+    supplier_id: int | None = Form(None),  # v7.0.8 — take precedence over the name (deterministic lookup)
     doc_date: str = Form(""),
     reference: str = Form(""),
     notes: str = Form(""),
@@ -248,9 +249,9 @@ async def upload_document(
     if existing:
         raise HTTPException(status_code=409, detail="Ce fichier existe déjà (doublon SHA256)")
 
-    # Resolve supplier_id from name if provided
-    supplier_id = None
-    if supplier:
+    # Resolve supplier_id : explicit ID wins, fall back to name lookup for
+    # legacy callers (uploads from the old flat view sent only the name).
+    if not supplier_id and supplier:
         rows = await db.execute_fetchall(
             "SELECT id FROM suppliers WHERE name LIKE ?", (f"%{supplier}%",)
         )
