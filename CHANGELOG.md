@@ -4,6 +4,21 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.9 — Import : faux "doublon SHA256" sur des fichiers déjà supprimés
+
+Tu pouvais avoir un message **"Ce fichier existe déjà (doublon SHA256)"** alors que le fichier en question avait été supprimé du disque (manuellement ou par v7.0.7's cleanup-orphans). La row en base avait encore le `file_hash`, donc tout nouveau upload du même contenu trébuchait dessus.
+
+### Le fix
+
+Le check de doublon distingue maintenant 2 cas :
+
+1. **Vrai doublon** (la row a un `file_path` qui existe sur disque) → erreur 409 avec un message utile :
+   > « Un document avec ce contenu existe déjà : "Devis Konica 04-2026" (id=42). Utilise « + Rattacher un document » au lieu de le ré-importer. »
+
+2. **Orphelin** (la row existe mais son fichier est manquant) → on supprime silencieusement la row + ses tags + ses liens, et on poursuit l'import normalement. Aucune action utilisateur requise.
+
+Bonus : si on jette une 409 (vrai doublon), on supprime le fichier fraîchement uploadé pour ne pas accumuler de copies inutiles sur le disque.
+
 ## v7.0.8 — Documents : édition/suppression complète + retrait de la vue à plat
 
 Toutes les fonctionnalités utiles du module Documents à plat sont maintenant disponibles directement dans la vue Dossiers. La vue à plat est supprimée.

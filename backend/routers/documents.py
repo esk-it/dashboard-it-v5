@@ -242,12 +242,42 @@ async def upload_document(
 
     rel_path, sha = await _store_file(file, doc_type)
 
-    # Check for duplicate by hash
+    # Check for duplicate by SHA256. Two scenarios :
+    #   1. The existing row is an orphan (its file_path doesn't exist on disk) —
+    #      typically left over from a previous upload + manual delete from disk.
+    #      We silently clean it up and let the new upload proceed.
+    #   2. The existing row's file IS still on disk — real duplicate. Throw a
+    #      helpful 409 pointing to the existing document so the user knows to
+    #      rattacher au lieu de re-importer.
     existing = await db.execute_fetchall(
-        "SELECT id FROM documents WHERE file_hash = ?", (sha,)
+        "SELECT id, title, COALESCE(file_path,'') FROM documents WHERE file_hash = ?", (sha,)
     )
     if existing:
-        raise HTTPException(status_code=409, detail="Ce fichier existe déjà (doublon SHA256)")
+        existing_id, existing_title, existing_path = existing[0]
+        existing_alive = bool(existing_path) and (VAULT_ROOT / existing_path).exists()
+        if existing_alive:
+            # Real duplicate — drop the freshly stored copy so we don't leak files,
+            # and tell the user where the original is.
+            try:
+                (VAULT_ROOT / rel_path).unlink()
+            except OSError:
+                pass
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"Un document avec ce contenu existe déjà : « {existing_title} » (id={existing_id}). "
+                    "Utilise « + Rattacher un document » au lieu de le ré-importer."
+                ),
+            )
+        # Orphan — purge it before inserting the new row. (Cascade-delete
+        # tags + links so we don't keep stale references.)
+        await db.execute("DELETE FROM document_tags WHERE document_id = ?", (existing_id,))
+        await db.execute(
+            "DELETE FROM document_links WHERE source_id = ? OR target_id = ?",
+            (existing_id, existing_id),
+        )
+        await db.execute("DELETE FROM documents WHERE id = ?", (existing_id,))
+        # No commit yet — gets bundled with the INSERT below.
 
     # Resolve supplier_id : explicit ID wins, fall back to name lookup for
     # legacy callers (uploads from the old flat view sent only the name).
