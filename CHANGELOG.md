@@ -4,6 +4,39 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.0.10 — Dossiers : dates, tri et filtre par période
+
+Pour qu'on puisse remonter dans le temps facilement ("quand est-ce que j'ai eu à faire à Konica pour la dernière fois ?").
+
+### Côté serveur
+
+- `/api/dossiers` calcule maintenant deux dates dérivées des documents rattachés :
+  - `first_doc_date` (le plus ancien `doc_date`)
+  - `last_doc_date` (le plus récent)
+- Nouveaux paramètres de tri :
+  - `sort=recent` (par défaut, modifié récemment)
+  - `sort=recent_doc` (document le plus récent du dossier en haut)
+  - `sort=oldest_doc` (document le plus ancien en haut)
+  - `sort=title` (alphabétique)
+- Nouveau filtre par période :
+  - `period=30d` / `90d` (30 ou 90 derniers jours)
+  - `period=this_year` (année courante)
+  - `period=2025` / `2024` etc. (année explicite)
+
+Les dossiers archivés restent toujours en bas peu importe le tri.
+
+### Côté interface
+
+- **Sort dropdown dans la topbar** (à côté du bouton "+ Nouveau dossier") : sélecteur "Trier" avec les 4 options.
+- **Nouveau filtre "Période" dans la sidebar gauche** : Toutes périodes / 30j / 90j / Cette année / 2025 / 2024 (mis à jour automatiquement chaque année).
+- **Date affichée sur chaque card** : le coin bas-droit montre maintenant "📅 15/04/2026" (date du document le plus récent). Si le dossier n'a aucun doc daté, on retombe sur "Modifié il y a 3j" comme avant.
+
+### Cas d'usage
+
+- *"Quel a été mon dernier achat chez Ageona ?"* → filtre Prestataire "Ageona" + tri "Document le plus récent"
+- *"Tout ce que j'ai traité en 2024"* → filtre Période "2024"
+- *"Mes derniers 30 jours d'activité"* → filtre Période "30 derniers jours"
+
 ## v7.0.9 — Import : faux "doublon SHA256" sur des fichiers déjà supprimés
 
 Tu pouvais avoir un message **"Ce fichier existe déjà (doublon SHA256)"** alors que le fichier en question avait été supprimé du disque (manuellement ou par v7.0.7's cleanup-orphans). La row en base avait encore le `file_hash`, donc tout nouveau upload du même contenu trébuchait dessus.

@@ -25,12 +25,34 @@
   let loading = true;
   let stats = { total: 0, per_status: {}, smart: {} };
 
-  // Filters
+  // Filters + sort
   let filterStatus = '';
   let filterSupplier = null;
   let filterSite = '';
+  let filterPeriod = 'all';
+  let sortBy = 'recent';
   let searchQuery = '';
   let searchTimer;
+
+  const SORT_OPTIONS = [
+    { value: 'recent',     label: 'Modifié récemment' },
+    { value: 'recent_doc', label: 'Document le plus récent' },
+    { value: 'oldest_doc', label: 'Document le plus ancien' },
+    { value: 'title',      label: 'Alphabétique (A→Z)' },
+  ];
+
+  // Period filter — computed dynamically so the year list reflects "now".
+  $: PERIODS = (() => {
+    const year = new Date().getFullYear();
+    return [
+      { value: 'all',       label: 'Toutes périodes' },
+      { value: '30d',       label: '30 derniers jours' },
+      { value: '90d',       label: '90 derniers jours' },
+      { value: 'this_year', label: `Cette année (${year})` },
+      { value: String(year - 1), label: String(year - 1) },
+      { value: String(year - 2), label: String(year - 2) },
+    ];
+  })();
 
   // For supplier filter chips
   let allSuppliers = [];
@@ -146,6 +168,8 @@
       if (filterStatus) params.set('status', filterStatus);
       if (filterSupplier) params.set('supplier_id', filterSupplier);
       if (filterSite) params.set('site', filterSite);
+      if (filterPeriod && filterPeriod !== 'all') params.set('period', filterPeriod);
+      if (sortBy && sortBy !== 'recent') params.set('sort', sortBy);
       if (searchQuery) params.set('search', searchQuery);
       const q = params.toString();
       dossiers = await api.get('/api/dossiers' + (q ? '?' + q : ''));
@@ -174,8 +198,8 @@
     } catch { allSuppliers = []; }
   }
 
-  // Reactive: reload when filters change. Search is debounced.
-  $: filterStatus, filterSupplier, filterSite, loadDossiers();
+  // Reactive: reload when filters/sort change. Search is debounced.
+  $: filterStatus, filterSupplier, filterSite, filterPeriod, sortBy, loadDossiers();
 
   function onSearchInput() {
     clearTimeout(searchTimer);
@@ -644,6 +668,12 @@
       />
     </div>
     <div class="ds-spacer"></div>
+    <label class="ds-sort">
+      <span class="ds-sort-label">Trier</span>
+      <select bind:value={sortBy}>
+        {#each SORT_OPTIONS as opt}<option value={opt.value}>{opt.label}</option>{/each}
+      </select>
+    </label>
     <button class="ds-btn-primary" on:click={openCreateDialog}>
       + Nouveau dossier
     </button>
@@ -702,6 +732,15 @@
             <span>+ {allSuppliers.length - 8} autres</span>
           </div>
         {/if}
+      </div>
+
+      <div class="ds-filter-section">
+        <h3>Période</h3>
+        {#each PERIODS as p}
+          <div class="ds-filter-item" class:active={filterPeriod === p.value} on:click={() => filterPeriod = p.value}>
+            <span class="ds-filter-icon">📅 {p.label}</span>
+          </div>
+        {/each}
       </div>
     </aside>
 
@@ -792,7 +831,11 @@
 
             <div class="ds-card__footer">
               <span>{d.summary?.doc_count || 0} document{(d.summary?.doc_count || 0) > 1 ? 's' : ''}</span>
-              <span class="muted">Modifié {formatRelative(d.updated_at)}</span>
+              {#if d.last_doc_date}
+                <span class="muted" title={`Document le plus récent : ${formatDate(d.last_doc_date)}`}>📅 {formatDate(d.last_doc_date)}</span>
+              {:else}
+                <span class="muted" title={`Modifié ${formatDate(d.updated_at)}`}>Modifié {formatRelative(d.updated_at)}</span>
+              {/if}
             </div>
           </article>
         {/each}
@@ -1393,6 +1436,33 @@
     opacity: 0.5;
   }
   .ds-spacer { flex: 1; }
+
+  /* Sort dropdown in the topbar — compact, theme-aware native <select>. */
+  .ds-sort {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .ds-sort-label {
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-size: 10px;
+  }
+  .ds-sort select {
+    background: var(--bg-input, rgba(0,0,0,0.04));
+    border: 1px solid var(--ds-border);
+    color: var(--text-heading);
+    border-radius: 6px;
+    padding: 5px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
   .ds-btn-primary {
     background: var(--ds-primary);
     color: #fff;

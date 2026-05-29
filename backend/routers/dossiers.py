@@ -219,11 +219,25 @@ async def _row_to_dossier(db, r) -> dict:
 # ── List + stats ───────────────────────────────────────────
 
 _BASE_SELECT = (
-    "SELECT id, title, COALESCE(description,''), COALESCE(status,'demande_envoyee'), "
-    "supplier_id, project_id, COALESCE(site,''), COALESCE(estimated_budget,0), "
-    "received_at, archived_at, next_action_date, COALESCE(next_action_label,''), "
-    "COALESCE(notes,''), created_at, updated_at "
-    "FROM dossiers"
+    # v7.0.10 — left-join a CTE that aggregates the doc dates per dossier.
+    # `first_doc_date` and `last_doc_date` carry the earliest and most-recent
+    # `doc_date` (= the date written on the supplier's PDF) — used by the UI
+    # to display "Dernière activité" on each card, sort, and filter by period.
+    "WITH doc_dates AS ("
+    "  SELECT dossier_id,"
+    "         MIN(doc_date) AS first_doc_date,"
+    "         MAX(doc_date) AS last_doc_date"
+    "  FROM documents"
+    "  WHERE dossier_id IS NOT NULL AND doc_date IS NOT NULL AND doc_date != ''"
+    "  GROUP BY dossier_id"
+    ")"
+    "SELECT d.id, d.title, COALESCE(d.description,''), COALESCE(d.status,'demande_envoyee'), "
+    "d.supplier_id, d.project_id, COALESCE(d.site,''), COALESCE(d.estimated_budget,0), "
+    "d.received_at, d.archived_at, d.next_action_date, COALESCE(d.next_action_label,''), "
+    "COALESCE(d.notes,''), d.created_at, d.updated_at, "
+    "dd.first_doc_date, dd.last_doc_date "
+    "FROM dossiers d "
+    "LEFT JOIN doc_dates dd ON dd.dossier_id = d.id"
 )
 
 
@@ -244,6 +258,8 @@ def _row_to_dict(r) -> dict:
         "notes": r[12],
         "created_at": r[13],
         "updated_at": r[14],
+        "first_doc_date": r[15],
+        "last_doc_date": r[16],
     }
 
 
@@ -254,21 +270,25 @@ async def list_dossiers(
     project_id: int | None = Query(None),
     site: str = Query(""),
     search: str = Query(""),
+    sort: str = Query("recent", description="recent | recent_doc | oldest_doc | title"),
+    period: str = Query("all", description="all | 30d | 90d | this_year | YYYY (4-digit year)"),
     db=Depends(get_raw_db),
 ):
+    # All column refs use the `d.` alias because the _BASE_SELECT is now
+    # a JOIN'd query (CTE + dossiers d).
     where = " WHERE 1=1"
     params: list = []
     if status:
-        where += " AND status = ?"
+        where += " AND d.status = ?"
         params.append(status)
     if supplier_id is not None:
-        where += " AND supplier_id = ?"
+        where += " AND d.supplier_id = ?"
         params.append(supplier_id)
     if project_id is not None:
-        where += " AND project_id = ?"
+        where += " AND d.project_id = ?"
         params.append(project_id)
     if site:
-        where += " AND site = ?"
+        where += " AND d.site = ?"
         params.append(site)
     if search:
         # v7.0.8 — also match dossiers whose attached documents contain the
@@ -276,8 +296,8 @@ async def list_dossiers(
         # not only dossiers named "Konica…" but also dossiers that have a
         # facture titled "Facture Konica - …" inside.
         where += """ AND (
-            title LIKE ? OR description LIKE ? OR notes LIKE ?
-            OR id IN (
+            d.title LIKE ? OR d.description LIKE ? OR d.notes LIKE ?
+            OR d.id IN (
                 SELECT dossier_id FROM documents
                 WHERE dossier_id IS NOT NULL
                 AND (title LIKE ? OR COALESCE(reference,'') LIKE ? OR COALESCE(internal_ref,'') LIKE ?)
@@ -286,11 +306,36 @@ async def list_dossiers(
         like = f"%{search}%"
         params += [like, like, like, like, like, like]
 
-    # Order: archived go last, then by updated_at desc (most recent activity first).
-    order = (
-        " ORDER BY CASE status WHEN 'archive' THEN 1 ELSE 0 END ASC, "
-        "datetime(updated_at) DESC"
-    )
+    # Period filter — operates on the dossier's last_doc_date (the
+    # most-recent paper date among its attachments). Dossiers without any
+    # dated doc are excluded when a specific period is requested.
+    if period and period != "all":
+        from datetime import date, timedelta
+        today = date.today()
+        if period == "30d":
+            cutoff = (today - timedelta(days=30)).isoformat()
+            where += " AND dd.last_doc_date >= ?"
+            params.append(cutoff)
+        elif period == "90d":
+            cutoff = (today - timedelta(days=90)).isoformat()
+            where += " AND dd.last_doc_date >= ?"
+            params.append(cutoff)
+        elif period == "this_year":
+            where += " AND substr(dd.last_doc_date, 1, 4) = ?"
+            params.append(str(today.year))
+        elif period.isdigit() and len(period) == 4:
+            # explicit year filter, e.g. "2024"
+            where += " AND substr(dd.last_doc_date, 1, 4) = ?"
+            params.append(period)
+
+    # Sort. Archived dossiers always at the bottom regardless of sort.
+    sort_clauses = {
+        "recent": "ORDER BY CASE d.status WHEN 'archive' THEN 1 ELSE 0 END, datetime(d.updated_at) DESC",
+        "recent_doc": "ORDER BY CASE d.status WHEN 'archive' THEN 1 ELSE 0 END, CASE WHEN dd.last_doc_date IS NULL THEN 1 ELSE 0 END, dd.last_doc_date DESC",
+        "oldest_doc": "ORDER BY CASE d.status WHEN 'archive' THEN 1 ELSE 0 END, CASE WHEN dd.first_doc_date IS NULL THEN 1 ELSE 0 END, dd.first_doc_date ASC",
+        "title": "ORDER BY CASE d.status WHEN 'archive' THEN 1 ELSE 0 END, d.title COLLATE NOCASE ASC",
+    }
+    order = " " + sort_clauses.get(sort, sort_clauses["recent"])
     rows = await db.execute_fetchall(_BASE_SELECT + where + order, tuple(params))
 
     out = []
@@ -346,7 +391,7 @@ async def stats_summary(db=Depends(get_raw_db)):
 @router.get("/{dossier_id}")
 async def get_dossier(dossier_id: int, db=Depends(get_raw_db)):
     rows = await db.execute_fetchall(
-        _BASE_SELECT + " WHERE id = ?", (dossier_id,)
+        _BASE_SELECT + " WHERE d.id = ?", (dossier_id,)
     )
     if not rows:
         raise HTTPException(404, "Dossier introuvable")
