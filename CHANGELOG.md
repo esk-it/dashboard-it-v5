@@ -4,6 +4,58 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.1.0 — Prestataires : refonte en mini-CRM
+
+Même logique que pour les Dossiers en v7.0.0 : l'ancien module Prestataires était une liste de contacts passive (nom / téléphone / mail), sans aucune notion de relation commerciale ni d'historique. Pourtant tout passe par eux — devis, factures, livraisons, SAV. Le module devient donc un vrai **mini-CRM** centré sur la relation business.
+
+### Côté serveur
+
+- Endpoint `GET /api/suppliers` enrichi avec des KPIs calculés à la volée (CTE SQL agrégeant `documents` + `dossiers`) :
+  - `engaged_total` — somme de tous les montants documentés (la valeur "acceptée" prime sur la "déclarée")
+  - `engaged_ytd` — pareil mais filtré sur l'année courante
+  - `active_dossiers_count` / `total_dossiers_count`
+  - `last_interaction` — date du document le plus récent
+  - `status_auto` — statut relationnel auto-calculé : `actif_recent` (<60j), `actif` (<180j), `dormant` (<365j), `inactif` (>365j), `jamais_utilise`
+  - `domain_color` — la couleur du domaine du prestataire (jointure sur `supplier_domains`)
+- Endpoint détail `GET /api/suppliers/{id}` ajoute en plus :
+  - `timeline` — flux chronologique des événements (création dossier, ajout doc, changement de statut, note, livraison)
+  - `services` — catalogue de prestations agrégé par type de document
+- Nouveaux filtres list :
+  - `status_auto=actif_recent|actif|dormant|inactif|jamais_utilise`
+  - `has_active_dossier=true` (uniquement les prestas avec au moins 1 dossier non archivé)
+
+### Côté interface
+
+Refonte complète de la page Prestataires en layout 3 colonnes inspiré du module Dossiers :
+
+- **Colonne gauche** — filtres :
+  - Recherche par nom/email/téléphone
+  - Statut relationnel (les 5 buckets `status_auto`)
+  - Domaine (avec pastille de couleur)
+  - Toggle "Avec dossier actif uniquement"
+- **Colonne centrale** — cards prestataires avec :
+  - Logo (ou avatar à initiales en fallback)
+  - Pastille de domaine + nom
+  - 3 KPIs visibles : "Engagé YTD" / "Dossiers actifs" / "Dernier contact"
+  - Badge statut auto coloré
+- **Colonne droite** — panneau détail :
+  - Bandeau header avec logo, nom, domaine + actions (Modifier / Supprimer)
+  - **Grille de KPIs** : Engagé total / Engagé YTD / Dossiers actifs / Dernière interaction
+  - **Bouton "Voir les dossiers"** → navigue vers la page Dossiers avec un filtre prestataire pré-rempli (via `sessionStorage`)
+  - **Section Contacts** — contact principal + contacts secondaires (téléphone, mail, rôle)
+  - **Catalogue de services** — types de documents déjà fournis par le prestataire avec compteur
+  - **Timeline d'activité** — flux chronologique des derniers événements (création dossier, ajout doc, changement statut)
+
+### CRUD préservé
+
+Toutes les fonctionnalités existantes restent : création/édition de prestataire (avec upload logo, contacts secondaires éditables), suppression confirmée, gestion des domaines (manager dialog dédié).
+
+### Cas d'usage
+
+- *"Avec qui ai-je le plus dépensé cette année ?"* → tri implicite par `engaged_ytd` visible sur chaque card
+- *"Quels prestataires sont devenus dormants ?"* → filtre statut "Dormant" → relance commerciale
+- *"Quel est l'historique avec Konica ?"* → ouvre le détail → timeline complète + catalogue de services
+
 ## v7.0.10 — Dossiers : dates, tri et filtre par période
 
 Pour qu'on puisse remonter dans le temps facilement ("quand est-ce que j'ai eu à faire à Konica pour la dernière fois ?").
