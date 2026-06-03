@@ -27,6 +27,7 @@
   import WikiPage from './lib/pages/WikiPage.svelte';
   import SuppliersPage from './lib/pages/SuppliersPage.svelte';
   import ParcPage from './lib/pages/ParcPage.svelte';
+  import ChromebooksPage from './lib/pages/ChromebooksPage.svelte';
   import SecurityPage from './lib/pages/SecurityPage.svelte';
   import MonitoringPage from './lib/pages/MonitoringPage.svelte';
   import LauncherPage from './lib/pages/LauncherPage.svelte';
@@ -144,6 +145,8 @@
       <SuppliersPage />
     {:else if $currentPage === '/parc'}
       <ParcPage />
+    {:else if $currentPage === '/chromebooks'}
+      <ChromebooksPage />
     {:else if $currentPage === '/security'}
       <SecurityPage />
     {:else if $currentPage === '/wiki'}

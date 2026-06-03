@@ -661,6 +661,70 @@ async def init_db():
             sort_order INTEGER NOT NULL DEFAULT 100,
             created_at TEXT NOT NULL
         )""",
+        # --- v7.2.0 — Module Chromebooks (mini-MDM côté DashboardIT) ---
+        # Tables miroirs des données Google Admin SDK Directory API, enrichies
+        # de colonnes locales (statut workflow, notes, dates) que Google n'expose
+        # pas. Politique de sync : INSERT/UPDATE par clé naturelle stable
+        # (email pour teachers, google_device_id pour chromebooks), jamais
+        # DELETE — un device sorti de l'OU "Personnel éducatif" reste tracké
+        # côté DB pour préserver l'historique (utile pour les campagnes).
+        """CREATE TABLE IF NOT EXISTS teachers (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            google_user_id      TEXT NOT NULL DEFAULT '',
+            email               TEXT NOT NULL UNIQUE,
+            full_name           TEXT NOT NULL DEFAULT '',
+            given_name          TEXT NOT NULL DEFAULT '',
+            family_name         TEXT NOT NULL DEFAULT '',
+            google_ou_path      TEXT NOT NULL DEFAULT '',
+            is_suspended        INTEGER NOT NULL DEFAULT 0,
+            status_local        TEXT NOT NULL DEFAULT 'present',
+            arrival_date        TEXT NULL,
+            departure_date      TEXT NULL,
+            notes               TEXT NOT NULL DEFAULT '',
+            last_sync           TEXT NOT NULL DEFAULT '',
+            created_at          TEXT NOT NULL,
+            updated_at          TEXT NOT NULL
+        )""",
+        # Liaison interne assigned_teacher_id remplie auto à chaque sync via
+        # binding_source: 'annotated' (annotatedUser Google) > 'recent_user'
+        # (recentUsers[0]) > 'manual' (override UI) > 'none' (orphelin).
+        """CREATE TABLE IF NOT EXISTS chromebooks (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            google_device_id     TEXT NOT NULL UNIQUE,
+            serial_number        TEXT NOT NULL DEFAULT '',
+            model                TEXT NOT NULL DEFAULT '',
+            annotated_asset_id   TEXT NOT NULL DEFAULT '',
+            annotated_user       TEXT NOT NULL DEFAULT '',
+            org_unit_path        TEXT NOT NULL DEFAULT '',
+            google_status        TEXT NOT NULL DEFAULT '',
+            last_enrollment_time TEXT NULL,
+            support_end_date     TEXT NULL,
+            last_user_email      TEXT NOT NULL DEFAULT '',
+            assigned_teacher_id  INTEGER NULL REFERENCES teachers(id) ON DELETE SET NULL,
+            binding_source       TEXT NOT NULL DEFAULT 'none',
+            status_local         TEXT NOT NULL DEFAULT 'en_service',
+            service_start_date   TEXT NULL,
+            return_date          TEXT NULL,
+            notes_local          TEXT NOT NULL DEFAULT '',
+            last_sync            TEXT NOT NULL DEFAULT '',
+            created_at           TEXT NOT NULL,
+            updated_at           TEXT NOT NULL
+        )""",
+        # Trace persistante de chaque période d'affectation chromebook<->prof.
+        # On garde teacher_email + teacher_name en clair pour que l'historique
+        # reste lisible même si le compte prof est supprimé côté Google.
+        """CREATE TABLE IF NOT EXISTS chromebook_assignments_history (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            chromebook_id   INTEGER NOT NULL REFERENCES chromebooks(id) ON DELETE CASCADE,
+            teacher_id      INTEGER NULL REFERENCES teachers(id) ON DELETE SET NULL,
+            teacher_email   TEXT NOT NULL DEFAULT '',
+            teacher_name    TEXT NOT NULL DEFAULT '',
+            assigned_at     TEXT NOT NULL,
+            returned_at     TEXT NULL,
+            condition_in    TEXT NOT NULL DEFAULT '',
+            condition_out   TEXT NOT NULL DEFAULT '',
+            notes           TEXT NOT NULL DEFAULT ''
+        )""",
     ]
 
     for stmt in statements:

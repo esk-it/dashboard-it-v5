@@ -2,14 +2,14 @@
   import { onMount, onDestroy } from 'svelte';
   import { createEventDispatcher } from 'svelte';
   import { currentPage, navItems, sidebarOpen, seenNewKeys, isNew } from '../stores/navigation.js';
-  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target } from 'lucide-svelte';
+  import { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target, Laptop } from 'lucide-svelte';
   import { API_BASE } from '../api/client.js';
   import logoUrl from '../../assets/logo.png';
   import nomB from '../../assets/nomB.png';
 
   const dispatch = createEventDispatcher();
 
-  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target };
+  const iconMap = { Home, Globe, Calendar, CheckSquare, FileText, Mail, Users, Monitor, Shield, BookOpen, ClipboardList, Activity, Rocket, Wrench, Settings, Target, Laptop };
 
   let appVersion = '';
   let overdueCount = 0;

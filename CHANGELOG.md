@@ -4,6 +4,80 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.0 — Nouveau module : Chromebooks (mini-MDM pour les profs)
+
+Premier jalon d'un module dédié à la gestion des Chromebooks des profs, pensé
+pour la rotation annuelle (~500 devices). Google Admin est moche et lent, ce
+module devient le tableau de bord central. Cette v7.2.0 livre la fondation :
+synchronisation Google + édition locale + historique. La gestion de campagne
+de fin d'année arrivera en v7.3.0.
+
+### Authentification
+
+- 2 scopes ajoutés au flux Google OAuth existant :
+  - `admin.directory.device.chromeos.readonly` (lire les Chromebooks)
+  - `admin.directory.user.readonly` (lire les comptes profs Workspace)
+- ⚠️ Tu devras **re-valider les permissions Google** dans Paramètres → Google
+  une fois la maj installée (Google force un nouveau consent à cause des
+  nouveaux scopes). Aucune reconfig GCP à faire, tes credentials existants
+  marchent.
+
+### Côté serveur
+
+- 3 nouvelles tables : `chromebooks`, `teachers`, `chromebook_assignments_history`
+- Nouveau service `google_admin.py` : parle à l'Admin SDK Directory v1 via
+  l'OAuth déjà en place, avec pagination + extraction propre des champs
+  utiles.
+- **Sync filtrée à la source** : on tire uniquement l'OU
+  `/1. Chromebooks/1. Personnel éducatif` (configurable), pas le domaine
+  entier. Pareil pour les profs.
+- **Auto-binding chromebook ↔ prof** à chaque sync, avec priorité :
+  1. `annotatedUser` (le champ « utilisateur attribué » côté Admin)
+  2. `recentUsers[0]` (le « dernier utilisateur connecté »)
+  3. Si rien ne matche → chromebook marqué **orphelin** (à reviewer manuellement)
+- **Politique INSERT/UPDATE seulement** : un device déplacé sur une autre OU
+  côté Google reste tracké localement. On préserve l'historique.
+- **Historique automatique** : chaque changement de prof affecté est loggué
+  dans `chromebook_assignments_history` avec la source (« sync auto », « manuel »).
+- Endpoints : `/api/chromebooks/sync`, `/api/chromebooks` (liste + filtres),
+  `/api/chromebooks/{id}`, `/api/chromebooks/{id}/history`, idem pour
+  `/api/teachers/*`. KPIs agrégés sur `/api/chromebooks/stats`.
+
+### Côté interface
+
+Nouveau menu **Chromebooks** dans la sidebar (entre Parc et Prestataires).
+
+Page avec deux onglets, chacun en layout 3 colonnes habituel :
+
+**Onglet Chromebooks**
+- Filtres : recherche libre, statut local (En service / À rendre / Rendu /
+  En panne / À effacer / En stock), modèle, liaison prof (avec / sans /
+  orphelins / manuels)
+- Cards : modèle + serial + badge statut + prof identifié + alerte si fin
+  de support Google < 6 mois
+- Détail : infos Google (read-only) + édition statut local + assignation
+  prof éditable (auto par défaut, override manuel possible) + historique
+  d'affectations
+
+**Onglet Profs**
+- Filtres : recherche, statut (Présent / Partant / Arrivant / Parti),
+  avec/sans device
+- Cards : avatar + nom + email + chromebook principal + badge statut
+- Détail : infos Google + statut local éditable (le partant/arrivant
+  prépare déjà la campagne fin d'année de la v7.3.0) + chromebooks
+  affectés + historique
+
+### Cas d'usage de cette v7.2.0
+
+- *"Où en est mon parc Chromebook ?"* → ouvre le module, KPIs en haut
+  (total, orphelins, profs sans device, dernière sync)
+- *"Le Chromebook de Mme Durand a quel statut ?"* → recherche son nom,
+  card avec tout ce qu'il faut
+- *"Quels Chromebooks ont une fin de support proche ?"* → badge orange sur
+  les cards concernées
+- *"Préparation de la rentrée"* → marque les profs partants/arrivants dès
+  juin, en v7.3.0 le mode Campagne s'appuiera dessus
+
 ## v7.1.0 — Prestataires : refonte en mini-CRM
 
 Même logique que pour les Dossiers en v7.0.0 : l'ancien module Prestataires était une liste de contacts passive (nom / téléphone / mail), sans aucune notion de relation commerciale ni d'historique. Pourtant tout passe par eux — devis, factures, livraisons, SAV. Le module devient donc un vrai **mini-CRM** centré sur la relation business.

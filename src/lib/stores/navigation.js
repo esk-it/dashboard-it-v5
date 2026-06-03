@@ -17,7 +17,8 @@ export const navItems = [
   { key: 'news',      path: '/news',       icon: 'Globe',        label: 'Actualités',  emoji: '\u{1F310}' },
 
   { type: 'section', label: 'NOS OUTILS' },
-  { key: 'parc',       path: '/parc',       icon: 'Monitor',        label: 'Parc',        emoji: '\u{1F5A5}️' },
+  { key: 'parc',        path: '/parc',        icon: 'Monitor',        label: 'Parc',         emoji: '\u{1F5A5}️' },
+  { key: 'chromebooks', path: '/chromebooks', icon: 'Laptop',         label: 'Chromebooks',  emoji: '\u{1F4BB}' },
   { key: 'suppliers',  path: '/suppliers',  icon: 'Users',          label: 'Prestataires',emoji: '\u{1F4C7}' },
   { key: 'security',   path: '/security',   icon: 'Shield',         label: 'Sécurité',    emoji: '\u{1F6E1}️' },
   { key: 'monitoring', path: '/monitoring', icon: 'Activity',       label: 'Monitoring',  emoji: '\u{1F4E1}' },
@@ -38,6 +39,19 @@ export const navItems = [
 // highlights array. The user has marked the previous version as seen, but a
 // `since` change is treated as a fresh badge.
 export const whatsNew = {
+  chromebooks: {
+    since: '7.2.0',
+    title: 'Chromebooks — nouveau module',
+    highlights: [
+      "Synchronisation avec Google Workspace : tire automatiquement les profs et leurs Chromebooks de l'OU « Personnel éducatif »",
+      "Association automatique chromebook ↔ prof via le champ « dernier utilisateur » Google",
+      "Filtres : statut local (en service, à rendre, rendu, en panne…), modèle, recherche libre",
+      "Marquage des profs partants / arrivants en préparation pour la rentrée",
+      "Historique complet : qui a eu quel chromebook, quand, dans quel état",
+      "Détection des orphelins (chromebooks sans prof identifié) et profs sans device",
+      "Politique sync « INSERT/UPDATE seulement » : un device sorti de l'OU reste tracké",
+    ],
+  },
   documents: {
     since: '6.7.0',
     title: 'Documents — refonte complète',
