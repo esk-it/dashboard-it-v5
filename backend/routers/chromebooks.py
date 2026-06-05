@@ -131,7 +131,8 @@ async def list_chromebooks(
     binding_source: str = Query(""),
     has_teacher: str = Query(""),  # 'true' / 'false' / ''
     teacher_id: int | None = Query(None),
-    sort: str = Query("model"),  # model / serial / recent_sync / last_enrollment
+    support_ending_soon: str = Query(""),  # v7.2.1 — 'true' to filter < 6 months
+    sort: str = Query("model"),  # model / serial / recent_sync / last_enrollment / support_end
     db=Depends(get_raw_db),
 ):
     where: list[str] = ["1=1"]
@@ -161,12 +162,21 @@ async def list_chromebooks(
     if teacher_id is not None:
         where.append("c.assigned_teacher_id = ?")
         params.append(teacher_id)
+    if support_ending_soon == "true":
+        # Devices whose Google support_end_date is within 180 days (or already past).
+        # SQLite compares ISO date strings lexicographically — safe here.
+        from datetime import datetime as _dt, timedelta as _td
+        threshold = (_dt.now() + _td(days=180)).strftime("%Y-%m-%d")
+        where.append("c.support_end_date IS NOT NULL AND c.support_end_date <> '' AND c.support_end_date <= ?")
+        params.append(threshold)
 
     order_by = {
         "model": "c.model ASC, c.serial_number ASC",
         "serial": "c.serial_number ASC",
         "recent_sync": "c.last_sync DESC",
         "last_enrollment": "c.last_enrollment_time DESC",
+        # Closest end-of-support first. NULLs go last via the COALESCE trick.
+        "support_end": "(CASE WHEN c.support_end_date IS NULL OR c.support_end_date = '' THEN 1 ELSE 0 END), c.support_end_date ASC",
     }.get(sort, "c.model ASC, c.serial_number ASC")
 
     sql = f"SELECT {_CB_COLS} {_CB_FROM} WHERE {' AND '.join(where)} ORDER BY {order_by}"
@@ -468,14 +478,31 @@ async def sync_from_google(db=Depends(get_raw_db)):
         # Resolve binding
         annotated = (norm["annotated_user"] or "").lower()
         last_user = (norm["last_user_email"] or "").lower()
+        # Diagnostic counters: surface why bindings fail in the SyncStats so
+        # the UI can show "voici ce que Google a renvoyé".
+        if annotated:
+            stats.devices_with_annotated += 1
+        if last_user:
+            stats.devices_with_recent_user += 1
         binding_source = "none"
         teacher_id: int | None = None
         if annotated and annotated in teacher_by_email:
             teacher_id = teacher_by_email[annotated]
             binding_source = "annotated"
+            stats.matched_via_annotated += 1
         elif last_user and last_user in teacher_by_email:
             teacher_id = teacher_by_email[last_user]
             binding_source = "recent_user"
+            stats.matched_via_recent_user += 1
+        elif len(stats.orphan_samples) < 5:
+            # Capture a few orphan examples so the UI can hint the user
+            # ("Voici les emails que Google nous a renvoyé pour ce chromebook…").
+            stats.orphan_samples.append({
+                "serial_number": norm["serial_number"],
+                "model": norm["model"],
+                "annotated_user": norm["annotated_user"],
+                "last_user_email": norm["last_user_email"],
+            })
 
         if existing:
             cb_id, old_teacher_id, old_source = existing[0]

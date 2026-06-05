@@ -16,6 +16,7 @@
   let loading = true;
   let syncing = false;
   let lastSyncResult = null;
+  let showSyncResultDialog = false; // v7.2.1
 
   // ── Selection / panels ────────────────────────────────────
   let selectedCb = null;
@@ -31,6 +32,7 @@
   let filterModel = '';
   let filterBinding = '';
   let filterHasTeacher = '';
+  let filterSupportSoon = false; // v7.2.1
   let cbSort = 'model';
 
   // ── Filters: teachers ─────────────────────────────────────
@@ -83,7 +85,7 @@
   }
 
   // ── Reload triggers ───────────────────────────────────────
-  $: if (activeTab === 'chromebooks') reloadChromebooks(cbSearchDebounced, filterStatus, filterModel, filterBinding, filterHasTeacher, cbSort);
+  $: if (activeTab === 'chromebooks') reloadChromebooks(cbSearchDebounced, filterStatus, filterModel, filterBinding, filterHasTeacher, filterSupportSoon, cbSort);
   $: if (activeTab === 'teachers') reloadTeachers(tSearchDebounced, tStatus, tHasDevice, tSort);
 
   async function reloadChromebooks(...args) {
@@ -93,6 +95,7 @@
     if (filterModel) params.set('model', filterModel);
     if (filterBinding) params.set('binding_source', filterBinding);
     if (filterHasTeacher) params.set('has_teacher', filterHasTeacher);
+    if (filterSupportSoon) params.set('support_ending_soon', 'true');
     params.set('sort', cbSort);
     try {
       chromebooks = await api.get('/api/chromebooks?' + params.toString());
@@ -143,6 +146,9 @@
     try {
       const result = await api.post('/api/chromebooks/sync', {});
       lastSyncResult = result;
+      // Open the result modal so the user can see the matching breakdown
+      // (matched via annotated / recent user / orphans). v7.2.1.
+      showSyncResultDialog = true;
       const msg = `Sync OK — ${result.devices_total} chromebooks, ${result.teachers_total} profs (${result.duration_seconds}s)`;
       success(msg);
       await Promise.all([reloadStats(), reloadModels()]);
@@ -338,6 +344,14 @@
       return diffDays < 180; // < 6 months
     } catch { return false; }
   }
+  // v7.2.1 — open this device in the Google Admin Chrome console.
+  function googleAdminUrl(cb) {
+    return 'https://admin.google.com/ac/chrome/devices/' + (cb.google_device_id || '');
+  }
+  function openInGoogleAdmin(cb) {
+    if (!cb || !cb.google_device_id) return;
+    window.open(googleAdminUrl(cb), '_blank');
+  }
 </script>
 
 <div class="page-root">
@@ -433,12 +447,21 @@
       </div>
 
       <div class="filter-group">
+        <label>Fin de support Google</label>
+        <label class="check-row">
+          <input type="checkbox" bind:checked={filterSupportSoon} />
+          <span>Sous 6 mois (ou dépassée)</span>
+        </label>
+      </div>
+
+      <div class="filter-group">
         <label>Tri</label>
         <select bind:value={cbSort}>
           <option value="model">Modèle</option>
           <option value="serial">Numéro de série</option>
           <option value="recent_sync">Dernière sync</option>
           <option value="last_enrollment">Date d'enrôlement</option>
+          <option value="support_end">Fin de support (croissant)</option>
         </select>
       </div>
     </aside>
@@ -469,7 +492,7 @@
                   <div class="card-title">{cb.model || '(modèle inconnu)'}</div>
                   <div class="card-sub">{cb.serial_number || cb.google_device_id}</div>
                 </div>
-                <span class="status-pill" style="border-color:{st.color}; color:{st.color}">
+                <span class="status-pill" style="border-color:{st.color}; background:{st.color}26">
                   <span class="dot" style="background:{st.color}"></span>{st.label}
                 </span>
               </header>
@@ -512,7 +535,12 @@
                 <div class="panel-sub">{selectedCb.serial_number || '(sans serial)'}</div>
               </div>
             </div>
-            <button class="icon-btn" on:click={closeCbPanel} title="Fermer"><X size={16} /></button>
+            <div class="panel-actions">
+              <button class="icon-btn" on:click={() => openInGoogleAdmin(selectedCb)} title="Ouvrir dans Google Admin">
+                <ExternalLink size={16} />
+              </button>
+              <button class="icon-btn" on:click={closeCbPanel} title="Fermer"><X size={16} /></button>
+            </div>
           </header>
 
           <!-- Specs Google (read-only) -->
@@ -543,7 +571,7 @@
             <div class="kv-grid">
               <div><span class="k">Statut</span>
                 <span class="v">
-                  <span class="status-pill inline" style="border-color:{st.color}; color:{st.color}">
+                  <span class="status-pill inline" style="border-color:{st.color}; background:{st.color}26">
                     <span class="dot" style="background:{st.color}"></span>{st.label}
                   </span>
                 </span>
@@ -577,7 +605,39 @@
                 <span class="binding-badge">{BINDING_LABELS[selectedCb.binding_source] || selectedCb.binding_source}</span>
               </div>
             {:else}
-              <div class="muted small">Aucun prof identifié. Aucun « utilisateur attribué » ni « dernier utilisateur » n'a pu être relié à un compte profs synchronisé.</div>
+              <!-- v7.2.1 — diagnostic clair quand l'auto-binding rate. -->
+              <div class="diag-box">
+                <div class="diag-title">
+                  <AlertCircle size={14} /> Aucun prof identifié automatiquement
+                </div>
+                <div class="diag-lines">
+                  <div class="diag-line">
+                    <span class="diag-key">Utilisateur attribué (Google) :</span>
+                    {#if selectedCb.annotated_user}
+                      <span class="diag-val">{selectedCb.annotated_user}</span>
+                      <span class="diag-tag">non trouvé dans les profs</span>
+                    {:else}
+                      <span class="diag-val muted">non défini côté Google</span>
+                    {/if}
+                  </div>
+                  <div class="diag-line">
+                    <span class="diag-key">Dernier utilisateur connu :</span>
+                    {#if selectedCb.last_user_email}
+                      <span class="diag-val">{selectedCb.last_user_email}</span>
+                      <span class="diag-tag">non trouvé dans les profs</span>
+                    {:else}
+                      <span class="diag-val muted">non défini côté Google</span>
+                    {/if}
+                  </div>
+                </div>
+                <div class="diag-hint">
+                  {#if !selectedCb.annotated_user && !selectedCb.last_user_email}
+                    Google n'a renvoyé aucun email pour ce chromebook. Vérifie côté Google Admin que le suivi des « utilisateurs récents » est activé sur le device.
+                  {:else}
+                    Les emails proposés par Google ne correspondent à aucun prof synchronisé. Vérifie le chemin OU des profs dans les Paramètres, ou associe manuellement.
+                  {/if}
+                </div>
+              </div>
             {/if}
           </section>
 
@@ -664,7 +724,19 @@
     <section class="cards-col">
       {#if teachers.length === 0}
         <div class="empty">
-          {#if stats.last_sync}
+          {#if stats.last_sync && (!tSearchDebounced && !tStatus && !tHasDevice)}
+            <!-- Sync a deja eu lieu mais aucun prof : le chemin OU est sans doute faux. -->
+            <AlertCircle size={28} />
+            <p><strong>0 prof récupéré lors de la dernière sync.</strong></p>
+            <p class="muted small">
+              Le chemin OU des utilisateurs ne correspond probablement à rien
+              côté Google. Le chemin actuel est :
+              <code>{cbSettings.user_ou_path || '(non défini)'}</code>
+            </p>
+            <button class="btn-secondary mt8" on:click={openSettings}>
+              <SettingsIcon size={13} /> Ajuster le chemin OU
+            </button>
+          {:else if stats.last_sync}
             Aucun prof ne correspond aux filtres.
           {:else}
             Aucun prof encore.<br>
@@ -684,7 +756,7 @@
                   <div class="card-title">{t.full_name || t.email}</div>
                   <div class="card-sub">{t.email}</div>
                 </div>
-                <span class="status-pill" style="border-color:{ts.color}; color:{ts.color}">
+                <span class="status-pill" style="border-color:{ts.color}; background:{ts.color}26">
                   <span class="dot" style="background:{ts.color}"></span>{ts.label}
                 </span>
               </header>
@@ -740,7 +812,7 @@
             <div class="kv-grid">
               <div><span class="k">Statut</span>
                 <span class="v">
-                  <span class="status-pill inline" style="border-color:{ts.color}; color:{ts.color}">
+                  <span class="status-pill inline" style="border-color:{ts.color}; background:{ts.color}26">
                     <span class="dot" style="background:{ts.color}"></span>{ts.label}
                   </span>
                 </span>
@@ -767,7 +839,7 @@
                       <div class="device-title">{d.model || '(modèle inconnu)'}</div>
                       <div class="device-serial">{d.serial_number}</div>
                     </div>
-                    <span class="status-pill inline small" style="border-color:{ds.color}; color:{ds.color}">
+                    <span class="status-pill inline small" style="border-color:{ds.color}; background:{ds.color}26">
                       <span class="dot" style="background:{ds.color}"></span>{ds.label}
                     </span>
                   </div>
@@ -914,6 +986,101 @@
         <footer class="dialog-f">
           <button class="btn-secondary" on:click={() => editingTeacherForm = null}>Annuler</button>
           <button class="btn-primary" on:click={saveTeacherEdit}>Enregistrer</button>
+        </footer>
+      </div>
+    </div>
+  {/if}
+
+  <!-- v7.2.1 — Sync result modal with diagnostic breakdown. -->
+  {#if showSyncResultDialog && lastSyncResult}
+    {@const r = lastSyncResult}
+    {@const totalMatched = (r.matched_via_annotated || 0) + (r.matched_via_recent_user || 0)}
+    {@const pctMatched = r.devices_total > 0 ? Math.round(100 * totalMatched / r.devices_total) : 0}
+    <div class="dialog-overlay" on:click|self={() => showSyncResultDialog = false}>
+      <div class="dialog">
+        <header class="dialog-h">
+          <h3>Résultat de la synchronisation</h3>
+          <button class="icon-btn" on:click={() => showSyncResultDialog = false}><X size={16} /></button>
+        </header>
+        <div class="dialog-body">
+          <div class="sync-summary">
+            <div class="sync-kpi">
+              <div class="sync-kpi-v">{r.devices_total}</div>
+              <div class="sync-kpi-k">Chromebooks</div>
+              <div class="sync-kpi-sub">{r.devices_inserted} nouveaux · {r.devices_updated} maj</div>
+            </div>
+            <div class="sync-kpi">
+              <div class="sync-kpi-v">{r.teachers_total}</div>
+              <div class="sync-kpi-k">Profs</div>
+              <div class="sync-kpi-sub">{r.teachers_inserted} nouveaux · {r.teachers_updated} maj</div>
+            </div>
+            <div class="sync-kpi" class:warn={pctMatched < 80}>
+              <div class="sync-kpi-v">{pctMatched}%</div>
+              <div class="sync-kpi-k">Profs associés</div>
+              <div class="sync-kpi-sub">{totalMatched} / {r.devices_total} chromebooks</div>
+            </div>
+          </div>
+
+          <div class="sync-breakdown">
+            <div class="bd-row">
+              <span class="bd-label">Via « utilisateur attribué » (Admin Google)</span>
+              <span class="bd-value">{r.matched_via_annotated || 0} / {r.devices_with_annotated || 0}</span>
+            </div>
+            <div class="bd-row">
+              <span class="bd-label">Via « dernier utilisateur connu »</span>
+              <span class="bd-value">{r.matched_via_recent_user || 0} / {r.devices_with_recent_user || 0}</span>
+            </div>
+            <div class="bd-row">
+              <span class="bd-label">Orphelins (aucun email exploitable)</span>
+              <span class="bd-value warn-text">{r.devices_orphaned || 0}</span>
+            </div>
+            <div class="bd-row">
+              <span class="bd-label">Re-bindés cette sync (changement de prof)</span>
+              <span class="bd-value">{r.devices_rebound || 0}</span>
+            </div>
+            <div class="bd-row">
+              <span class="bd-label">Durée</span>
+              <span class="bd-value">{r.duration_seconds}s</span>
+            </div>
+          </div>
+
+          {#if r.devices_total > 0 && r.teachers_total === 0}
+            <div class="banner-warn">
+              <AlertCircle size={14} />
+              <span>
+                <strong>0 prof synchronisé.</strong> Le chemin OU des utilisateurs
+                est probablement incorrect. Vérifie dans <em>Paramètres Chromebooks</em>.
+              </span>
+            </div>
+          {/if}
+
+          {#if r.orphan_samples && r.orphan_samples.length > 0}
+            <div class="orphan-samples">
+              <div class="orphan-title">Exemples d'orphelins (max 5)</div>
+              {#each r.orphan_samples as s}
+                <div class="orphan-row">
+                  <div class="orphan-device">{s.model || '(modèle inconnu)'} · {s.serial_number || '(sans serial)'}</div>
+                  <div class="orphan-emails">
+                    <span class="orphan-tag">attribué :</span> <span>{s.annotated_user || '—'}</span>
+                    <span class="orphan-tag">dernier :</span> <span>{s.last_user_email || '—'}</span>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if r.errors && r.errors.length}
+            <div class="banner-warn">
+              <AlertCircle size={14} />
+              <span>
+                Erreurs survenues pendant la sync :
+                <ul>{#each r.errors as e}<li>{e}</li>{/each}</ul>
+              </span>
+            </div>
+          {/if}
+        </div>
+        <footer class="dialog-f">
+          <button class="btn-primary" on:click={() => showSyncResultDialog = false}>Fermer</button>
         </footer>
       </div>
     </div>
@@ -1099,11 +1266,16 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .card-sub { font-size: 12px; color: var(--text-muted); }
+  /* v7.2.1 — pastille statut : fond teinté + texte qui suit le thème.
+     L'ancienne version (background transparent + color: <hex>) devenait
+     illisible en theme light selon le hex utilisé. La couleur est désormais
+     conservée uniquement sur le fond, la bordure et le dot — le texte
+     reste sur var(--text-heading) qui est toujours lisible. */
   .status-pill {
     display: inline-flex; align-items: center; gap: 4px;
     border: 1px solid; border-radius: 999px;
     padding: 2px 8px; font-size: 11px; font-weight: 600;
-    background: transparent;
+    color: var(--text-heading) !important;
   }
   .status-pill.inline { padding: 1px 6px; font-size: 10px; }
   .status-pill.small { font-size: 10px; padding: 1px 6px; }
@@ -1241,6 +1413,57 @@
   .dialog-body textarea { resize: vertical; }
   .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .dialog-f { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border-color); }
+
+  /* v7.2.1 — checkbox row inside a filter group */
+  .check-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-primary);
+    cursor: pointer; padding: 4px 0;
+    text-transform: none; letter-spacing: 0; font-weight: 400;
+  }
+  .check-row input[type="checkbox"] { margin: 0; cursor: pointer; }
+
+  /* Multiple buttons in panel header */
+  .panel-actions { display: flex; gap: 4px; align-items: center; }
+
+  /* v7.2.1 — diagnostic box (binding=none) */
+  .diag-box {
+    padding: 10px 12px; border-radius: 8px;
+    background: rgba(245, 158, 11, 0.10);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    font-size: 12px; color: var(--text-primary);
+  }
+  .diag-title { display: flex; align-items: center; gap: 6px; font-weight: 700; color: #F59E0B; margin-bottom: 6px; }
+  .diag-lines { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+  .diag-line { display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; }
+  .diag-key { color: var(--text-muted); flex-shrink: 0; }
+  .diag-val { color: var(--text-heading); font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; word-break: break-all; }
+  .diag-val.muted { color: var(--text-muted); font-family: inherit; font-style: italic; }
+  .diag-tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; background: var(--bg-elev-3); color: var(--text-secondary); }
+  .diag-hint { color: var(--text-secondary); font-size: 11px; line-height: 1.4; font-style: italic; }
+
+  /* v7.2.1 — Sync result modal */
+  .sync-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .sync-kpi {
+    background: var(--bg-elev-2); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 12px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .sync-kpi.warn { border-color: rgba(245, 158, 11, 0.5); background: rgba(245, 158, 11, 0.08); }
+  .sync-kpi-v { font-size: 22px; font-weight: 700; color: var(--text-heading); }
+  .sync-kpi-k { font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+  .sync-kpi-sub { font-size: 11px; color: var(--text-secondary); }
+  .sync-breakdown { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--bg-elev-2); border-radius: 8px; }
+  .bd-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; align-items: baseline; }
+  .bd-label { color: var(--text-secondary); }
+  .bd-value { color: var(--text-heading); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .orphan-samples { margin-top: 4px; padding: 10px 12px; background: var(--bg-elev-2); border-radius: 8px; }
+  .orphan-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .orphan-row { padding: 6px 0; border-top: 1px solid var(--border-color); font-size: 11px; }
+  .orphan-row:first-of-type { border-top: none; padding-top: 0; }
+  .orphan-device { color: var(--text-heading); font-weight: 600; margin-bottom: 2px; }
+  .orphan-emails { color: var(--text-secondary); display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .orphan-tag { color: var(--text-muted); font-family: inherit; }
 
   /* Bind dialog */
   .bind-results { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }

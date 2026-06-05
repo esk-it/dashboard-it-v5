@@ -112,6 +112,14 @@ class SyncStats(BaseModel):
     teachers_total: int = 0
     teachers_inserted: int = 0
     teachers_updated: int = 0
+    # v7.2.1 diagnostic — surface why bindings fail.
+    devices_with_annotated: int = 0     # Google returned a non-empty annotatedUser
+    devices_with_recent_user: int = 0   # Google returned a recentUsers[0].email
+    matched_via_annotated: int = 0
+    matched_via_recent_user: int = 0
+    # Up to 5 sample (device_serial, annotated_user, last_user_email) tuples for
+    # the orphan cohort so the UI can show "voici ce que Google nous a renvoyé".
+    orphan_samples: list[dict] = []
     duration_seconds: float = 0.0
     started_at: str = ""
     finished_at: str = ""

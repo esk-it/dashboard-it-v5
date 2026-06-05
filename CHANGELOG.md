@@ -4,6 +4,31 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.1 — Chromebooks : fixes + diagnostic
+
+Petite passe de correctifs et d'outillage suite au premier test du module sur 500+ devices.
+
+### Fixes
+
+- **Pastilles statut illisibles en thème light** : le texte coloré (vert/orange/etc) passait en blanc-sur-blanc selon la teinte. Désormais la pastille a un fond teinté (15% d'opacité), une bordure colorée et un texte qui suit la couleur du thème via `var(--text-heading)`. Lisible dans les deux thèmes.
+
+### Diagnostic auto-binding
+
+Quand un Chromebook n'est pas associé à un prof après la sync, on n'avait aucune info sur le pourquoi. Ajouts :
+
+- **Modal de résultat de sync** : compte combien de devices avaient un `annotatedUser` ou un `recentUsers[0]`, combien ont matché, combien sont orphelins. KPI « % de profs associés » coloré en orange si < 80%. Liste 5 exemples d'orphelins avec les emails que Google a renvoyés.
+- **Bloc de diagnostic dans le détail Chromebook** quand `binding_source = 'none'` :
+  - Affiche les 2 emails candidats (utilisateur attribué + dernier utilisateur)
+  - Indique pour chacun s'il était vide côté Google ou s'il n'a pas matché un prof
+  - Donne le bon réflexe selon le cas (vérifier OU profs / activer suivi devices côté Google Admin / associer manuellement)
+- **Empty state amélioré de l'onglet Profs** : si 0 prof a été synchronisé, on affiche directement le chemin OU configuré et un bouton « Ajuster le chemin OU » — gain de temps pour diagnostiquer un chemin incorrect.
+
+### Bonus utiles
+
+- **Bouton « Ouvrir dans Google Admin »** dans le header du détail Chromebook (icône ↗). Ouvre directement `admin.google.com/ac/chrome/devices/<deviceId>` dans le navigateur.
+- **Filtre « Fin de support sous 6 mois »** dans la sidebar (case à cocher).
+- **Tri « Fin de support (croissant) »** pour repérer les devices à remplacer en priorité.
+
 ## v7.2.0 — Nouveau module : Chromebooks (mini-MDM pour les profs)
 
 Premier jalon d'un module dédié à la gestion des Chromebooks des profs, pensé
