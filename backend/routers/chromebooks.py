@@ -649,8 +649,19 @@ async def sync_from_google(db=Depends(get_raw_db)):
                     note=f"Sync auto (initial, {binding_source})",
                 )
 
+        # v7.2.11 — Categorize unbound devices for honest reporting:
+        #   - has email info (recentUsers[0] / asset_id / annotated) → user_outside_profs
+        #   - no info at all → real orphan (rare)
         if binding_source == "none":
-            stats.devices_orphaned += 1
+            has_any_email = bool(
+                norm.get("recent_user_emails")
+                or norm.get("annotated_user")
+                or norm.get("annotated_asset_id")
+            )
+            if has_any_email:
+                stats.devices_user_outside_profs += 1
+            else:
+                stats.devices_orphaned += 1
 
     stats.devices_total = len(devices_raw)
     await db.commit()

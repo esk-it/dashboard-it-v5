@@ -4,6 +4,34 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.11 — Chromebooks : recadrage visuel et conceptuel
+
+Le rendu de v7.2.10 dramatisait à mort les Chromebooks dont l'utilisateur n'est pas dans tes profs synchronisés : grosse étiquette violette « Hors profs » sur la card, bloc orange « ⚠ Pas dans les profs synchronisés » dans le détail, KPI « 17 orphelins ». Tout ça donnait l'impression d'erreurs partout alors qu'en réalité **on connaît l'utilisateur du chromebook**, il n'est juste pas dans la table « Profs » qui sert d'enrichissement.
+
+### Recadrage
+
+Le **vrai problème** c'est uniquement un Chromebook **dont Google ne sait pas qui l'utilise** (recentUsers vide, asset_id vide). Tout le reste, c'est simplement un Chromebook utilisé par quelqu'un dont on connaît l'email — qu'il soit dans tes profs synchronisés ou pas.
+
+### Côté card
+
+Plus de badge « Hors profs ». Pour un Chromebook utilisé par un email qu'on n'a pas dans les profs, on **dérive un nom propre depuis l'email** (`marie.douguet@lekreisker.fr` → **Marie Douguet**) et on affiche normalement avec l'email en sous-texte. Ça ressemble à n'importe quelle assignation prof, juste sans enrichissement par la table profs.
+
+### Côté détail
+
+Le bloc orange anxiogène devient une **mini-card identique au prof rattaché** avec avatar + nom + email, suivi d'une note italique discrète : « Cette personne n'est pas dans tes profs synchronisés (peut-être AESH, personnel admin, ou hors OU configurée). Si c'est un prof à rattacher, utilise Modifier ci-dessus. »
+
+### Côté modal de résultat de sync
+
+- **KPI principal renommé** : `Profs associés` → **`Identifiés`**, calculé sur tous les Chromebooks dont on connaît l'utilisateur (rattaché à un prof OU email connu hors profs). Pour ton parc, ça passe de « 91% » à probablement **~98-100%**.
+- **Breakdown clarifié** en 3 catégories :
+  1. **Rattachés à un prof synchronisé** (avec sous-lignes via dernier utilisateur / via Asset ID)
+  2. **Utilisateur connu mais hors profs synchronisés** (purement informationnel, plus considéré comme une erreur)
+  3. **Aucun utilisateur connu** (le seul cas qui mérite vraiment l'étiquette « problème »)
+
+### Backend
+
+Nouveau stat `devices_user_outside_profs` distinct de `devices_orphaned`. `devices_orphaned` est redéfini strictement : aucune info utilisateur dans aucun champ. Pas de migration nécessaire.
+
 ## v7.2.10 — Chromebooks : pas de devinette + affichage de l'utilisateur Google « hors profs »
 
 **Revert** de la stratégie d'auto-découverte v7.2.9 (qui aurait ajouté n'importe quel utilisateur de chromebook à la table profs, polluant la liste avec des AESH, IT, parents d'élèves, etc).

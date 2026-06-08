@@ -108,7 +108,12 @@ class SyncStats(BaseModel):
     devices_inserted: int = 0
     devices_updated: int = 0
     devices_rebound: int = 0   # changed assigned_teacher_id during this sync
-    devices_orphaned: int = 0  # ended up with binding_source=none
+    # v7.2.11 — split the "not matched to a synced prof" cohort in two
+    # so the user sees the difference between "Google knows the user but
+    # they're not in your profs list" (informational) and "we have no
+    # user info at all" (actual problem).
+    devices_user_outside_profs: int = 0  # last_user_email / asset_id known, not a synced prof
+    devices_orphaned: int = 0  # truly empty: no recentUsers, no asset_id email
     teachers_total: int = 0
     teachers_inserted: int = 0
     teachers_updated: int = 0

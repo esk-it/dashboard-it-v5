@@ -348,6 +348,19 @@
       return d.toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
     } catch { return s; }
   }
+  // v7.2.11 — derive a display name from an email so chromebooks used by
+  // non-synced-prof accounts still show a clean "Marie Douguet" instead of
+  // a raw email + scary "Hors profs" badge.
+  function nameFromEmail(email) {
+    if (!email) return '';
+    const local = email.split('@')[0];
+    return local
+      .split(/[._-]+/)
+      .filter(Boolean)
+      .map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+      .join(' ');
+  }
+
   function teacherInitials(t) {
     const fn = (t.full_name || t.email || '?').trim();
     const parts = fn.split(/\s+/);
@@ -516,25 +529,24 @@
                 </span>
               </header>
               <div class="card-body">
+                <!-- v7.2.11 — Just show the chromebook user, whoever they are.
+                     Bound to a synced prof : full_name from teachers table.
+                     Else : derived from last_user_email (Marie DOUGUET).
+                     No alarming "Hors profs" badge — the user just makes the
+                     judgement call themselves looking at the email/name. -->
                 {#if cb.assigned_teacher_id}
                   <div class="row">
-                    <span class="row-label">Prof :</span>
+                    <span class="row-label">Utilisateur :</span>
                     <span class="row-value">{cb.teacher_full_name || cb.teacher_email}</span>
                   </div>
                 {:else if cb.last_user_email}
-                  <!-- v7.2.10 — user not in synced profs, surface the raw email. -->
                   <div class="row">
                     <span class="row-label">Utilisateur :</span>
-                    <span class="row-value">{cb.last_user_email}</span>
-                    <span class="badge-outside">Hors profs</span>
+                    <span class="row-value">{nameFromEmail(cb.last_user_email)}</span>
                   </div>
+                  <div class="row small muted">{cb.last_user_email}</div>
                 {:else}
                   <div class="row muted">Jamais utilisé</div>
-                {/if}
-                {#if cb.binding_source && cb.binding_source !== 'none'}
-                  <div class="row small muted">
-                    Liaison : {BINDING_LABELS[cb.binding_source] || cb.binding_source}
-                  </div>
                 {/if}
                 {#if cb.support_end_date}
                   <div class="row small" class:warn-text={supportSoon(cb.support_end_date)}>
@@ -631,31 +643,18 @@
                 <span class="binding-badge">{BINDING_LABELS[selectedCb.binding_source] || selectedCb.binding_source}</span>
               </div>
             {:else if selectedCb.last_user_email}
-              <!-- v7.2.10 — Google connait l'utilisateur, mais il n'est pas
-                   dans nos profs synchronises. On affiche l'info et on
-                   laisse l'utilisateur decider. -->
-              <div class="diag-box">
-                <div class="diag-title">
-                  <AlertCircle size={14} /> Pas dans les profs synchronisés
+              <!-- v7.2.11 — Affichage neutre : on montre l'utilisateur tel
+                   quel sans dramatiser. Petite note discrete que c'est pas
+                   rattache aux profs synchronises. -->
+              <div class="teacher-mini outside">
+                <span class="teacher-avatar">{teacherInitials({ full_name: nameFromEmail(selectedCb.last_user_email), email: selectedCb.last_user_email })}</span>
+                <div class="teacher-info">
+                  <div class="teacher-name">{nameFromEmail(selectedCb.last_user_email)}</div>
+                  <div class="teacher-email">{selectedCb.last_user_email}</div>
                 </div>
-                <div class="diag-lines">
-                  <div class="diag-line">
-                    <span class="diag-key">Utilisateur Google actuel :</span>
-                    <span class="diag-val">{selectedCb.last_user_email}</span>
-                  </div>
-                  {#if selectedCb.annotated_asset_id && selectedCb.annotated_asset_id !== selectedCb.last_user_email}
-                    <div class="diag-line">
-                      <span class="diag-key">Asset ID (historique) :</span>
-                      <span class="diag-val">{selectedCb.annotated_asset_id}</span>
-                    </div>
-                  {/if}
-                </div>
-                <div class="diag-hint">
-                  Cet email n'est pas dans tes profs synchronisés. C'est peut-être
-                  un AESH, du personnel admin, ou quelqu'un en dehors de l'OU
-                  configurée. Si c'est bien un prof, utilise « Modifier »
-                  ci-dessus pour l'associer manuellement.
-                </div>
+              </div>
+              <div class="muted small subtle-note">
+                Cette personne n'est pas dans tes profs synchronisés (peut-être AESH, personnel admin, ou hors OU configurée). Si c'est un prof à rattacher, utilise « Modifier » ci-dessus.
               </div>
             {:else}
               <!-- Chromebook jamais utilise (recentUsers vide cote Google). -->
@@ -1069,7 +1068,9 @@
   {#if showSyncResultDialog && lastSyncResult}
     {@const r = lastSyncResult}
     {@const totalMatched = (r.matched_via_asset_id || 0) + (r.matched_via_annotated || 0) + (r.matched_via_recent_user || 0)}
+    {@const totalIdentified = totalMatched + (r.devices_user_outside_profs || 0)}
     {@const pctMatched = r.devices_total > 0 ? Math.round(100 * totalMatched / r.devices_total) : 0}
+    {@const pctIdentified = r.devices_total > 0 ? Math.round(100 * totalIdentified / r.devices_total) : 0}
     <div class="dialog-overlay" on:click|self={() => showSyncResultDialog = false}>
       <div class="dialog">
         <header class="dialog-h">
@@ -1091,29 +1092,33 @@
                   · {r.teachers_discovered} hors OU{/if}
               </div>
             </div>
-            <div class="sync-kpi" class:warn={pctMatched < 80}>
-              <div class="sync-kpi-v">{pctMatched}%</div>
-              <div class="sync-kpi-k">Profs associés</div>
-              <div class="sync-kpi-sub">{totalMatched} / {r.devices_total} chromebooks</div>
+            <div class="sync-kpi" class:warn={pctIdentified < 90}>
+              <div class="sync-kpi-v">{pctIdentified}%</div>
+              <div class="sync-kpi-k">Identifiés</div>
+              <div class="sync-kpi-sub">{totalIdentified} / {r.devices_total} chromebooks · dont {totalMatched} rattachés à un prof</div>
             </div>
           </div>
 
           <div class="sync-breakdown">
             <div class="bd-row">
-              <span class="bd-label">Via dernier utilisateur (priorité 1)</span>
-              <span class="bd-value">{r.matched_via_recent_user || 0} / {r.devices_with_recent_user || 0}</span>
+              <span class="bd-label">Rattachés à un prof synchronisé</span>
+              <span class="bd-value">{totalMatched}</span>
+            </div>
+            <div class="bd-row bd-sub">
+              <span class="bd-label">— via dernier utilisateur</span>
+              <span class="bd-value">{r.matched_via_recent_user || 0}</span>
+            </div>
+            <div class="bd-row bd-sub">
+              <span class="bd-label">— via Asset ID (chromebooks jamais utilisés)</span>
+              <span class="bd-value">{r.matched_via_asset_id || 0}</span>
             </div>
             <div class="bd-row">
-              <span class="bd-label">Via email dans Asset ID (fallback)</span>
-              <span class="bd-value">{r.matched_via_asset_id || 0} / {r.devices_with_asset_id_email || 0}</span>
+              <span class="bd-label">Utilisateur connu mais hors profs synchronisés</span>
+              <span class="bd-value">{r.devices_user_outside_profs || 0}</span>
             </div>
             <div class="bd-row">
-              <span class="bd-label">Via « utilisateur attribué » (Admin Google)</span>
-              <span class="bd-value">{r.matched_via_annotated || 0} / {r.devices_with_annotated || 0}</span>
-            </div>
-            <div class="bd-row">
-              <span class="bd-label">Orphelins (aucun email exploitable)</span>
-              <span class="bd-value warn-text">{r.devices_orphaned || 0}</span>
+              <span class="bd-label">Aucun utilisateur connu (jamais connecté)</span>
+              <span class="bd-value">{r.devices_orphaned || 0}</span>
             </div>
             <div class="bd-row">
               <span class="bd-label">Re-bindés cette sync (changement de prof)</span>
@@ -1409,12 +1414,15 @@
   .row-label { color: var(--text-muted); }
   .row-value { color: var(--text-primary); font-weight: 500; }
   .warn-text { color: #F59E0B; font-weight: 600; }
-  /* v7.2.10 — small badge for chromebook users not in synced profs */
-  .badge-outside {
-    font-size: 10px; padding: 1px 6px; border-radius: 999px;
-    background: rgba(168, 85, 247, 0.15); color: #A855F7;
-    font-weight: 600;
+  /* v7.2.11 — Subtle note for "user outside synced profs" in detail */
+  .subtle-note {
+    margin-top: 8px; padding: 8px 10px; border-radius: 6px;
+    background: var(--bg-input); border-left: 2px solid var(--text-muted);
+    line-height: 1.45; font-style: italic;
   }
+  .teacher-mini.outside { opacity: 0.92; }
+  /* Sub-rows in the breakdown (indented under a parent line) */
+  .bd-row.bd-sub { padding-left: 16px; font-size: 12px; opacity: 0.85; }
 
   /* Teacher avatar */
   .teacher-avatar {
