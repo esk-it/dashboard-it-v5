@@ -509,71 +509,13 @@ async def sync_from_google(db=Depends(get_raw_db)):
             )
     stats.shared_annotated_skipped.sort(key=lambda x: -x["device_count"])
 
-    # v7.2.9 — Auto-discovery pass: any email that appears on a chromebook
-    # (recentUsers, assetId-as-email, annotatedUser) but is NOT in our
-    # teacher table gets looked up via Google's users.get. If Workspace
-    # confirms the user exists (anywhere in the domain), we add them as a
-    # teacher so the binding step finds them. This fixes the "Marie Douguet
-    # uses a chromebook but lives in /3. Personnel admin not /5. Professeurs"
-    # case without forcing the user to figure out every OU upfront.
-    _DISCOVERY_CAP = 100
-    unknown_emails: set[str] = set()
-    for raw in devices_raw:
-        norm_prescan = google_admin.normalize_chromeos_device(raw)
-        # asset id when it looks like an email
-        aid = (norm_prescan.get("annotated_asset_id") or "").strip().lower()
-        if "@" in aid and "." in aid.split("@", 1)[-1] and len(aid) >= 6:
-            if aid not in teacher_by_email and aid not in shared_annotated:
-                unknown_emails.add(aid)
-        # annotated user (non-shared)
-        ann = (norm_prescan.get("annotated_user") or "").strip().lower()
-        if ann and ann not in teacher_by_email and ann not in shared_annotated:
-            unknown_emails.add(ann)
-        # all recent users
-        for e in norm_prescan.get("recent_user_emails") or []:
-            e_low = e.lower()
-            if e_low and e_low not in teacher_by_email and e_low not in shared_annotated:
-                unknown_emails.add(e_low)
-
-    if unknown_emails:
-        # Cap to avoid runaway API usage on misconfigured installs.
-        sample = list(unknown_emails)[:_DISCOVERY_CAP]
-        for email in sample:
-            try:
-                udata = await google_admin.get_user(email)
-            except PermissionError as e:
-                stats.errors.append(f"get_user permission: {e!s}")
-                udata = None
-                # Stop discovery — scope likely missing, don't hammer the API.
-                break
-            except Exception as e:
-                stats.errors.append(f"get_user({email}): {e!s}")
-                udata = None
-            if not udata:
-                continue
-            norm_user = google_admin.normalize_user(udata)
-            disc_email = norm_user["email"]
-            if not disc_email or disc_email in teacher_by_email:
-                continue
-            cur = await db.execute(
-                """INSERT INTO teachers
-                   (google_user_id, email, full_name, given_name, family_name,
-                    google_ou_path, is_suspended, status_local, notes,
-                    last_sync, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, 'present',
-                           'Découvert via Chromebook (hors OU configurée)',
-                           ?, ?, ?)""",
-                (
-                    norm_user["google_user_id"], disc_email,
-                    norm_user["full_name"], norm_user["given_name"],
-                    norm_user["family_name"], norm_user["google_ou_path"],
-                    norm_user["is_suspended"], now_iso, now_iso, now_iso,
-                ),
-            )
-            teacher_by_email[disc_email] = cur.lastrowid
-            stats.teachers_discovered += 1
-        if stats.teachers_discovered > 0:
-            await db.commit()
+    # v7.2.10 — v7.2.9's auto-discovery was wrong: any random email appearing
+    # in recentUsers (one-off logins, AESH, IT support) was being promoted to
+    # a "prof". User reaction: "la Marie je l'a connais pas moi, donc peut
+    # etre que c'est effectivement pas un prof". Reverted: we don't auto-add
+    # anyone. Instead, when recentUsers[0] doesn't match a synced prof, we
+    # leave assigned_teacher_id NULL and the UI surfaces the raw email so the
+    # user can decide what to do.
 
     for raw in devices_raw:
         norm = google_admin.normalize_chromeos_device(raw)
@@ -610,37 +552,35 @@ async def sync_from_google(db=Depends(get_raw_db)):
             stats.devices_with_asset_id_email += 1
         binding_source = "none"
         teacher_id: int | None = None
-        # v7.2.4 — skip annotated_user that matches a "shared admin" account.
-        annotated_usable = annotated and annotated not in shared_annotated
-        # v7.2.8 — Priority order revised for the lekreisker workflow:
-        # the admin never updates Asset ID manually after the initial
-        # deployment, so it goes stale (e.g. tagged "lise.rousseau" in 2020,
-        # device now actually used by marie.douguet). Conversely Google
-        # auto-updates recentUsers on every login — so it's the most current
-        # signal. New order:
-        #   1. recentUsers[] iteration (current actual user, always fresh)
-        #   2. annotatedAssetId email (fallback for never-logged-into devices)
-        #   3. annotatedUser (last resort, almost always a shared admin acct)
+        # v7.2.10 — Strict & conservative binding:
+        #   1. recentUsers[0] (current actual Google user) — must match a
+        #      synced prof.
+        #   2. annotatedAssetId email — fallback ONLY when recentUsers is
+        #      empty (never-used / fresh-from-stock chromebooks).
+        # We deliberately don't iterate recentUsers[1+] anymore — that was
+        # causing false matches like "Vincent Stephan" on Marie's tablet
+        # just because Vincent used it last year. If recentUsers[0] doesn't
+        # match a synced prof, we'd rather leave the chromebook unbound
+        # (and display the email in the UI) than guess incorrectly.
+        # annotatedUser is never used (always a shared admin account here).
         matched = False
-        for email in recent_emails_lower:
-            if email in teacher_by_email:
-                teacher_id = teacher_by_email[email]
+        if recent_emails_lower:
+            cur_email = recent_emails_lower[0]
+            if cur_email in teacher_by_email:
+                teacher_id = teacher_by_email[cur_email]
                 binding_source = "recent_user"
                 stats.matched_via_recent_user += 1
                 matched = True
-                break
-        if not matched and asset_id_is_email and asset_id in teacher_by_email:
-            teacher_id = teacher_by_email[asset_id]
-            binding_source = "asset_id"
-            stats.matched_via_asset_id += 1
-            matched = True
-        if not matched and annotated_usable and annotated in teacher_by_email:
-            teacher_id = teacher_by_email[annotated]
-            binding_source = "annotated"
-            stats.matched_via_annotated += 1
-            matched = True
+        if not matched and not recent_emails_lower:
+            if asset_id_is_email and asset_id in teacher_by_email:
+                teacher_id = teacher_by_email[asset_id]
+                binding_source = "asset_id"
+                stats.matched_via_asset_id += 1
+                matched = True
         if not matched:
-            # Orphan — none of annotated / asset_id / recentUsers gave a prof.
+            # Unbound. The UI will still display last_user_email when set,
+            # so the user can see "chromebook X is used by marie.douguet
+            # (not in your synced profs)" and decide what to do.
             if len(stats.orphan_samples) < 20:
                 stats.orphan_samples.append({
                     "serial_number": norm["serial_number"],

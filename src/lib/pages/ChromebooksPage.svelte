@@ -521,8 +521,15 @@
                     <span class="row-label">Prof :</span>
                     <span class="row-value">{cb.teacher_full_name || cb.teacher_email}</span>
                   </div>
+                {:else if cb.last_user_email}
+                  <!-- v7.2.10 — user not in synced profs, surface the raw email. -->
+                  <div class="row">
+                    <span class="row-label">Utilisateur :</span>
+                    <span class="row-value">{cb.last_user_email}</span>
+                    <span class="badge-outside">Hors profs</span>
+                  </div>
                 {:else}
-                  <div class="row muted">Aucun prof identifié</div>
+                  <div class="row muted">Jamais utilisé</div>
                 {/if}
                 {#if cb.binding_source && cb.binding_source !== 'none'}
                   <div class="row small muted">
@@ -623,46 +630,43 @@
                 </div>
                 <span class="binding-badge">{BINDING_LABELS[selectedCb.binding_source] || selectedCb.binding_source}</span>
               </div>
-            {:else}
-              <!-- v7.2.1 — diagnostic clair quand l'auto-binding rate. -->
+            {:else if selectedCb.last_user_email}
+              <!-- v7.2.10 — Google connait l'utilisateur, mais il n'est pas
+                   dans nos profs synchronises. On affiche l'info et on
+                   laisse l'utilisateur decider. -->
               <div class="diag-box">
                 <div class="diag-title">
-                  <AlertCircle size={14} /> Aucun prof identifié automatiquement
+                  <AlertCircle size={14} /> Pas dans les profs synchronisés
                 </div>
                 <div class="diag-lines">
                   <div class="diag-line">
-                    <span class="diag-key">Dernier utilisateur connu :</span>
-                    {#if selectedCb.last_user_email}
-                      <span class="diag-val">{selectedCb.last_user_email}</span>
-                      <span class="diag-tag">non trouvé dans les profs</span>
-                    {:else}
-                      <span class="diag-val muted">non défini côté Google</span>
-                    {/if}
+                    <span class="diag-key">Utilisateur Google actuel :</span>
+                    <span class="diag-val">{selectedCb.last_user_email}</span>
                   </div>
-                  <div class="diag-line">
-                    <span class="diag-key">Asset ID :</span>
-                    {#if selectedCb.annotated_asset_id}
+                  {#if selectedCb.annotated_asset_id && selectedCb.annotated_asset_id !== selectedCb.last_user_email}
+                    <div class="diag-line">
+                      <span class="diag-key">Asset ID (historique) :</span>
                       <span class="diag-val">{selectedCb.annotated_asset_id}</span>
-                      <span class="diag-tag">non trouvé dans les profs</span>
-                    {:else}
-                      <span class="diag-val muted">non défini côté Google</span>
-                    {/if}
-                  </div>
-                  <div class="diag-line">
-                    <span class="diag-key">Utilisateur attribué (Google) :</span>
-                    {#if selectedCb.annotated_user}
-                      <span class="diag-val">{selectedCb.annotated_user}</span>
-                      <span class="diag-tag">non trouvé dans les profs</span>
-                    {:else}
-                      <span class="diag-val muted">non défini côté Google</span>
-                    {/if}
-                  </div>
+                    </div>
+                  {/if}
                 </div>
                 <div class="diag-hint">
-                  {#if !selectedCb.annotated_user && !selectedCb.last_user_email}
-                    Google n'a renvoyé aucun email pour ce chromebook. Vérifie côté Google Admin que le suivi des « utilisateurs récents » est activé sur le device.
-                  {:else}
-                    Les emails proposés par Google ne correspondent à aucun prof synchronisé. Vérifie le chemin OU des profs dans les Paramètres, ou associe manuellement.
+                  Cet email n'est pas dans tes profs synchronisés. C'est peut-être
+                  un AESH, du personnel admin, ou quelqu'un en dehors de l'OU
+                  configurée. Si c'est bien un prof, utilise « Modifier »
+                  ci-dessus pour l'associer manuellement.
+                </div>
+              </div>
+            {:else}
+              <!-- Chromebook jamais utilise (recentUsers vide cote Google). -->
+              <div class="diag-box">
+                <div class="diag-title">
+                  <AlertCircle size={14} /> Jamais utilisé
+                </div>
+                <div class="diag-hint">
+                  Aucun utilisateur n'a encore connecté sur ce Chromebook (recentUsers vide côté Google). Probablement un appareil neuf ou en stock.
+                  {#if selectedCb.annotated_asset_id}
+                    Asset ID indique : <strong>{selectedCb.annotated_asset_id}</strong>.
                   {/if}
                 </div>
               </div>
@@ -1405,6 +1409,12 @@
   .row-label { color: var(--text-muted); }
   .row-value { color: var(--text-primary); font-weight: 500; }
   .warn-text { color: #F59E0B; font-weight: 600; }
+  /* v7.2.10 — small badge for chromebook users not in synced profs */
+  .badge-outside {
+    font-size: 10px; padding: 1px 6px; border-radius: 999px;
+    background: rgba(168, 85, 247, 0.15); color: #A855F7;
+    font-weight: 600;
+  }
 
   /* Teacher avatar */
   .teacher-avatar {

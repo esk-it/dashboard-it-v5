@@ -4,6 +4,34 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.10 — Chromebooks : pas de devinette + affichage de l'utilisateur Google « hors profs »
+
+**Revert** de la stratégie d'auto-découverte v7.2.9 (qui aurait ajouté n'importe quel utilisateur de chromebook à la table profs, polluant la liste avec des AESH, IT, parents d'élèves, etc).
+
+### Nouvelle approche : pas de devinette, juste de la transparence
+
+Le binding devient strictement conservateur :
+
+1. **`recentUsers[0]`** (utilisateur Google actuel) → bind seulement si l'email match un prof synchronisé
+2. **Asset ID email** → fallback **uniquement** si `recentUsers` est vide (Chromebook neuf jamais utilisé)
+
+C'est tout. Plus d'itération `recentUsers[1+]` (qui causait le faux match « Vincent Stephan » sur le chromebook de Marie Douguet — Vincent avait juste utilisé ce chromebook avant). Plus d'auto-ajout aux profs.
+
+### Quand le binding échoue : on AFFICHE l'utilisateur Google quand même
+
+Quand `recentUsers[0]` est un email mais qu'il n'est pas dans tes profs synchronisés, le chromebook reste **non bindé**, mais l'UI affiche directement l'email Google avec un badge violet **« Hors profs »** :
+
+- **Card** : `Utilisateur : marie.douguet@lekreisker.fr [Hors profs]`
+- **Détail** : bloc « Pas dans les profs synchronisés » avec l'email et l'asset ID historique. Suggestion d'association manuelle si tu reconnais la personne comme prof.
+
+Pour les Chromebooks vraiment jamais utilisés (`recentUsers` vide côté Google), le détail montre « Jamais utilisé » + l'Asset ID s'il existe.
+
+### Tu décides
+
+Si tu vois `marie.douguet@lekreisker.fr [Hors profs]` :
+- C'est une prof inconnue de toi ? Tu peux ouvrir le détail → **Modifier** → l'associer manuellement à un prof synchronisé
+- C'est pas une prof ? Tu laisses comme ça. Le chromebook reste tracké avec son utilisateur Google pour info, sans liaison fictive
+
 ## v7.2.9 — Chromebooks : auto-découverte des utilisateurs hors OU
 
 **Le problème** : ton OU profs configurée est `/5. Professeurs` (148 personnes). Mais sur les Chromebooks, certains `recentUsers` sont des emails de personnes qui utilisent un chromebook mais qui ne sont **pas dans cette OU** — AESH, personnel admin, documentalistes, etc. Vu qu'elles n'étaient pas dans la table profs synchronisée, le binding tombait sur le mauvais prof (le suivant dans `recentUsers[]`).
