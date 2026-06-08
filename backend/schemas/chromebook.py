@@ -115,6 +115,8 @@ class SyncStats(BaseModel):
     # v7.2.1 diagnostic — surface why bindings fail.
     devices_with_annotated: int = 0     # Google returned a non-empty annotatedUser
     devices_with_recent_user: int = 0   # Google returned a recentUsers[0].email
+    devices_with_asset_id_email: int = 0  # v7.2.6 — annotatedAssetId looked like an email
+    matched_via_asset_id: int = 0       # v7.2.6 — highest-priority binding source
     matched_via_annotated: int = 0
     matched_via_recent_user: int = 0
     # Up to 5 sample (device_serial, annotated_user, last_user_email) tuples for

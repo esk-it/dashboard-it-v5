@@ -522,6 +522,16 @@ async def sync_from_google(db=Depends(get_raw_db)):
 
         # Resolve binding
         annotated = (norm["annotated_user"] or "").lower()
+        asset_id_raw = (norm["annotated_asset_id"] or "").strip()
+        asset_id = asset_id_raw.lower()
+        # v7.2.6 — Detect when admin used annotatedAssetId to tag the device
+        # with the owner's email (a common convention in education domains:
+        # `lise.rousseau@lekreisker.fr` instead of an arbitrary asset tag).
+        asset_id_is_email = (
+            "@" in asset_id
+            and "." in asset_id.split("@", 1)[-1]
+            and len(asset_id) >= 6
+        )
         recent_emails_lower = [e.lower() for e in (norm.get("recent_user_emails") or [])]
         last_user = recent_emails_lower[0] if recent_emails_lower else ""
         # Diagnostic counters: surface why bindings fail in the SyncStats so
@@ -530,11 +540,22 @@ async def sync_from_google(db=Depends(get_raw_db)):
             stats.devices_with_annotated += 1
         if recent_emails_lower:
             stats.devices_with_recent_user += 1
+        if asset_id_is_email:
+            stats.devices_with_asset_id_email += 1
         binding_source = "none"
         teacher_id: int | None = None
         # v7.2.4 — skip annotated_user that matches a "shared admin" account.
         annotated_usable = annotated and annotated not in shared_annotated
-        if annotated_usable and annotated in teacher_by_email:
+        # v7.2.6 — Priority order (most explicit intent → loosest signal):
+        #   1. annotatedAssetId when it's an email → admin explicitly tagged
+        #      the device with the owner's email. This is the actual truth.
+        #   2. annotatedUser (if not a shared admin account).
+        #   3. recentUsers[] iteration (Google's history of who logged in).
+        if asset_id_is_email and asset_id in teacher_by_email:
+            teacher_id = teacher_by_email[asset_id]
+            binding_source = "asset_id"
+            stats.matched_via_asset_id += 1
+        elif annotated_usable and annotated in teacher_by_email:
             teacher_id = teacher_by_email[annotated]
             binding_source = "annotated"
             stats.matched_via_annotated += 1
@@ -549,12 +570,13 @@ async def sync_from_google(db=Depends(get_raw_db)):
                     stats.matched_via_recent_user += 1
                     break
             else:
-                # No match in any recent user — orphan.
+                # No match anywhere — orphan.
                 if len(stats.orphan_samples) < 5:
                     stats.orphan_samples.append({
                         "serial_number": norm["serial_number"],
                         "model": norm["model"],
                         "annotated_user": norm["annotated_user"],
+                        "annotated_asset_id": norm["annotated_asset_id"],
                         "last_user_email": norm["last_user_email"],
                         # v7.2.5 — surface the FULL recent users list so the
                         # user can spot which email they expected to match.

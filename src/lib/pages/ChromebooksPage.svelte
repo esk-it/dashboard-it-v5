@@ -64,6 +64,7 @@
     parti:    { label: 'Parti',    color: '#64748B' },
   };
   const BINDING_LABELS = {
+    asset_id:    'Email dans Asset ID',
     annotated:   'Champ Admin Google',
     recent_user: 'Dernier utilisateur',
     manual:      'Manuel',
@@ -630,6 +631,15 @@
                 </div>
                 <div class="diag-lines">
                   <div class="diag-line">
+                    <span class="diag-key">Asset ID :</span>
+                    {#if selectedCb.annotated_asset_id}
+                      <span class="diag-val">{selectedCb.annotated_asset_id}</span>
+                      <span class="diag-tag">non trouvé dans les profs</span>
+                    {:else}
+                      <span class="diag-val muted">non défini côté Google</span>
+                    {/if}
+                  </div>
+                  <div class="diag-line">
                     <span class="diag-key">Utilisateur attribué (Google) :</span>
                     {#if selectedCb.annotated_user}
                       <span class="diag-val">{selectedCb.annotated_user}</span>
@@ -1083,6 +1093,10 @@
 
           <div class="sync-breakdown">
             <div class="bd-row">
+              <span class="bd-label">Via email dans Asset ID (priorité 1)</span>
+              <span class="bd-value">{r.matched_via_asset_id || 0} / {r.devices_with_asset_id_email || 0}</span>
+            </div>
+            <div class="bd-row">
               <span class="bd-label">Via « utilisateur attribué » (Admin Google)</span>
               <span class="bd-value">{r.matched_via_annotated || 0} / {r.devices_with_annotated || 0}</span>
             </div>
@@ -1138,6 +1152,9 @@
               {#each r.orphan_samples as s}
                 <div class="orphan-row">
                   <div class="orphan-device">{s.model || '(modèle inconnu)'} · {s.serial_number || '(sans serial)'}</div>
+                  <div class="orphan-emails">
+                    <span class="orphan-tag">asset ID :</span> <span>{s.annotated_asset_id || '—'}</span>
+                  </div>
                   <div class="orphan-emails">
                     <span class="orphan-tag">attribué :</span> <span>{s.annotated_user || '—'}</span>
                   </div>

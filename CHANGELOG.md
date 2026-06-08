@@ -4,6 +4,33 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.6 — Chromebooks : Asset ID en priorité absolue (la vraie source de vérité)
+
+**Constat à l'usage** : sur le domaine `lekreisker.fr`, l'admin a tagué chaque Chromebook avec l'**email du propriétaire** dans le champ `annotatedAssetId` (par ex. `lise.rousseau@lekreisker.fr`). C'est la **source explicite et fiable** de l'affectation, posée à la main par l'admin, contrairement à `annotatedUser` qui était systématiquement le compte `admin.chrome@…` ou à `recentUsers[]` qui n'est qu'un historique de connexion.
+
+Avant v7.2.6, on n'utilisait pas du tout ce champ. Conséquence : un Chromebook taggué « Lise Rousseau » dans l'asset ID pouvait être faussement bindé à Vincent Stephan parce que c'est lui qui s'était connecté juste avant Lise dans `recentUsers[]`.
+
+### Le fix
+
+Nouvelle hiérarchie de priorité pour l'auto-binding :
+
+1. **`annotatedAssetId` quand il ressemble à un email** → on bind directement au prof correspondant. Source ultime : c'est l'admin qui l'a explicitement défini.
+2. `annotatedUser` (si pas un compte partagé détecté en v7.2.4).
+3. Itération de `recentUsers[]` (fallback historique).
+
+Détection « ressemble à un email » : contient `@`, contient `.` après le `@`, et fait au moins 6 caractères. Si l'asset ID est un tag classique (`L4-NDK-005`), on l'ignore et on tombe sur les priorités suivantes.
+
+### Visible côté UI
+
+- Nouveau label badge **« Email dans Asset ID »** sur les Chromebooks bindés via ce champ.
+- Nouvelle ligne dans le breakdown du modal de sync : **« Via email dans Asset ID (priorité 1) »** avec le compteur.
+- Bloc diagnostic du détail Chromebook : l'asset ID est maintenant le 1er champ inspecté quand le binding rate, avant `utilisateur attribué` et `dernier utilisateur`.
+- Exemples d'orphelins enrichis avec l'asset ID dans le modal.
+
+### Action utilisateur
+
+Relance la sync. Tu devrais voir **la quasi-totalité** des Chromebooks bindés via Asset ID sur ton domaine, vu que chaque device a déjà l'email du prof dedans. Les rebinds vers les bons profs se font automatiquement.
+
 ## v7.2.5 — Chromebooks : binding via toute la liste `recentUsers[]`
 
 Avant : on prenait uniquement `recentUsers[0]` (le tout dernier utilisateur connecté). Si ce premier utilisateur était une session de test, un compte de helpdesk passé pour dépanner, ou un email masqué par Google (`*****@*****.com`), on tombait en orphelin alors que **le vrai prof figurait à l'index 1 ou 2 dans la liste**.
