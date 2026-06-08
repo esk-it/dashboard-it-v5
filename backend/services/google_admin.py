@@ -105,9 +105,9 @@ async def fetch_users(
     out: list[dict[str, Any]] = []
     page_token: str | None = None
 
+    # Normalise: "/foo/" → "/foo", "/" → "" (= "match everything" mode).
     target = (org_unit_path or "").rstrip("/")
-    if not target:
-        return []
+    match_all = (target == "")
 
     async with httpx.AsyncClient(timeout=60) as client:
         while True:
@@ -133,6 +133,12 @@ async def fetch_users(
             data = resp.json()
 
             for u in data.get("users", []):
+                if match_all:
+                    # User OU path '/' = root = pull everyone (escape hatch
+                    # when the exact prof OU is unknown — the binding logic
+                    # will still find the right matches via email).
+                    out.append(u)
+                    continue
                 ou = (u.get("orgUnitPath") or "").rstrip("/")
                 if include_descendants:
                     # Match the target OR any path starting with target + "/".
@@ -147,6 +153,29 @@ async def fetch_users(
                 break
 
     return out
+
+
+async def fetch_all_user_ou_paths() -> list[dict[str, Any]]:
+    """Discovery helper: list every distinct orgUnitPath found across users,
+    with a count and 3 sample emails per path. Lets the UI guide the user
+    to the right path when they don't know the exact syntax.
+    """
+    all_users = await fetch_users("/", include_descendants=True)
+    by_path: dict[str, dict[str, Any]] = {}
+    for u in all_users:
+        path = u.get("orgUnitPath") or "/"
+        if path not in by_path:
+            by_path[path] = {"path": path, "user_count": 0, "samples": []}
+        by_path[path]["user_count"] += 1
+        if len(by_path[path]["samples"]) < 3:
+            email = (u.get("primaryEmail") or "").lower()
+            if email:
+                by_path[path]["samples"].append(email)
+    # Most-populated first, then alphabetical to keep stable ordering.
+    return sorted(
+        by_path.values(),
+        key=lambda x: (-x["user_count"], x["path"]),
+    )
 
 
 # ── Extraction helpers ────────────────────────────────────────────────────

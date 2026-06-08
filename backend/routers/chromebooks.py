@@ -93,6 +93,25 @@ async def update_chromebook_settings(body: dict = Body(...)):
     return _load_settings()
 
 
+@router.get("/google-ous")
+async def list_google_ous():
+    """Discovery endpoint (v7.2.3): returns every distinct user OU path found
+    in the Google Workspace customer, with user counts + 3 sample emails per
+    path. Used by the settings dialog to let the user pick the right path
+    without manually guessing accent / casing / prefix quirks.
+    """
+    if not google_calendar.is_connected():
+        raise HTTPException(
+            400, "Google n'est pas connecté."
+        )
+    try:
+        return await google_admin.fetch_all_user_ou_paths()
+    except PermissionError as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"Erreur OU Google : {e!s}")
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────
 
 _CB_COLS = """

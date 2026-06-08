@@ -4,6 +4,31 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.3 — Chromebooks : explorateur d'OU Google + escape hatch « tout pull »
+
+Toujours sur la fondation Chromebooks. Premier sync sur 198 devices a montré que le matching reposait à 100% sur `recentUsers[0]` (les bons emails profs), mais qu'on récupérait 0 prof — donc le chemin OU configuré ne correspondait à rien côté Google. Plutôt que de deviner à l'aveugle, on ajoute un explorateur.
+
+### Explorateur d'OU dans les paramètres
+
+Bouton **« Parcourir les OU Google »** à côté du champ « OU des Profs » dans le dialog Paramètres Chromebooks. Au clic, on tire tous les utilisateurs du domaine, on aggrège par `orgUnitPath`, et on affiche :
+
+- Chaque OU triée par nombre d'utilisateurs (plus peuplée en haut)
+- Le nombre d'utilisateurs dans chaque OU
+- 3 exemples d'emails par OU (pour identifier visuellement)
+- Un clic sur une OU la sélectionne dans le champ
+
+Plus besoin de fouiller dans Google Admin pour copier le chemin à la main.
+
+### Escape hatch « tout pull »
+
+Si tu ne veux pas chercher la bonne OU (ou si la structure profs est trop éclatée), tu peux maintenant mettre **`/` dans le champ « OU des Profs »**. Combiné avec « Inclure les sous-OU des Profs » (activé par défaut), ça tire **tous les comptes Workspace** du domaine. Le matching par email se débrouille — pas de doublons ni de pollution, juste une sync un peu plus longue.
+
+Astuce ajoutée sous le champ pour le rappeler.
+
+### Endpoint backend
+
+Nouveau `GET /api/chromebooks/google-ous` qui retourne la liste agrégée. Utilisable aussi pour debug futur.
+
 ## v7.2.2 — Chromebooks : fix sync profs (400 Bad Request sur les OU à caractères spéciaux)
 
 L'API Google `users.list` retournait un **HTTP 400 Bad Request** quand on cherchait des profs avec `query=orgUnitPath='/1. Personnel éducatif'`. Les chemins contenant **espaces, points ou caractères accentués** font tousser le parser de query Google, même quand le path est correctement échappé selon leur doc.

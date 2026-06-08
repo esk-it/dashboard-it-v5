@@ -294,6 +294,23 @@
 
   // ── Settings dialog ───────────────────────────────────────
   let settingsForm = { device_ou_path: '', user_ou_path: '', include_device_descendants: false, include_user_descendants: true };
+  // v7.2.3 — OU explorer state. Populated lazily when user clicks "Parcourir les OU".
+  let ouBrowser = { open: false, loading: false, ous: [], error: '' };
+
+  async function loadGoogleOus() {
+    ouBrowser = { open: true, loading: true, ous: [], error: '' };
+    try {
+      const list = await api.get('/api/chromebooks/google-ous');
+      ouBrowser = { open: true, loading: false, ous: list, error: '' };
+    } catch (e) {
+      ouBrowser = { open: true, loading: false, ous: [], error: e.message || 'Erreur' };
+    }
+  }
+  function pickOu(path) {
+    settingsForm.user_ou_path = path;
+    ouBrowser.open = false;
+  }
+
   function openSettings() {
     settingsForm = {
       device_ou_path: cbSettings.device_ou_path || '',
@@ -898,9 +915,47 @@
             <input bind:value={settingsForm.device_ou_path} placeholder="/1. Chromebooks/1. Personnel éducatif" />
           </label>
           <label>
-            <span>OU des Profs (utilisateurs Workspace)</span>
+            <span>
+              OU des Profs (utilisateurs Workspace)
+              <button class="link-btn" type="button" on:click={loadGoogleOus} style="margin-left:8px">
+                Parcourir les OU Google
+              </button>
+            </span>
             <input bind:value={settingsForm.user_ou_path} placeholder="/1. Personnel éducatif" />
+            <span class="hint-line">
+              Astuce : si tu n'es pas sûr du chemin, mets <code>/</code> (avec « inclure les sous-OU » ci-dessous) — ça pullera tous les comptes Workspace et le matching par email se débrouillera.
+            </span>
           </label>
+
+          {#if ouBrowser.open}
+            <div class="ou-browser">
+              <div class="ou-browser-h">
+                <strong>Sélectionne l'OU des profs</strong>
+                <button class="icon-btn" type="button" on:click={() => ouBrowser.open = false}><X size={14} /></button>
+              </div>
+              {#if ouBrowser.loading}
+                <div class="muted small">Chargement des OU Google…</div>
+              {:else if ouBrowser.error}
+                <div class="muted small warn-text">{ouBrowser.error}</div>
+              {:else if ouBrowser.ous.length === 0}
+                <div class="muted small">Aucune OU trouvée.</div>
+              {:else}
+                <div class="ou-list">
+                  {#each ouBrowser.ous as o}
+                    <button class="ou-row" type="button" on:click={() => pickOu(o.path)} class:current={o.path === settingsForm.user_ou_path}>
+                      <div class="ou-main">
+                        <span class="ou-path">{o.path}</span>
+                        <span class="ou-count">{o.user_count} utilisateur{o.user_count > 1 ? 's' : ''}</span>
+                      </div>
+                      {#if o.samples && o.samples.length}
+                        <div class="ou-samples">{o.samples.join(' · ')}</div>
+                      {/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/if}
           <label class="checkbox">
             <input type="checkbox" bind:checked={settingsForm.include_device_descendants} />
             <span>Inclure les sous-OU pour les Chromebooks (utile si les devices sont éclatés en sous-dossiers)</span>
@@ -1469,6 +1524,30 @@
   .orphan-device { color: var(--text-heading); font-weight: 600; margin-bottom: 2px; }
   .orphan-emails { color: var(--text-secondary); display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
   .orphan-tag { color: var(--text-muted); font-family: inherit; }
+
+  /* v7.2.3 — OU explorer inside settings dialog */
+  .hint-line { font-size: 11px; color: var(--text-muted); margin-top: 4px; display: block; }
+  .hint-line code { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: var(--bg-elev-2); padding: 1px 4px; border-radius: 3px; }
+  .ou-browser {
+    margin-top: -4px;
+    border: 1px solid var(--border-color); border-radius: 8px;
+    background: var(--bg-elev-2); padding: 10px 12px;
+    max-height: 300px; overflow-y: auto;
+  }
+  .ou-browser-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 12px; }
+  .ou-list { display: flex; flex-direction: column; gap: 4px; }
+  .ou-row {
+    background: var(--bg-elev-1); border: 1px solid transparent;
+    border-radius: 6px; padding: 8px 10px;
+    cursor: pointer; text-align: left;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .ou-row:hover { border-color: var(--accent); }
+  .ou-row.current { border-color: var(--accent); background: var(--bg-elev-3); }
+  .ou-main { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .ou-path { color: var(--text-heading); font-weight: 600; font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  .ou-count { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .ou-samples { font-size: 10px; color: var(--text-secondary); font-family: ui-monospace, "SF Mono", Menlo, monospace; word-break: break-all; }
 
   /* Bind dialog */
   .bind-results { display: flex; flex-direction: column; gap: 4px; max-height: 280px; overflow-y: auto; }
