@@ -155,6 +155,39 @@ async def fetch_users(
     return out
 
 
+async def get_user(email: str) -> dict[str, Any] | None:
+    """Look up a single Workspace user by primary email (or alias).
+
+    Returns the user JSON if found, None if Google returns 404 (no such user).
+    Used by the Chromebook sync's "auto-discovery" pass (v7.2.9): when we
+    see an email on a device that isn't in our synced teachers OU, we ask
+    Google directly to confirm it's a Workspace account and pull it in.
+    """
+    if not email or "@" not in email:
+        return None
+    token = await google_calendar._ensure_valid_token()
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(
+            f"{_API_BASE}/users/{email}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"projection": "full"},
+        )
+        if resp.status_code == 404:
+            return None
+        if resp.status_code == 403:
+            raise PermissionError(
+                "Accès refusé par Google sur la lecture des utilisateurs. "
+                "Vérifie le scope admin.directory.user.readonly."
+            )
+        # Some not-found responses come back as 400 too (especially for
+        # alias-with-dots edge cases). Treat as "not found" so the sync
+        # carries on instead of failing.
+        if resp.status_code in (400, 410):
+            return None
+        resp.raise_for_status()
+        return resp.json()
+
+
 async def fetch_all_user_ou_paths() -> list[dict[str, Any]]:
     """Discovery helper: list every distinct orgUnitPath found across users,
     with a count and 3 sample emails per path. Lets the UI guide the user

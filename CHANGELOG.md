@@ -4,6 +4,31 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.9 — Chromebooks : auto-découverte des utilisateurs hors OU
+
+**Le problème** : ton OU profs configurée est `/5. Professeurs` (148 personnes). Mais sur les Chromebooks, certains `recentUsers` sont des emails de personnes qui utilisent un chromebook mais qui ne sont **pas dans cette OU** — AESH, personnel admin, documentalistes, etc. Vu qu'elles n'étaient pas dans la table profs synchronisée, le binding tombait sur le mauvais prof (le suivant dans `recentUsers[]`).
+
+Exemple concret : le Chromebook L4NXCX000005156 a `recentUsers[0] = marie.douguet@lekreisker.fr` (la vraie propriétaire actuelle) mais Marie est dans `/3. Personnel admin` côté Google. Comme elle n'était pas dans nos 148 profs, l'itération continuait et matchait Vincent Stephan (par hasard recentUsers[1+]) — c'est ce que tu voyais à tort dans le détail.
+
+### Le fix : phase d'auto-découverte
+
+Pendant la sync, après avoir tiré les profs de l'OU configurée :
+
+1. On pré-scanne **tous les chromebooks** pour collecter les emails qui apparaissent (asset_id, annotated, recentUsers) et qui **ne sont pas dans la table profs**.
+2. Pour chacun, on appelle `GET /admin/directory/v1/users/{email}` directement.
+3. Si Google confirme que l'utilisateur existe dans Workspace, on l'**ajoute à la table profs** avec une note « Découvert via Chromebook (hors OU configurée) ».
+4. Le binding qui suit utilise la table profs étendue → Marie Douguet est trouvée → son chromebook est correctement bindé à elle.
+
+Cap : max **100 utilisateurs auto-découverts par sync** pour éviter de hammerer l'API si configuration foireuse.
+
+### Côté UI
+
+Le KPI « Profs » dans le modal de résultat de sync inclut maintenant les profs auto-découverts, avec le compteur dans le sous-titre (« X nouveaux · Y maj · **Z hors OU** »).
+
+### Conséquences
+
+Sur ton parc, tu vas probablement voir **20-40 profs hors OU** s'ajouter à la prochaine sync — Catherine Omer, Margot Doré, Gaëlle Gourvil, Marie Douguet, etc. Les 17 orphelins actuels devraient tomber à 0 ou très peu. Le compteur de rebinds va de nouveau exploser car beaucoup de chromebooks vont basculer vers leur vrai propriétaire actuel.
+
 ## v7.2.8 — Chromebooks : Dernier utilisateur en priorité absolue (Asset ID périmé)
 
 **Discussion utilisateur clé** : l'admin ne maintient jamais le champ `annotatedAssetId` à la main. Lors du déploiement initial des Chromebooks (~2020), chaque device a été tagué avec l'email du prof à qui il était affecté à l'époque. Depuis, les chromebooks ont changé de mains plusieurs fois (rotation fin d'année), mais l'Asset ID n'a jamais bougé. **Il est donc périmé** pour une bonne partie du parc.

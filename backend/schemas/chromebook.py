@@ -112,6 +112,10 @@ class SyncStats(BaseModel):
     teachers_total: int = 0
     teachers_inserted: int = 0
     teachers_updated: int = 0
+    # v7.2.9 — users discovered via chromebook data but outside the configured
+    # OU (e.g. AESH, personnel admin who got pulled in because they appear in
+    # a chromebook's recentUsers).
+    teachers_discovered: int = 0
     # v7.2.1 diagnostic — surface why bindings fail.
     devices_with_annotated: int = 0     # Google returned a non-empty annotatedUser
     devices_with_recent_user: int = 0   # Google returned a recentUsers[0].email

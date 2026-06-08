@@ -1080,9 +1080,12 @@
               <div class="sync-kpi-sub">{r.devices_inserted} nouveaux · {r.devices_updated} maj</div>
             </div>
             <div class="sync-kpi">
-              <div class="sync-kpi-v">{r.teachers_total}</div>
+              <div class="sync-kpi-v">{r.teachers_total + (r.teachers_discovered || 0)}</div>
               <div class="sync-kpi-k">Profs</div>
-              <div class="sync-kpi-sub">{r.teachers_inserted} nouveaux · {r.teachers_updated} maj</div>
+              <div class="sync-kpi-sub">
+                {r.teachers_inserted} nouveaux · {r.teachers_updated} maj{#if r.teachers_discovered}
+                  · {r.teachers_discovered} hors OU{/if}
+              </div>
             </div>
             <div class="sync-kpi" class:warn={pctMatched < 80}>
               <div class="sync-kpi-v">{pctMatched}%</div>

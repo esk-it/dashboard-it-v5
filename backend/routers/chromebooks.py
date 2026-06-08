@@ -509,6 +509,72 @@ async def sync_from_google(db=Depends(get_raw_db)):
             )
     stats.shared_annotated_skipped.sort(key=lambda x: -x["device_count"])
 
+    # v7.2.9 — Auto-discovery pass: any email that appears on a chromebook
+    # (recentUsers, assetId-as-email, annotatedUser) but is NOT in our
+    # teacher table gets looked up via Google's users.get. If Workspace
+    # confirms the user exists (anywhere in the domain), we add them as a
+    # teacher so the binding step finds them. This fixes the "Marie Douguet
+    # uses a chromebook but lives in /3. Personnel admin not /5. Professeurs"
+    # case without forcing the user to figure out every OU upfront.
+    _DISCOVERY_CAP = 100
+    unknown_emails: set[str] = set()
+    for raw in devices_raw:
+        norm_prescan = google_admin.normalize_chromeos_device(raw)
+        # asset id when it looks like an email
+        aid = (norm_prescan.get("annotated_asset_id") or "").strip().lower()
+        if "@" in aid and "." in aid.split("@", 1)[-1] and len(aid) >= 6:
+            if aid not in teacher_by_email and aid not in shared_annotated:
+                unknown_emails.add(aid)
+        # annotated user (non-shared)
+        ann = (norm_prescan.get("annotated_user") or "").strip().lower()
+        if ann and ann not in teacher_by_email and ann not in shared_annotated:
+            unknown_emails.add(ann)
+        # all recent users
+        for e in norm_prescan.get("recent_user_emails") or []:
+            e_low = e.lower()
+            if e_low and e_low not in teacher_by_email and e_low not in shared_annotated:
+                unknown_emails.add(e_low)
+
+    if unknown_emails:
+        # Cap to avoid runaway API usage on misconfigured installs.
+        sample = list(unknown_emails)[:_DISCOVERY_CAP]
+        for email in sample:
+            try:
+                udata = await google_admin.get_user(email)
+            except PermissionError as e:
+                stats.errors.append(f"get_user permission: {e!s}")
+                udata = None
+                # Stop discovery — scope likely missing, don't hammer the API.
+                break
+            except Exception as e:
+                stats.errors.append(f"get_user({email}): {e!s}")
+                udata = None
+            if not udata:
+                continue
+            norm_user = google_admin.normalize_user(udata)
+            disc_email = norm_user["email"]
+            if not disc_email or disc_email in teacher_by_email:
+                continue
+            cur = await db.execute(
+                """INSERT INTO teachers
+                   (google_user_id, email, full_name, given_name, family_name,
+                    google_ou_path, is_suspended, status_local, notes,
+                    last_sync, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, 'present',
+                           'Découvert via Chromebook (hors OU configurée)',
+                           ?, ?, ?)""",
+                (
+                    norm_user["google_user_id"], disc_email,
+                    norm_user["full_name"], norm_user["given_name"],
+                    norm_user["family_name"], norm_user["google_ou_path"],
+                    norm_user["is_suspended"], now_iso, now_iso, now_iso,
+                ),
+            )
+            teacher_by_email[disc_email] = cur.lastrowid
+            stats.teachers_discovered += 1
+        if stats.teachers_discovered > 0:
+            await db.commit()
+
     for raw in devices_raw:
         norm = google_admin.normalize_chromeos_device(raw)
         device_id = norm["google_device_id"]
