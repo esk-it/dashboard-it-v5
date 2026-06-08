@@ -1064,7 +1064,7 @@
   <!-- v7.2.1 — Sync result modal with diagnostic breakdown. -->
   {#if showSyncResultDialog && lastSyncResult}
     {@const r = lastSyncResult}
-    {@const totalMatched = (r.matched_via_annotated || 0) + (r.matched_via_recent_user || 0)}
+    {@const totalMatched = (r.matched_via_asset_id || 0) + (r.matched_via_annotated || 0) + (r.matched_via_recent_user || 0)}
     {@const pctMatched = r.devices_total > 0 ? Math.round(100 * totalMatched / r.devices_total) : 0}
     <div class="dialog-overlay" on:click|self={() => showSyncResultDialog = false}>
       <div class="dialog">
@@ -1148,7 +1148,7 @@
 
           {#if r.orphan_samples && r.orphan_samples.length > 0}
             <div class="orphan-samples">
-              <div class="orphan-title">Exemples d'orphelins (max 5)</div>
+              <div class="orphan-title">Exemples d'orphelins (max 20)</div>
               {#each r.orphan_samples as s}
                 <div class="orphan-row">
                   <div class="orphan-device">{s.model || '(modèle inconnu)'} · {s.serial_number || '(sans serial)'}</div>

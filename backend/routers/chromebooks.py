@@ -571,7 +571,7 @@ async def sync_from_google(db=Depends(get_raw_db)):
                     break
             else:
                 # No match anywhere — orphan.
-                if len(stats.orphan_samples) < 5:
+                if len(stats.orphan_samples) < 20:
                     stats.orphan_samples.append({
                         "serial_number": norm["serial_number"],
                         "model": norm["model"],

@@ -4,6 +4,14 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.7 — Chromebooks : fix bug KPI « % profs associés » + plus d'orphelins visibles
+
+**Bug** : le KPI « **% profs associés** » dans le modal de résultat de sync n'incluait pas les bindings via Asset ID (priorité 1 ajoutée en v7.2.6). Du coup le pourcentage affichait par exemple « 17% (34 / 198) » alors qu'en réalité **181 chromebooks sur 198 étaient bien associés (91%)** — juste que 147 d'entre eux passaient par Asset ID qui était oublié dans le compteur.
+
+Désormais : `totalMatched = asset_id + annotated + recent_user`. Le KPI affiche le vrai chiffre.
+
+**Bonus** : `orphan_samples` capé maintenant à **20 exemples** au lieu de 5. Plus de visibilité sur les chromebooks qui ne matchent aucun prof — utile pour identifier les profs manquants dans la table synchronisée (probablement dans une OU non couverte : AESH, personnel admin, etc).
+
 ## v7.2.6 — Chromebooks : Asset ID en priorité absolue (la vraie source de vérité)
 
 **Constat à l'usage** : sur le domaine `lekreisker.fr`, l'admin a tagué chaque Chromebook avec l'**email du propriétaire** dans le champ `annotatedAssetId` (par ex. `lise.rousseau@lekreisker.fr`). C'est la **source explicite et fiable** de l'affectation, posée à la main par l'admin, contrairement à `annotatedUser` qui était systématiquement le compte `admin.chrome@…` ou à `recentUsers[]` qui n'est qu'un historique de connexion.
