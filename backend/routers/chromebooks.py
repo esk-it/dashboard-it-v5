@@ -489,6 +489,26 @@ async def sync_from_google(db=Depends(get_raw_db)):
         stats.errors.append(f"fetch_chromeos_devices: {e!s}")
         devices_raw = []
 
+    # v7.2.4 — Pre-scan to detect "shared" annotated_user emails.
+    # Real teachers have at most a handful of devices each. When the same
+    # annotated_user shows up on dozens of devices it's a generic admin/
+    # service account (lekreisker: admin.chrome@…, admin.eleves.chrome@…)
+    # that was set en masse and would poison the binding. We skip these.
+    _SHARED_THRESHOLD = 3
+    annotated_counts: dict[str, int] = {}
+    for raw in devices_raw:
+        a = (raw.get("annotatedUser") or "").strip().lower()
+        if a:
+            annotated_counts[a] = annotated_counts.get(a, 0) + 1
+    shared_annotated: set[str] = set()
+    for email, n in annotated_counts.items():
+        if n > _SHARED_THRESHOLD:
+            shared_annotated.add(email)
+            stats.shared_annotated_skipped.append(
+                {"email": email, "device_count": n}
+            )
+    stats.shared_annotated_skipped.sort(key=lambda x: -x["device_count"])
+
     for raw in devices_raw:
         norm = google_admin.normalize_chromeos_device(raw)
         device_id = norm["google_device_id"]
@@ -511,7 +531,9 @@ async def sync_from_google(db=Depends(get_raw_db)):
             stats.devices_with_recent_user += 1
         binding_source = "none"
         teacher_id: int | None = None
-        if annotated and annotated in teacher_by_email:
+        # v7.2.4 — skip annotated_user that matches a "shared admin" account.
+        annotated_usable = annotated and annotated not in shared_annotated
+        if annotated_usable and annotated in teacher_by_email:
             teacher_id = teacher_by_email[annotated]
             binding_source = "annotated"
             stats.matched_via_annotated += 1

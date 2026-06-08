@@ -120,6 +120,10 @@ class SyncStats(BaseModel):
     # Up to 5 sample (device_serial, annotated_user, last_user_email) tuples for
     # the orphan cohort so the UI can show "voici ce que Google nous a renvoyé".
     orphan_samples: list[dict] = []
+    # v7.2.4 — annotated_user emails that we DIDN'T use for binding because
+    # they showed up on too many devices (likely a shared admin/service
+    # account, not a real assignee). Each entry: {email, device_count}.
+    shared_annotated_skipped: list[dict] = []
     duration_seconds: float = 0.0
     started_at: str = ""
     finished_at: str = ""

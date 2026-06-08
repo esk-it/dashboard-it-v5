@@ -4,6 +4,31 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.4 — Chromebooks : ignorer comptes génériques + refonte visuelle
+
+Deux gros points suite au sync sur 198 devices :
+
+### Bug : 99% des Chromebooks bindés sur le compte admin
+
+Le compte `admin.chrome@lekreisker.fr` (un compte de service utilisé pour le déploiement Chromebook) était dans `annotatedUser` de tous les 197 devices. Une fois la table profs synchronisée (148 profs, incluant ce compte admin qui est dans la même OU), la règle « `annotatedUser` prioritaire » a tout matché sur lui. Résultat : 192 chromebooks bindés à « Admin Chrome », pas aux vrais profs.
+
+**Fix : auto-détection des comptes partagés.** Pendant la sync, on compte les occurrences de chaque `annotatedUser`. Tout email qui apparaît sur **plus de 3 devices** est considéré comme un compte générique (admin, service, helpdesk) et **ignoré pour le matching annotated** — on tombe sur le fallback `recentUsers[0]` (le dernier vrai prof à s'être connecté).
+
+Visible dans le modal de résultat de sync : nouvelle section violette **« Comptes génériques ignorés »** avec la liste des emails et le nombre de devices concernés.
+
+Le seuil (3) est codé en dur pour l'instant. Si dans ton cas il y a des comptes équipe légitimes partagés par 4-5 profs, on rendra ça paramétrable en v7.3.x.
+
+### Refonte visuelle du module
+
+L'ensemble de la page utilisait des variables CSS inexistantes (`--bg-elev-1/2/3`, `--border-color`) qui tombaient sur du transparent — d'où le rendu plat et illisible en thème light. Remplacé par les vraies variables du thème (`--bg-card`, `--bg-input`, `--bg-hover`, `--border-card`).
+
+En plus :
+
+- **Search bar** : padding plus large, focus state avec halo accent
+- **Dialog Paramètres** : header + footer sticky (footer ne disparaît plus quand le contenu déborde), inputs plus aérés, hint « Astuce » avec barre accent à gauche pour la rendre visible
+- **Modal Résultat de sync** : KPI cards plus grosses (chiffres en 26px), breakdown encadré, séparation visuelle entre les sections (KPIs / breakdown / comptes ignorés / orphelins)
+- **Focus state** sur tous les inputs : halo accent (rgba) pour bien voir où on tape
+
 ## v7.2.3 — Chromebooks : explorateur d'OU Google + escape hatch « tout pull »
 
 Toujours sur la fondation Chromebooks. Premier sync sur 198 devices a montré que le matching reposait à 100% sur `recentUsers[0]` (les bons emails profs), mais qu'on récupérait 0 prof — donc le chemin OU configuré ne correspondait à rien côté Google. Plutôt que de deviner à l'aveugle, on ajoute un explorateur.
