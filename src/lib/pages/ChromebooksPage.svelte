@@ -631,6 +631,15 @@
                 </div>
                 <div class="diag-lines">
                   <div class="diag-line">
+                    <span class="diag-key">Dernier utilisateur connu :</span>
+                    {#if selectedCb.last_user_email}
+                      <span class="diag-val">{selectedCb.last_user_email}</span>
+                      <span class="diag-tag">non trouvé dans les profs</span>
+                    {:else}
+                      <span class="diag-val muted">non défini côté Google</span>
+                    {/if}
+                  </div>
+                  <div class="diag-line">
                     <span class="diag-key">Asset ID :</span>
                     {#if selectedCb.annotated_asset_id}
                       <span class="diag-val">{selectedCb.annotated_asset_id}</span>
@@ -643,15 +652,6 @@
                     <span class="diag-key">Utilisateur attribué (Google) :</span>
                     {#if selectedCb.annotated_user}
                       <span class="diag-val">{selectedCb.annotated_user}</span>
-                      <span class="diag-tag">non trouvé dans les profs</span>
-                    {:else}
-                      <span class="diag-val muted">non défini côté Google</span>
-                    {/if}
-                  </div>
-                  <div class="diag-line">
-                    <span class="diag-key">Dernier utilisateur connu :</span>
-                    {#if selectedCb.last_user_email}
-                      <span class="diag-val">{selectedCb.last_user_email}</span>
                       <span class="diag-tag">non trouvé dans les profs</span>
                     {:else}
                       <span class="diag-val muted">non défini côté Google</span>
@@ -1093,16 +1093,16 @@
 
           <div class="sync-breakdown">
             <div class="bd-row">
-              <span class="bd-label">Via email dans Asset ID (priorité 1)</span>
+              <span class="bd-label">Via dernier utilisateur (priorité 1)</span>
+              <span class="bd-value">{r.matched_via_recent_user || 0} / {r.devices_with_recent_user || 0}</span>
+            </div>
+            <div class="bd-row">
+              <span class="bd-label">Via email dans Asset ID (fallback)</span>
               <span class="bd-value">{r.matched_via_asset_id || 0} / {r.devices_with_asset_id_email || 0}</span>
             </div>
             <div class="bd-row">
               <span class="bd-label">Via « utilisateur attribué » (Admin Google)</span>
               <span class="bd-value">{r.matched_via_annotated || 0} / {r.devices_with_annotated || 0}</span>
-            </div>
-            <div class="bd-row">
-              <span class="bd-label">Via « dernier utilisateur connu »</span>
-              <span class="bd-value">{r.matched_via_recent_user || 0} / {r.devices_with_recent_user || 0}</span>
             </div>
             <div class="bd-row">
               <span class="bd-label">Orphelins (aucun email exploitable)</span>

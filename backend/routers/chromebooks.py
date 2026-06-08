@@ -546,42 +546,46 @@ async def sync_from_google(db=Depends(get_raw_db)):
         teacher_id: int | None = None
         # v7.2.4 — skip annotated_user that matches a "shared admin" account.
         annotated_usable = annotated and annotated not in shared_annotated
-        # v7.2.6 — Priority order (most explicit intent → loosest signal):
-        #   1. annotatedAssetId when it's an email → admin explicitly tagged
-        #      the device with the owner's email. This is the actual truth.
-        #   2. annotatedUser (if not a shared admin account).
-        #   3. recentUsers[] iteration (Google's history of who logged in).
-        if asset_id_is_email and asset_id in teacher_by_email:
+        # v7.2.8 — Priority order revised for the lekreisker workflow:
+        # the admin never updates Asset ID manually after the initial
+        # deployment, so it goes stale (e.g. tagged "lise.rousseau" in 2020,
+        # device now actually used by marie.douguet). Conversely Google
+        # auto-updates recentUsers on every login — so it's the most current
+        # signal. New order:
+        #   1. recentUsers[] iteration (current actual user, always fresh)
+        #   2. annotatedAssetId email (fallback for never-logged-into devices)
+        #   3. annotatedUser (last resort, almost always a shared admin acct)
+        matched = False
+        for email in recent_emails_lower:
+            if email in teacher_by_email:
+                teacher_id = teacher_by_email[email]
+                binding_source = "recent_user"
+                stats.matched_via_recent_user += 1
+                matched = True
+                break
+        if not matched and asset_id_is_email and asset_id in teacher_by_email:
             teacher_id = teacher_by_email[asset_id]
             binding_source = "asset_id"
             stats.matched_via_asset_id += 1
-        elif annotated_usable and annotated in teacher_by_email:
+            matched = True
+        if not matched and annotated_usable and annotated in teacher_by_email:
             teacher_id = teacher_by_email[annotated]
             binding_source = "annotated"
             stats.matched_via_annotated += 1
-        else:
-            # v7.2.5 — iterate the WHOLE recentUsers[] list. Index 0 may be a
-            # test account / generic / masked entry; later indexes often hold
-            # the real teacher. Stop at the first teacher email that matches.
-            for email in recent_emails_lower:
-                if email in teacher_by_email:
-                    teacher_id = teacher_by_email[email]
-                    binding_source = "recent_user"
-                    stats.matched_via_recent_user += 1
-                    break
-            else:
-                # No match anywhere — orphan.
-                if len(stats.orphan_samples) < 20:
-                    stats.orphan_samples.append({
-                        "serial_number": norm["serial_number"],
-                        "model": norm["model"],
-                        "annotated_user": norm["annotated_user"],
-                        "annotated_asset_id": norm["annotated_asset_id"],
-                        "last_user_email": norm["last_user_email"],
-                        # v7.2.5 — surface the FULL recent users list so the
-                        # user can spot which email they expected to match.
-                        "recent_user_emails": norm.get("recent_user_emails") or [],
-                    })
+            matched = True
+        if not matched:
+            # Orphan — none of annotated / asset_id / recentUsers gave a prof.
+            if len(stats.orphan_samples) < 20:
+                stats.orphan_samples.append({
+                    "serial_number": norm["serial_number"],
+                    "model": norm["model"],
+                    "annotated_user": norm["annotated_user"],
+                    "annotated_asset_id": norm["annotated_asset_id"],
+                    "last_user_email": norm["last_user_email"],
+                    # v7.2.5 — surface the FULL recent users list so the
+                    # user can spot which email they expected to match.
+                    "recent_user_emails": norm.get("recent_user_emails") or [],
+                })
 
         if existing:
             cb_id, old_teacher_id, old_source = existing[0]

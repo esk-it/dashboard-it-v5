@@ -4,6 +4,27 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.8 — Chromebooks : Dernier utilisateur en priorité absolue (Asset ID périmé)
+
+**Discussion utilisateur clé** : l'admin ne maintient jamais le champ `annotatedAssetId` à la main. Lors du déploiement initial des Chromebooks (~2020), chaque device a été tagué avec l'email du prof à qui il était affecté à l'époque. Depuis, les chromebooks ont changé de mains plusieurs fois (rotation fin d'année), mais l'Asset ID n'a jamais bougé. **Il est donc périmé** pour une bonne partie du parc.
+
+À l'inverse, `recentUsers[0]` (le dernier utilisateur connecté) est **auto-mis à jour par Google à chaque connexion** — donc toujours frais. Et comme aucun élève n'utilise les chromebooks profs, c'est forcément le vrai prof actuel.
+
+### Nouvelle hiérarchie de priorité
+
+1. **`recentUsers[0]`** (Dernier utilisateur) → priorité absolue : le prof actuel détecté par Google
+2. **`recentUsers[1+]`** → fallback si [0] est masqué (`*****@*****.com`) ou un autre compte
+3. **Asset ID email** → fallback supplémentaire pour les Chromebooks neufs jamais utilisés
+4. **`annotatedUser`** non-partagé → dernier recours (quasi-toujours un compte admin de toute façon)
+
+### Conséquences pour ton parc
+
+Sur tes 198 Chromebooks, la prochaine sync va **rebinder massivement** les ~147 devices actuellement attachés au prof désigné par l'Asset ID (souvent le prof de 2020), vers le **vrai prof courant** détecté via `recentUsers[0]`. Le compteur « Re-bindés cette sync » va exploser. L'historique d'affectation conservera la trace des changements.
+
+### Ordre d'affichage mis à jour
+
+Le breakdown du modal de sync et le bloc de diagnostic du détail Chromebook réordonnent l'inspection des champs selon la nouvelle priorité : Dernier utilisateur en haut, Asset ID au milieu, Utilisateur attribué en bas.
+
 ## v7.2.7 — Chromebooks : fix bug KPI « % profs associés » + plus d'orphelins visibles
 
 **Bug** : le KPI « **% profs associés** » dans le modal de résultat de sync n'incluait pas les bindings via Asset ID (priorité 1 ajoutée en v7.2.6). Du coup le pourcentage affichait par exemple « 17% (34 / 198) » alors qu'en réalité **181 chromebooks sur 198 étaient bien associés (91%)** — juste que 147 d'entre eux passaient par Asset ID qui était oublié dans le compteur.
