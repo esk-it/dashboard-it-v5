@@ -185,15 +185,26 @@ async def fetch_all_user_ou_paths() -> list[dict[str, Any]]:
 
 
 def normalize_chromeos_device(raw: dict[str, Any]) -> dict[str, Any]:
-    """Pick the fields we persist locally from a ChromeOS device JSON."""
+    """Pick the fields we persist locally from a ChromeOS device JSON.
+
+    v7.2.5 — collect the FULL recentUsers email list (not just [0]).
+    Reality: index 0 may be a generic admin, a test account, or a masked
+    `*****@*****.com`. By iterating later entries we still find the real
+    teacher who's been using the device — which is the whole point of the
+    auto-binding.
+    """
     recent_users = raw.get("recentUsers") or []
-    # recentUsers is sorted by date DESC; index 0 is the most recent.
-    last_user_email = ""
+    # recentUsers is sorted by Google by recency (most recent first).
+    # We keep all non-empty + non-masked emails, preserving order.
+    recent_user_emails: list[str] = []
     for u in recent_users:
         e = (u.get("email") or "").strip()
-        if e:
-            last_user_email = e
-            break
+        if not e:
+            continue
+        # Skip Google's redaction marker (when device policy hides the email).
+        if e.lower() == "*****@*****.com":
+            continue
+        recent_user_emails.append(e)
 
     return {
         "google_device_id": raw.get("deviceId", ""),
@@ -205,7 +216,10 @@ def normalize_chromeos_device(raw: dict[str, Any]) -> dict[str, Any]:
         "google_status": raw.get("status", "") or "",
         "last_enrollment_time": raw.get("lastEnrollmentTime") or None,
         "support_end_date": raw.get("supportEndDate") or None,
-        "last_user_email": last_user_email,
+        # `last_user_email` keeps the most recent (index 0) for display.
+        "last_user_email": recent_user_emails[0] if recent_user_emails else "",
+        # `recent_user_emails` carries the full list for binding fallback.
+        "recent_user_emails": recent_user_emails,
     }
 
 

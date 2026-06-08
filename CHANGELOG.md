@@ -4,6 +4,24 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.5 — Chromebooks : binding via toute la liste `recentUsers[]`
+
+Avant : on prenait uniquement `recentUsers[0]` (le tout dernier utilisateur connecté). Si ce premier utilisateur était une session de test, un compte de helpdesk passé pour dépanner, ou un email masqué par Google (`*****@*****.com`), on tombait en orphelin alors que **le vrai prof figurait à l'index 1 ou 2 dans la liste**.
+
+### Le fix
+
+Pendant la sync, pour chaque Chromebook :
+1. On capture **toute la liste** `recentUsers[].email` (en ignorant les valeurs vides et les `*****@*****.com` redacted par Google).
+2. Pour le binding : si `annotatedUser` ne donne rien (ou est marqué « partagé »), on **itère la liste complète des utilisateurs récents** et on prend **le premier email qui correspond à un prof synchronisé**, peu importe son index.
+
+### Diagnostic enrichi
+
+Dans le modal de résultat de sync, les exemples d'orphelins montrent maintenant **tous les utilisateurs récents** (séparés par `·`), pas juste le premier. Ça permet de voir d'un coup d'œil si un email valide était dans la liste mais juste pas en index 0.
+
+### Pas d'action utilisateur
+
+Pas de migration nécessaire. Relance la sync depuis le module Chromebooks après la mise à jour, le matching va automatiquement profiter de l'itération étendue.
+
 ## v7.2.4 — Chromebooks : ignorer comptes génériques + refonte visuelle
 
 Deux gros points suite au sync sur 198 devices :

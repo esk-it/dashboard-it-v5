@@ -522,12 +522,13 @@ async def sync_from_google(db=Depends(get_raw_db)):
 
         # Resolve binding
         annotated = (norm["annotated_user"] or "").lower()
-        last_user = (norm["last_user_email"] or "").lower()
+        recent_emails_lower = [e.lower() for e in (norm.get("recent_user_emails") or [])]
+        last_user = recent_emails_lower[0] if recent_emails_lower else ""
         # Diagnostic counters: surface why bindings fail in the SyncStats so
         # the UI can show "voici ce que Google a renvoyé".
         if annotated:
             stats.devices_with_annotated += 1
-        if last_user:
+        if recent_emails_lower:
             stats.devices_with_recent_user += 1
         binding_source = "none"
         teacher_id: int | None = None
@@ -537,19 +538,28 @@ async def sync_from_google(db=Depends(get_raw_db)):
             teacher_id = teacher_by_email[annotated]
             binding_source = "annotated"
             stats.matched_via_annotated += 1
-        elif last_user and last_user in teacher_by_email:
-            teacher_id = teacher_by_email[last_user]
-            binding_source = "recent_user"
-            stats.matched_via_recent_user += 1
-        elif len(stats.orphan_samples) < 5:
-            # Capture a few orphan examples so the UI can hint the user
-            # ("Voici les emails que Google nous a renvoyé pour ce chromebook…").
-            stats.orphan_samples.append({
-                "serial_number": norm["serial_number"],
-                "model": norm["model"],
-                "annotated_user": norm["annotated_user"],
-                "last_user_email": norm["last_user_email"],
-            })
+        else:
+            # v7.2.5 — iterate the WHOLE recentUsers[] list. Index 0 may be a
+            # test account / generic / masked entry; later indexes often hold
+            # the real teacher. Stop at the first teacher email that matches.
+            for email in recent_emails_lower:
+                if email in teacher_by_email:
+                    teacher_id = teacher_by_email[email]
+                    binding_source = "recent_user"
+                    stats.matched_via_recent_user += 1
+                    break
+            else:
+                # No match in any recent user — orphan.
+                if len(stats.orphan_samples) < 5:
+                    stats.orphan_samples.append({
+                        "serial_number": norm["serial_number"],
+                        "model": norm["model"],
+                        "annotated_user": norm["annotated_user"],
+                        "last_user_email": norm["last_user_email"],
+                        # v7.2.5 — surface the FULL recent users list so the
+                        # user can spot which email they expected to match.
+                        "recent_user_emails": norm.get("recent_user_emails") or [],
+                    })
 
         if existing:
             cb_id, old_teacher_id, old_source = existing[0]

@@ -1140,8 +1140,18 @@
                   <div class="orphan-device">{s.model || '(modèle inconnu)'} · {s.serial_number || '(sans serial)'}</div>
                   <div class="orphan-emails">
                     <span class="orphan-tag">attribué :</span> <span>{s.annotated_user || '—'}</span>
-                    <span class="orphan-tag">dernier :</span> <span>{s.last_user_email || '—'}</span>
                   </div>
+                  {#if s.recent_user_emails && s.recent_user_emails.length > 0}
+                    <div class="orphan-emails">
+                      <span class="orphan-tag">utilisateurs récents :</span>
+                      <span>{s.recent_user_emails.join(' · ')}</span>
+                    </div>
+                  {:else}
+                    <div class="orphan-emails">
+                      <span class="orphan-tag">utilisateurs récents :</span>
+                      <span>—</span>
+                    </div>
+                  {/if}
                 </div>
               {/each}
             </div>
