@@ -85,24 +85,34 @@ async def fetch_chromeos_devices(
 
 async def fetch_users(
     org_unit_path: str,
+    *,
+    include_descendants: bool = True,
 ) -> list[dict[str, Any]]:
-    """Pull every user under the given OU path (exact match, no descendants).
+    """Pull users under the given OU path.
 
-    Uses the `query` parameter with `orgUnitPath='/path'` syntax. Google
-    requires `customer` to be set when listing users (we use `my_customer`).
+    Implementation note (v7.2.2): Google's `users.list` `query=orgUnitPath='...'`
+    syntax chokes on paths with spaces, dots or accented characters (returns
+    HTTP 400 Bad Request) — even when escaped per the docs. We work around
+    by pulling every user in the customer (paginated) and filtering by
+    `orgUnitPath` client-side. For schools with ~500-3000 Workspace accounts
+    this adds ~1-2s on top of the device sync; well worth the reliability.
+
+    `include_descendants` (default True): also returns users in sub-OUs of
+    the target path. Useful if profs are nested by establishment
+    (e.g. `/Profs/NDK`, `/Profs/SU`). Set False to require exact OU.
     """
     token = await google_calendar._ensure_valid_token()
     out: list[dict[str, Any]] = []
     page_token: str | None = None
 
-    # Single-quote the path inside the query value. Google parses the literal.
-    query = f"orgUnitPath='{org_unit_path}'"
+    target = (org_unit_path or "").rstrip("/")
+    if not target:
+        return []
 
     async with httpx.AsyncClient(timeout=60) as client:
         while True:
             params: dict[str, Any] = {
                 "customer": "my_customer",
-                "query": query,
                 "maxResults": _USER_PAGE_SIZE,
                 "projection": "full",
             }
@@ -121,7 +131,17 @@ async def fetch_users(
                 )
             resp.raise_for_status()
             data = resp.json()
-            out.extend(data.get("users", []))
+
+            for u in data.get("users", []):
+                ou = (u.get("orgUnitPath") or "").rstrip("/")
+                if include_descendants:
+                    # Match the target OR any path starting with target + "/".
+                    if ou == target or ou.startswith(target + "/"):
+                        out.append(u)
+                else:
+                    if ou == target:
+                        out.append(u)
+
             page_token = data.get("nextPageToken")
             if not page_token:
                 break

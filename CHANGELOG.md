@@ -4,6 +4,25 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.2.2 — Chromebooks : fix sync profs (400 Bad Request sur les OU à caractères spéciaux)
+
+L'API Google `users.list` retournait un **HTTP 400 Bad Request** quand on cherchait des profs avec `query=orgUnitPath='/1. Personnel éducatif'`. Les chemins contenant **espaces, points ou caractères accentués** font tousser le parser de query Google, même quand le path est correctement échappé selon leur doc.
+
+### Le fix
+
+On contourne en faisant un **filtrage côté client** :
+- On tire **tous les utilisateurs** du domaine (paginé, ~500 par page).
+- On filtre ensuite localement par `orgUnitPath`.
+- Coût : ~1-2s supplémentaires pour un domaine de 1000-3000 comptes. Robustesse : 100%.
+
+### Bonus
+
+- **Option « Inclure les sous-OU des Profs »** dans les Paramètres Chromebooks (activée par défaut). Pratique si tes profs sont rangés par établissement : `/Profs/NDK`, `/Profs/SU`, etc. Sans ça, on ne récupérerait que les profs du nœud exact.
+
+### Action utilisateur
+
+Relance la sync depuis le module Chromebooks. Le warning `fetch_users: Client error '400 Bad Request'` disparaît, les profs devraient maintenant remonter.
+
 ## v7.2.1 — Chromebooks : fixes + diagnostic
 
 Petite passe de correctifs et d'outillage suite au premier test du module sur 500+ devices.

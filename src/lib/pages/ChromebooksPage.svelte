@@ -12,7 +12,7 @@
   let teachers = [];
   let stats = { total: 0, by_status_local: {}, orphans: 0, teachers_no_device: 0, last_sync: '' };
   let cbModels = [];
-  let cbSettings = { device_ou_path: '', user_ou_path: '', include_device_descendants: false, google_connected: false };
+  let cbSettings = { device_ou_path: '', user_ou_path: '', include_device_descendants: false, include_user_descendants: true, google_connected: false };
   let loading = true;
   let syncing = false;
   let lastSyncResult = null;
@@ -293,12 +293,13 @@
   }
 
   // ── Settings dialog ───────────────────────────────────────
-  let settingsForm = { device_ou_path: '', user_ou_path: '', include_device_descendants: false };
+  let settingsForm = { device_ou_path: '', user_ou_path: '', include_device_descendants: false, include_user_descendants: true };
   function openSettings() {
     settingsForm = {
       device_ou_path: cbSettings.device_ou_path || '',
       user_ou_path: cbSettings.user_ou_path || '',
       include_device_descendants: !!cbSettings.include_device_descendants,
+      include_user_descendants: cbSettings.include_user_descendants !== false,
     };
     showSettingsDialog = true;
   }
@@ -903,6 +904,10 @@
           <label class="checkbox">
             <input type="checkbox" bind:checked={settingsForm.include_device_descendants} />
             <span>Inclure les sous-OU pour les Chromebooks (utile si les devices sont éclatés en sous-dossiers)</span>
+          </label>
+          <label class="checkbox">
+            <input type="checkbox" bind:checked={settingsForm.include_user_descendants} />
+            <span>Inclure les sous-OU pour les Profs (utile si profs nested par établissement)</span>
           </label>
         </div>
         <footer class="dialog-f">

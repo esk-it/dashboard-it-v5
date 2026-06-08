@@ -58,6 +58,9 @@ _DEFAULT_SETTINGS = {
     # When True, also fetch devices in child OUs. Off by default — explicit
     # OU is safer for the user's mental model.
     "include_device_descendants": False,
+    # For users we default to True — profs are often nested per establishment
+    # (e.g. /Profs/NDK, /Profs/SU). Less surprise than missing accounts.
+    "include_user_descendants": True,
 }
 
 
@@ -395,7 +398,10 @@ async def sync_from_google(db=Depends(get_raw_db)):
 
     # ── Phase 1 — Teachers ─────────────────────────────────────────────
     try:
-        users_raw = await google_admin.fetch_users(user_ou)
+        users_raw = await google_admin.fetch_users(
+            user_ou,
+            include_descendants=bool(settings.get("include_user_descendants", True)),
+        )
     except PermissionError as e:
         raise HTTPException(403, str(e))
     except Exception as e:
