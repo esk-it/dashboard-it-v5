@@ -4,6 +4,40 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.3.0 — Réparation auto des FK + étiquettes Parc paramétrables
+
+Deux ajustements demandés à l'usage. Aucun lien entre les deux mais on les ship ensemble pour éviter de fragmenter en micro-versions.
+
+### Réparation des clés étrangères (Paramètres → Sécurité DB)
+
+Quand le check « Vérifier clés étrangères » remonte des violations (côté user : 7 violations), un bouton **« 🔧 Réparer les violations »** apparaît. Workflow :
+
+1. **Dry-run** : un modal s'ouvre et montre exactement ce qui serait fait — combien de lignes seront mises à `NULL`, combien seront ignorées (colonnes `NOT NULL`), avec le détail action par action (table, rowid, colonne FK, raison)
+2. **Sécurité** : avant tout changement, on crée automatiquement un **backup complet** dans `backups/pre_fk_repair_<timestamp>.zip`. Si le backup échoue, la réparation est annulée
+3. **Transaction** : les `UPDATE` tournent dans une transaction unique. Toute exception → `ROLLBACK` automatique, la DB reste inchangée
+4. **Soft only** : on met à `NULL` les FK orphelines sur colonnes nullables. Les colonnes `NOT NULL` sont **ignorées** (jamais de DELETE automatique). Si tu en as besoin, c'est manuel via un éditeur DB
+
+Côté backend : 2 nouveaux endpoints `POST /api/settings/db-fk-repair-preview` et `/db-fk-repair-apply`.
+
+### Étiquettes Parc — paramétrables + calibrage imprimante
+
+Avant : layout en dur `45.7×21.2 / 4×12, centré sans gap`. Marchait sur certaines planches, décalait sur d'autres. Désormais :
+
+- **Dropdown de presets** : `Apli 01287 / Herma 4459` (le format 45.7×21.2 × 48 que tu utilises), `Avery L7651`, `L7654`, `L7163`, `Personnalisé`, plus le layout legacy pour rétro-compat
+- **Tous les champs éditables** dans le dialog : largeur/hauteur étiquette, colonnes, lignes, marges haut/gauche, gaps horizontal/vertical — ajustables même quand un preset est sélectionné
+- **Calibrage imprimante** : 2 champs `Offset X` et `Offset Y` (mm) pour compenser le décalage propre à ton imprimante. Sauvegardés en `localStorage` — tu règles une fois par machine
+- **Bouton « 📐 Page de calibrage »** : génère un PDF avec uniquement des cadres rouges (positions des étiquettes) et des croix bleues au centre. Tu l'imprimes sur feuille blanche, tu poses ta planche d'étiquettes par dessus à contre-jour — si les croix tombent au centre des étiquettes physiques, le calibrage est bon. Sinon tu ajustes Offset X/Y de quelques mm et tu réimprimes
+
+Tous les paramètres persistés en `localStorage` (`parc.labelSettings.v1`) — un seul réglage par machine.
+
+### Pour ton cas concret (Software Code L6009 = 45.7 × 21.2 × 48)
+
+1. Ouvre le module **Parc → bouton Étiquettes**
+2. Preset par défaut : **« Apli 01287 / Herma 4459 »** déjà sélectionné (correspond à tes dimensions)
+3. Clique **« Page de calibrage »** → imprime le PDF sur feuille blanche
+4. Pose ta planche d'étiquettes par dessus → si les croix bleues tombent au centre de tes étiquettes, c'est bon. Sinon ajuste **Offset X/Y** au demi-millimètre près
+5. Une fois aligné → clique **« Générer N étiquettes »**
+
 ## v7.2.11 — Chromebooks : recadrage visuel et conceptuel
 
 Le rendu de v7.2.10 dramatisait à mort les Chromebooks dont l'utilisateur n'est pas dans tes profs synchronisés : grosse étiquette violette « Hors profs » sur la card, bloc orange « ⚠ Pas dans les profs synchronisés » dans le détail, KPI « 17 orphelins ». Tout ça donnait l'impression d'erreurs partout alors qu'en réalité **on connaît l'utilisateur du chromebook**, il n'est juste pas dans la table « Profs » qui sert d'enrichissement.

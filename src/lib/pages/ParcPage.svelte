@@ -293,9 +293,97 @@
   let qrEquipments = [];
   let qrGenerating = false;
 
+  // v7.3.0 — Configurable label sheet layouts. The user reported that the
+  // hardcoded 45.7×21.2 / 4×12 layout printed misaligned on his sheets:
+  // every brand has its own margins + gap convention even at identical
+  // label sizes. We now offer presets + a "custom" mode + per-printer
+  // calibration offsets (saved to localStorage so the user only tunes once).
+  const LABEL_PRESETS = {
+    apli_01287: {
+      label: 'Apli 01287 / Herma 4459 (45.7×21.2 — 4×12 = 48/page)',
+      pageW: 210, pageH: 297, cols: 4, rows: 12,
+      labelW: 45.7, labelH: 21.2,
+      marginTop: 12.7, marginLeft: 9.0,
+      gapX: 2.5, gapY: 0,
+    },
+    avery_L7651: {
+      label: 'Avery L7651 (38.1×21.2 — 5×13 = 65/page)',
+      pageW: 210, pageH: 297, cols: 5, rows: 13,
+      labelW: 38.1, labelH: 21.2,
+      marginTop: 10.7, marginLeft: 4.65,
+      gapX: 2.5, gapY: 0,
+    },
+    avery_L7654: {
+      label: 'Avery L7654 (45.7×25.4 — 4×10 = 40/page)',
+      pageW: 210, pageH: 297, cols: 4, rows: 10,
+      labelW: 45.7, labelH: 25.4,
+      marginTop: 21.5, marginLeft: 9.0,
+      gapX: 2.5, gapY: 0,
+    },
+    avery_L7163: {
+      label: 'Avery L7163 (99.1×38.1 — 2×7 = 14/page)',
+      pageW: 210, pageH: 297, cols: 2, rows: 7,
+      labelW: 99.1, labelH: 38.1,
+      marginTop: 15.1, marginLeft: 4.65,
+      gapX: 2.5, gapY: 0,
+    },
+    legacy_centered: {
+      label: 'Layout pré-v7.3.0 (centré, sans gap)',
+      pageW: 210, pageH: 297, cols: 4, rows: 12,
+      labelW: 45.7, labelH: 21.2,
+      marginTop: 21.3, marginLeft: 13.6,
+      gapX: 0, gapY: 0,
+    },
+    custom: { label: 'Personnalisé (saisis tes propres dimensions)' },
+  };
+
+  let labelPreset = 'apli_01287';
+  let labelParams = { ...LABEL_PRESETS.apli_01287 };
+  // Calibration offsets (mm) — fine-tune after a calibration print if the
+  // printer shifts everything by a few mm. Persisted alongside params.
+  let labelOffsetX = 0;
+  let labelOffsetY = 0;
+
+  const LABEL_STORAGE_KEY = 'parc.labelSettings.v1';
+
+  function loadLabelSettings() {
+    try {
+      const raw = localStorage.getItem(LABEL_STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.preset && LABEL_PRESETS[saved.preset]) {
+        labelPreset = saved.preset;
+        labelParams = { ...LABEL_PRESETS[saved.preset], ...(saved.params || {}) };
+      } else if (saved.params) {
+        labelPreset = 'custom';
+        labelParams = { ...labelParams, ...saved.params };
+      }
+      labelOffsetX = saved.offsetX || 0;
+      labelOffsetY = saved.offsetY || 0;
+    } catch (e) { /* swallow — defaults stay */ }
+  }
+  function saveLabelSettings() {
+    try {
+      localStorage.setItem(LABEL_STORAGE_KEY, JSON.stringify({
+        preset: labelPreset,
+        params: labelParams,
+        offsetX: labelOffsetX,
+        offsetY: labelOffsetY,
+      }));
+    } catch (e) {}
+  }
+  function applyPreset(key) {
+    labelPreset = key;
+    if (key !== 'custom' && LABEL_PRESETS[key]) {
+      labelParams = { ...LABEL_PRESETS[key] };
+    }
+    saveLabelSettings();
+  }
+
   function openQrLabels() {
     // Use selected items if any, otherwise filtered items
     qrEquipments = selectedEquipment.length > 0 ? selectedEquipment.slice(0, 50) : filteredEquipment.slice(0, 50);
+    loadLabelSettings();
     showQrDialog = true;
   }
 
@@ -337,22 +425,30 @@
     return logoUrl;
   }
 
+  // v7.3.0 — Compute the (x, y) top-left of a label slot given its index
+  // and the current labelParams + calibration offsets. Centralised so the
+  // real-label and calibration-page generators stay in sync.
+  function _labelSlot(posOnPage) {
+    const p = labelParams;
+    const col = posOnPage % p.cols;
+    const row = Math.floor(posOnPage / p.cols);
+    const x = p.marginLeft + col * (p.labelW + (p.gapX || 0)) + labelOffsetX;
+    const y = p.marginTop  + row * (p.labelH + (p.gapY || 0)) + labelOffsetY;
+    return { x, y };
+  }
+
   async function generateQrLabels() {
     qrGenerating = true;
+    saveLabelSettings();
     try {
       const { default: jsPDF } = await import('jspdf');
       const doc = new jsPDF('portrait');
-
-      // Label dimensions: 45.7mm x 21.2mm, 4 cols x 12 rows = 48 per page
-      const labelW = 45.7;
-      const labelH = 21.2;
-      const cols = 4;
-      const rows = 12;
+      const p = labelParams;
+      const labelW = p.labelW;
+      const labelH = p.labelH;
+      const cols = p.cols;
+      const rows = p.rows;
       const labelsPerPage = cols * rows;
-      const pageW = 210;
-      const pageH = 297;
-      const marginX = (pageW - cols * labelW) / 2;
-      const marginY = (pageH - rows * labelH) / 2;
 
       // Preload site logos
       const siteLogos = {};
@@ -364,13 +460,10 @@
       for (let i = 0; i < qrEquipments.length; i++) {
         const eq = qrEquipments[i];
         const posOnPage = i % labelsPerPage;
-        const col = posOnPage % cols;
-        const row = Math.floor(posOnPage / cols);
 
         if (i > 0 && posOnPage === 0) doc.addPage();
 
-        const x = marginX + col * labelW;
-        const y = marginY + row * labelH;
+        const { x, y } = _labelSlot(posOnPage);
 
         // Rounded border
         doc.setDrawColor(210, 210, 210);
@@ -412,6 +505,64 @@
       await savePdfWithDialog(doc, `etiquettes_parc_${new Date().toISOString().slice(0,10)}.pdf`);
       showQrDialog = false;
       success(`${qrEquipments.length} etiquettes generees`);
+    } catch (e) {
+      toastError('Erreur : ' + e.message);
+    }
+    qrGenerating = false;
+  }
+
+  // v7.3.0 — Calibration page: prints just empty rectangles at the configured
+  // label positions + crosshairs in each label. The user prints this on a
+  // blank A4 (NOT a label sheet — saves them a sheet) then overlays his
+  // actual label planche to check alignment, OR prints directly on a label
+  // sheet if he's brave. Adjust offsetX/offsetY then re-print until the
+  // crosshairs sit dead-centre on each label.
+  async function generateCalibrationPage() {
+    qrGenerating = true;
+    saveLabelSettings();
+    try {
+      const { default: jsPDF } = await import('jspdf');
+      const doc = new jsPDF('portrait');
+      const p = labelParams;
+      const labelsPerPage = p.cols * p.rows;
+
+      // Header text outside the label zone (top-left corner of the page).
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(8);
+      doc.text(
+        `Calibrage étiquettes — preset: ${labelPreset} · offset X: ${labelOffsetX} mm · Y: ${labelOffsetY} mm`,
+        5, 5,
+      );
+
+      // Outline every label position with a crosshair + position number.
+      doc.setLineWidth(0.15);
+      for (let i = 0; i < labelsPerPage; i++) {
+        const { x, y } = _labelSlot(i);
+        // Rectangle around the label
+        doc.setDrawColor(180, 30, 30);
+        doc.rect(x, y, p.labelW, p.labelH);
+        // Crosshair at the centre — easiest visual check
+        const cx = x + p.labelW / 2;
+        const cy = y + p.labelH / 2;
+        doc.setDrawColor(80, 80, 200);
+        doc.line(cx - 3, cy, cx + 3, cy);
+        doc.line(cx, cy - 3, cx, cy + 3);
+        // Tiny corner numbers
+        doc.setTextColor(80, 80, 200);
+        doc.setFontSize(6);
+        doc.text(String(i + 1), x + 1.5, y + 3);
+      }
+
+      // Footer instruction
+      doc.setTextColor(120, 120, 120);
+      doc.setFontSize(7);
+      doc.text(
+        'Imprime cette page sur une feuille blanche puis pose ta planche d\'étiquettes par dessus. Si les rectangles débordent, ajuste « offset X / Y » de quelques millimètres et réimprime.',
+        5, 292, { maxWidth: 200 },
+      );
+
+      await savePdfWithDialog(doc, `calibrage_etiquettes.pdf`);
+      success('Page de calibrage générée');
     } catch (e) {
       toastError('Erreur : ' + e.message);
     }
@@ -1006,27 +1157,94 @@
 </div>
 {/if}
 
-<!-- ── QR Labels Dialog ───────────────────────────────────── -->
+<!-- QR Labels Dialog (v7.3.0 - presets + params + calibrage) -->
 {#if showQrDialog}
 <div class="ya-dialog-overlay" on:click|self={() => showQrDialog = false}>
-  <div class="ya-dialog">
+  <div class="ya-dialog labels-dialog">
     <div class="ya-dialog__header">
-      <h3 class="ya-dialog__title">{'\u{1F3F7}\uFE0F'} {'\u00C9'}tiquettes QR</h3>
+      <h3 class="ya-dialog__title">{'\u{1F3F7}\uFE0F'} {'\u00C9'}tiquettes {'\u00e9'}quipements</h3>
       <button class="ya-dialog__close" on:click={() => showQrDialog = false}>{'\u00D7'}</button>
     </div>
-    <div class="ya-dialog__body">
-      <p style="font-size:0.85rem;color:rgba(255,255,255,0.6);margin-bottom:12px">
-        G{'\u00e9'}n{'\u00e9'}rer des {'\u00e9'}tiquettes QR code pour coller sur les {'\u00e9'}quipements.
-        Chaque {'\u00e9'}tiquette contient le hostname, type, n{'\u00b0'} de s{'\u00e9'}rie et site.
+    <div class="ya-dialog__body labels-body">
+      <p class="labels-count">
+        <strong>{qrEquipments.length}</strong> {'\u00e9'}quipement{qrEquipments.length > 1 ? 's' : ''} s{'\u00e9'}lectionn{'\u00e9'}{qrEquipments.length > 1 ? 's' : ''} (filtre actuel, max 50)
       </p>
-      <p style="font-size:0.9rem;margin-bottom:8px">
-        <strong>{qrEquipments.length}</strong> {'\u00e9'}quipements s{'\u00e9'}lectionn{'\u00e9'}s (filtre actuel, max 50)
-      </p>
+
+      <div class="labels-section">
+        <label class="labels-field">
+          <span class="labels-label">Format de planche</span>
+          <select bind:value={labelPreset} on:change={(e) => applyPreset(e.target.value)}>
+            {#each Object.entries(LABEL_PRESETS) as [key, p]}
+              <option value={key}>{p.label}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+
+      <div class="labels-section">
+        <div class="labels-section-title">Dimensions (en mm) - ajustables</div>
+        <div class="labels-grid">
+          <label class="labels-field">
+            <span>Largeur {'\u00e9'}tiquette</span>
+            <input type="number" step="0.1" bind:value={labelParams.labelW} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Hauteur {'\u00e9'}tiquette</span>
+            <input type="number" step="0.1" bind:value={labelParams.labelH} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Colonnes</span>
+            <input type="number" step="1" min="1" bind:value={labelParams.cols} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Lignes</span>
+            <input type="number" step="1" min="1" bind:value={labelParams.rows} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Marge haut</span>
+            <input type="number" step="0.1" bind:value={labelParams.marginTop} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Marge gauche</span>
+            <input type="number" step="0.1" bind:value={labelParams.marginLeft} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Gap horizontal</span>
+            <input type="number" step="0.1" bind:value={labelParams.gapX} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Gap vertical</span>
+            <input type="number" step="0.1" bind:value={labelParams.gapY} on:change={saveLabelSettings} />
+          </label>
+        </div>
+      </div>
+
+      <div class="labels-section">
+        <div class="labels-section-title">Calibrage imprimante</div>
+        <p class="labels-help">
+          D{'\u00e9'}calage fin si ton imprimante d{'\u00e9'}cale tout le contenu. Imprime d'abord la <strong>page de calibrage</strong> ci-dessous,
+          puis ajuste ces 2 valeurs au demi-millim{'\u00e8'}tre pr{'\u00e8'}s jusqu'{'\u00e0'} ce que les croix tombent au centre de chaque {'\u00e9'}tiquette.
+          Sauvegard{'\u00e9'} localement, {'\u00e0'} r{'\u00e9'}gler une fois par imprimante.
+        </p>
+        <div class="labels-grid">
+          <label class="labels-field">
+            <span>Offset X (mm)</span>
+            <input type="number" step="0.1" bind:value={labelOffsetX} on:change={saveLabelSettings} />
+          </label>
+          <label class="labels-field">
+            <span>Offset Y (mm)</span>
+            <input type="number" step="0.1" bind:value={labelOffsetY} on:change={saveLabelSettings} />
+          </label>
+        </div>
+      </div>
     </div>
     <div class="ya-dialog__footer">
-      <button class="ya-btn ya-btn--ghost" on:click={() => showQrDialog = false}>Annuler</button>
-      <button class="ya-btn ya-btn--primary" on:click={generateQrLabels} disabled={qrGenerating}>
-        {qrGenerating ? 'G\u00e9n\u00e9ration...' : `G\u00e9n\u00e9rer ${qrEquipments.length} \u00e9tiquettes`}
+      <button class="ya-btn ya-btn--ghost" on:click={() => showQrDialog = false}>Fermer</button>
+      <button class="ya-btn ya-btn--ghost" on:click={generateCalibrationPage} disabled={qrGenerating}>
+        Page de calibrage
+      </button>
+      <button class="ya-btn ya-btn--primary" on:click={generateQrLabels} disabled={qrGenerating || qrEquipments.length === 0}>
+        {qrGenerating ? 'G\u00e9n\u00e9ration...' : `G\u00e9n\u00e9rer ${qrEquipments.length} \u00e9tiquette${qrEquipments.length > 1 ? 's' : ''}`}
       </button>
     </div>
   </div>
@@ -1267,5 +1485,50 @@
   .sync-info {
     font-size: 0.75rem; color: rgba(255,255,255,0.4);
     white-space: nowrap;
+  }
+
+  /* v7.3.0 — Labels dialog */
+  .labels-dialog { max-width: 640px; width: 100%; }
+  .labels-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 20px; }
+  .labels-count { font-size: 0.875rem; margin: 0; color: var(--text-primary); }
+  .labels-section {
+    background: var(--bg-input);
+    border: 1px solid var(--border-card);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .labels-section-title {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 700; color: var(--text-muted);
+  }
+  .labels-help {
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+    margin: 0 0 4px;
+  }
+  .labels-help strong { color: var(--text-heading); }
+  .labels-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  }
+  .labels-field {
+    display: flex; flex-direction: column; gap: 4px;
+    font-size: 12px; color: var(--text-secondary);
+  }
+  .labels-field span { font-weight: 500; }
+  .labels-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 700; color: var(--text-muted) !important;
+  }
+  .labels-field input,
+  .labels-field select {
+    padding: 8px 10px; border-radius: 6px;
+    background: var(--bg-card); color: var(--text-primary);
+    border: 1px solid var(--border-card); font-size: 13px;
+    font-family: inherit;
+  }
+  .labels-field input:focus,
+  .labels-field select:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.15);
   }
 </style>

@@ -446,6 +446,50 @@
     dbChecking = false;
   }
 
+  // ── v7.3.0 — FK repair flow (preview → confirm → apply) ────────
+  let fkRepairPreview = null;     // { actions, summary } from /db-fk-repair-preview
+  let fkRepairLoading = false;
+  let fkRepairResult = null;      // { applied, skipped, remaining_violations, backup }
+  let fkRepairConfirming = false; // are we showing the modal?
+
+  async function openFkRepairModal() {
+    fkRepairLoading = true;
+    fkRepairResult = null;
+    fkRepairPreview = null;
+    try {
+      const res = await fetch(`${API}/db-fk-repair-preview`, { method: 'POST' });
+      fkRepairPreview = await res.json();
+      fkRepairConfirming = true;
+    } catch(e) {
+      fkRepairPreview = { ok: false, result: e.message, actions: [], summary: {} };
+    }
+    fkRepairLoading = false;
+  }
+
+  async function applyFkRepair() {
+    fkRepairLoading = true;
+    fkRepairResult = null;
+    try {
+      const res = await fetch(`${API}/db-fk-repair-apply`, { method: 'POST' });
+      if (!res.ok) {
+        const txt = await res.text();
+        throw new Error(txt);
+      }
+      fkRepairResult = await res.json();
+      // Refresh the FK check to reflect the new state.
+      await runDbCheck('fk-check');
+    } catch(e) {
+      fkRepairResult = { ok: false, result: e.message };
+    }
+    fkRepairLoading = false;
+  }
+
+  function closeFkRepairModal() {
+    fkRepairConfirming = false;
+    fkRepairPreview = null;
+    fkRepairResult = null;
+  }
+
   // ── Backup ────────────────────────────────────────────
   async function createBackup() {
     backupRunning = true;
@@ -1111,6 +1155,17 @@
                 <span class="db-result-icon">{dbCheckResult.ok ? '\u2705' : '\u274C'}</span>
                 <pre class="db-result-text">{dbCheckResult.result}</pre>
               </div>
+              {#if dbCheckType === 'fk-check' && !dbCheckResult.ok && dbCheckResult.violations && dbCheckResult.violations.length > 0}
+                <!-- v7.3.0 \u2014 FK violations found: offer repair flow. -->
+                <div class="db-repair-cta">
+                  <button class="btn-db btn-db-warn" on:click={openFkRepairModal} disabled={fkRepairLoading}>
+                    {fkRepairLoading ? '\u23F3 Analyse...' : '\u{1F527} R\u00e9parer les violations'}
+                  </button>
+                  <span class="db-repair-hint">
+                    Backup automatique avant toute action. R\u00e9paration soft (NULL) uniquement.
+                  </span>
+                </div>
+              {/if}
             {/if}
           </div>
 
@@ -1460,6 +1515,116 @@
     </div>
   </div>
 </div>
+
+<!-- v7.3.0 — FK repair modal -->
+{#if fkRepairConfirming}
+  <div class="restore-overlay" on:click|self={closeFkRepairModal}>
+    <div class="restore-dialog fk-repair-dialog">
+      <div class="restore-header">
+        <h3>{'🔧'} Réparation des clés étrangères</h3>
+        <button class="close-x" on:click={closeFkRepairModal}>{'×'}</button>
+      </div>
+
+      {#if !fkRepairResult}
+        <!-- PREVIEW PHASE -->
+        {#if fkRepairPreview && fkRepairPreview.summary && fkRepairPreview.summary.total > 0}
+          <div class="fk-preview-body">
+            <div class="fk-summary">
+              <div class="fk-stat">
+                <div class="fk-stat-v">{fkRepairPreview.summary.total}</div>
+                <div class="fk-stat-k">violations totales</div>
+              </div>
+              <div class="fk-stat ok">
+                <div class="fk-stat-v">{fkRepairPreview.summary.set_null}</div>
+                <div class="fk-stat-k">seront mises à NULL</div>
+              </div>
+              <div class="fk-stat warn">
+                <div class="fk-stat-v">{fkRepairPreview.summary.skip}</div>
+                <div class="fk-stat-k">ignorées (NOT NULL)</div>
+              </div>
+            </div>
+
+            <div class="fk-safety">
+              <strong>Sécurités automatiques :</strong>
+              <ul>
+                <li>Sauvegarde complète <code>pre_fk_repair_*.zip</code> créée avant toute action</li>
+                <li>Modifications dans une transaction unique (ROLLBACK en cas d'erreur)</li>
+                <li>Lignes mises à NULL — jamais supprimées</li>
+                <li>Colonnes NOT NULL ignorées (à corriger manuellement si besoin)</li>
+              </ul>
+            </div>
+
+            <details class="fk-details">
+              <summary>Voir les {fkRepairPreview.actions.length} actions détaillées</summary>
+              <div class="fk-action-list">
+                {#each fkRepairPreview.actions as a}
+                  <div class="fk-action-row" class:skip={a.action === 'skip'}>
+                    <span class="fk-action-tag">{a.action === 'set_null' ? '→ NULL' : 'IGNORÉ'}</span>
+                    <span class="fk-action-table">{a.table}</span>
+                    <span class="fk-action-rowid">rowid={a.rowid}</span>
+                    <span class="fk-action-col">{a.fk_column}</span>
+                    <span class="fk-action-reason">{a.reason}</span>
+                  </div>
+                {/each}
+              </div>
+            </details>
+
+            <div class="fk-modal-actions">
+              <button class="btn-db" on:click={closeFkRepairModal} disabled={fkRepairLoading}>
+                Annuler
+              </button>
+              <button class="btn-db btn-db-warn" on:click={applyFkRepair} disabled={fkRepairLoading || fkRepairPreview.summary.set_null === 0}>
+                {fkRepairLoading ? '⏳ Réparation...' : '💾 Sauvegarder et réparer'}
+              </button>
+            </div>
+          </div>
+        {:else}
+          <div class="fk-preview-body">
+            <p>Aucune action requise — la base est saine.</p>
+            <div class="fk-modal-actions">
+              <button class="btn-db" on:click={closeFkRepairModal}>Fermer</button>
+            </div>
+          </div>
+        {/if}
+      {:else}
+        <!-- RESULT PHASE -->
+        <div class="fk-preview-body">
+          <div class="fk-summary">
+            <div class="fk-stat ok">
+              <div class="fk-stat-v">{(fkRepairResult.applied || []).length}</div>
+              <div class="fk-stat-k">réparées</div>
+            </div>
+            <div class="fk-stat warn">
+              <div class="fk-stat-v">{(fkRepairResult.skipped || []).length}</div>
+              <div class="fk-stat-k">ignorées</div>
+            </div>
+            <div class="fk-stat" class:err={fkRepairResult.remaining_violations > 0}>
+              <div class="fk-stat-v">{fkRepairResult.remaining_violations || 0}</div>
+              <div class="fk-stat-k">restantes</div>
+            </div>
+          </div>
+
+          {#if fkRepairResult.backup}
+            <div class="fk-backup-note">
+              {'💾'} Sauvegarde créée : <code>{fkRepairResult.backup}</code>
+              <br>Restaurable depuis la section « Sauvegardes » ci-dessous si besoin.
+            </div>
+          {/if}
+
+          <div class="fk-result-text">
+            <strong>Résultat :</strong> {fkRepairResult.result}
+          </div>
+
+          <div class="fk-modal-actions">
+            <button class="btn-db btn-db-primary" on:click={closeFkRepairModal}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
 
 <!-- Restoration modal — guides the user through staging + auto-restart -->
 {#if restoreModal}
@@ -2733,4 +2898,66 @@
     text-align: center;
     padding: 1rem 0;
   }
+
+  /* v7.3.0 — FK repair CTA + modal */
+  .db-repair-cta {
+    margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .db-repair-hint {
+    font-size: 0.75rem; color: var(--text-muted); font-style: italic;
+  }
+  .btn-db-warn { background: #F59E0B; color: #fff; border: none; }
+  .btn-db-warn:hover:not(:disabled) { filter: brightness(1.08); }
+  .btn-db-primary { background: var(--accent); color: #fff; border: none; }
+
+  .fk-repair-dialog { max-width: 720px; }
+  .fk-preview-body { padding: 16px 22px 22px; display: flex; flex-direction: column; gap: 16px; }
+  .fk-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .fk-stat {
+    background: var(--bg-input); border: 1px solid var(--border-card);
+    border-radius: 10px; padding: 12px 14px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .fk-stat.ok { border-color: rgba(34, 197, 94, 0.4); background: rgba(34, 197, 94, 0.08); }
+  .fk-stat.warn { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.08); }
+  .fk-stat.err { border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.08); }
+  .fk-stat-v { font-size: 22px; font-weight: 700; color: var(--text-heading); line-height: 1; }
+  .fk-stat-k { font-size: 11px; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; }
+
+  .fk-safety {
+    padding: 12px 16px; border-radius: 8px;
+    background: var(--bg-input); border-left: 3px solid var(--accent);
+    font-size: 12px; color: var(--text-secondary); line-height: 1.5;
+  }
+  .fk-safety strong { color: var(--text-heading); display: block; margin-bottom: 6px; }
+  .fk-safety ul { margin: 0; padding-left: 18px; }
+  .fk-safety code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; background: var(--bg-hover); padding: 1px 5px; border-radius: 3px; }
+
+  .fk-details { font-size: 12px; }
+  .fk-details summary { cursor: pointer; color: var(--accent); font-weight: 600; padding: 4px 0; }
+  .fk-action-list { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 280px; overflow-y: auto; }
+  .fk-action-row {
+    display: grid; grid-template-columns: 70px 1fr 100px 130px 1fr; gap: 8px;
+    padding: 6px 10px; background: var(--bg-input); border-radius: 6px;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px;
+    align-items: baseline;
+  }
+  .fk-action-row.skip { opacity: 0.6; }
+  .fk-action-tag { font-weight: 700; color: #22C55E; }
+  .fk-action-row.skip .fk-action-tag { color: #F59E0B; }
+  .fk-action-table { color: var(--text-heading); font-weight: 600; }
+  .fk-action-rowid { color: var(--text-muted); }
+  .fk-action-col { color: var(--accent); }
+  .fk-action-reason { color: var(--text-secondary); font-family: inherit; font-style: italic; }
+
+  .fk-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
+  .fk-backup-note {
+    padding: 10px 14px; border-radius: 8px;
+    background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.3);
+    font-size: 12px; color: var(--text-primary); line-height: 1.5;
+  }
+  .fk-backup-note code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; background: var(--bg-hover); padding: 1px 5px; border-radius: 3px; }
+  .fk-result-text { font-size: 13px; color: var(--text-primary); }
+  .close-x { background: transparent; border: none; font-size: 22px; cursor: pointer; color: var(--text-muted); padding: 0 8px; }
+  .close-x:hover { color: var(--text-heading); }
 </style>

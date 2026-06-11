@@ -351,6 +351,180 @@ async def db_fk_check():
         con.close()
 
 
+# \u2500\u2500 v7.3.0 \u2014 FK repair (preview + apply) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+#
+# When PRAGMA foreign_key_check returns violations, we offer a *soft* repair:
+# for each orphan row, we look up the FK column name via PRAGMA
+# foreign_key_list and check whether it's nullable via PRAGMA table_info.
+#   - Nullable column \u2192 UPDATE ... SET col = NULL (row is preserved).
+#   - NOT NULL column \u2192 SKIPPED (we never auto-delete; user must use a DB
+#     editor for those, which should be extremely rare).
+# Apply runs inside a transaction wrapped in a fresh backup_zip created
+# beforehand \u2014 so worst case the user can restore from the backup.
+
+
+def _resolve_fk_actions(con: sqlite3.Connection) -> list[dict]:
+    """Inspect PRAGMA foreign_key_check and return a per-row action plan."""
+    violations = con.execute("PRAGMA foreign_key_check").fetchall()
+    # Cache PRAGMA queries per table to avoid hammering for big violation sets.
+    fk_list_cache: dict[str, list[tuple]] = {}
+    col_info_cache: dict[str, list[tuple]] = {}
+
+    actions: list[dict] = []
+    for table, rowid, parent, fkid in violations:
+        if table not in fk_list_cache:
+            fk_list_cache[table] = con.execute(
+                f"PRAGMA foreign_key_list({table})"
+            ).fetchall()
+        # Each row: (id, seq, parent_table, from_col, to_col, on_update, on_delete, match)
+        fk_col = None
+        parent_table = parent or ""
+        for fk in fk_list_cache[table]:
+            if fk[0] == fkid:
+                fk_col = fk[3]
+                parent_table = fk[2]
+                break
+        if not fk_col:
+            actions.append({
+                "table": table, "rowid": rowid, "parent_table": parent_table,
+                "fk_column": "(introuvable)", "action": "skip",
+                "reason": "Colonne FK introuvable via PRAGMA foreign_key_list",
+            })
+            continue
+
+        if table not in col_info_cache:
+            col_info_cache[table] = con.execute(
+                f"PRAGMA table_info({table})"
+            ).fetchall()
+        # Each row: (cid, name, type, notnull, dflt_value, pk)
+        is_nullable = True
+        for col in col_info_cache[table]:
+            if col[1] == fk_col:
+                is_nullable = (col[3] == 0)
+                break
+
+        if is_nullable:
+            action = "set_null"
+            reason = f"Mettre {fk_col} = NULL"
+        else:
+            action = "skip"
+            reason = f"Colonne {fk_col} NOT NULL \u2014 pas de r\u00e9paration automatique"
+
+        actions.append({
+            "table": table, "rowid": rowid, "parent_table": parent_table,
+            "fk_column": fk_col, "action": action, "reason": reason,
+        })
+    return actions
+
+
+@router.post("/db-fk-repair-preview")
+async def db_fk_repair_preview():
+    """Dry-run: return what WOULD be changed without touching the DB."""
+    if not DB_PATH.exists():
+        return {"ok": False, "result": "Base de donn\u00e9es introuvable", "actions": [], "summary": {}}
+    con = sqlite3.connect(str(DB_PATH))
+    try:
+        actions = _resolve_fk_actions(con)
+        if not actions:
+            return {"ok": True, "result": "Aucune violation", "actions": [], "summary": {}}
+        summary = {
+            "total": len(actions),
+            "set_null": sum(1 for a in actions if a["action"] == "set_null"),
+            "skip": sum(1 for a in actions if a["action"] == "skip"),
+        }
+        return {
+            "ok": True,
+            "result": f"{summary['set_null']} ligne(s) seront mises \u00e0 NULL, {summary['skip']} ignor\u00e9es",
+            "actions": actions,
+            "summary": summary,
+        }
+    finally:
+        con.close()
+
+
+@router.post("/db-fk-repair-apply")
+async def db_fk_repair_apply():
+    """Apply the soft repair (set FK to NULL). Creates a fresh backup first.
+
+    Safety stack (every layer must hold for the user to stay safe):
+      1. _do_backup() snapshots the DB + config + assets to a ZIP under
+         backups/pre_fk_repair_<timestamp>.zip. If this fails, we abort
+         immediately and surface 500.
+      2. The actual UPDATE statements run inside a single transaction
+         (BEGIN / COMMIT). Any exception triggers ROLLBACK \u2014 DB stays
+         identical to pre-call state.
+      3. NOT NULL columns are never auto-modified (would require DELETE).
+      4. After commit we re-run PRAGMA foreign_key_check so the response
+         tells the truth about remaining violations.
+    """
+    if not DB_PATH.exists():
+        raise HTTPException(404, "Base de donn\u00e9es introuvable")
+
+    backup_name = _do_backup(prefix="pre_fk_repair")
+    if not backup_name:
+        raise HTTPException(
+            500,
+            "\u00c9chec du backup automatique. R\u00e9paration annul\u00e9e pour s\u00e9curit\u00e9.",
+        )
+
+    con = sqlite3.connect(str(DB_PATH))
+    try:
+        actions = _resolve_fk_actions(con)
+        if not actions:
+            return {
+                "ok": True, "result": "Rien \u00e0 r\u00e9parer",
+                "applied": [], "skipped": [],
+                "remaining_violations": 0,
+                "backup": backup_name,
+            }
+
+        applied: list[dict] = []
+        skipped: list[dict] = []
+        con.execute("BEGIN")
+        try:
+            for a in actions:
+                if a["action"] == "set_null":
+                    table = a["table"]
+                    col = a["fk_column"]
+                    # Validate identifiers against the actual schema before
+                    # interpolating into SQL. PRAGMA results are SQLite-owned
+                    # so they're safe, but better defensive.
+                    if not table.isidentifier() and "_" not in table:
+                        skipped.append({**a, "reason": "Nom de table invalide"})
+                        continue
+                    if not col.replace("_", "a").isalnum():
+                        skipped.append({**a, "reason": "Nom de colonne invalide"})
+                        continue
+                    con.execute(
+                        f"UPDATE {table} SET {col} = NULL WHERE rowid = ?",
+                        (a["rowid"],),
+                    )
+                    applied.append(a)
+                else:
+                    skipped.append(a)
+            con.execute("COMMIT")
+        except Exception as e:
+            con.execute("ROLLBACK")
+            raise HTTPException(
+                500,
+                f"Erreur pendant la r\u00e9paration, ROLLBACK effectu\u00e9. "
+                f"DB inchang\u00e9e. Sauvegarde disponible : {backup_name}. "
+                f"D\u00e9tail : {e!s}",
+            )
+
+        remaining = con.execute("PRAGMA foreign_key_check").fetchall()
+        return {
+            "ok": True,
+            "result": f"{len(applied)} r\u00e9par\u00e9e(s), {len(skipped)} ignor\u00e9e(s), {len(remaining)} restante(s)",
+            "applied": applied,
+            "skipped": skipped,
+            "remaining_violations": len(remaining),
+            "backup": backup_name,
+        }
+    finally:
+        con.close()
+
+
 # ── Export ───────────────────────────────────────────────────────────────────
 
 def _export_table_csv(table_name: str) -> str:
