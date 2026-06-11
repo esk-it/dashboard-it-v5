@@ -4,6 +4,30 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.3.1 — Réparation FK : option de suppression des orphelins NOT NULL
+
+**Bug v7.3.0** : tes 7 violations étaient toutes sur des colonnes `NOT NULL` (typiquement `dossier_comments.dossier_id`, `task_dependencies.*`, etc — des FK qui ne peuvent pas être NULLifiées par définition). Comme la v7.3.0 ne faisait que du soft repair (`UPDATE col = NULL`), il n'y avait rien à NULLifier → le bouton « Sauvegarder et réparer » restait grisé et tu te retrouvais bloqué.
+
+### Le fix
+
+Pour les violations sur colonnes NOT NULL, la **seule réparation possible** est de **supprimer la ligne orpheline** (la ligne pointe vers un parent qui n'existe plus, elle n'a aucun sens). C'est destructif donc on l'encadre :
+
+- **Le modal montre maintenant 3 compteurs** : `total` / `à NULLifier` / `orphelines (NOT NULL)`
+- **Quand `orphelines > 0`** : une **case à cocher rouge** apparaît pour confirmer explicitement la suppression. Décochée par défaut.
+- **Le bouton se libère** soit s'il y a des NULLifications soft à faire, soit si tu coches la case (et qu'il y a au moins une orpheline à supprimer)
+- **Le libellé du bouton change** : « Sauvegarder et réparer (NULL uniquement) » sans case cochée, « (NULL + supprimer) » avec
+- **Action `SUPPRIMER`** apparaît distinctement en rouge dans la liste détaillée des actions
+
+### Sécurités inchangées
+
+- Backup automatique `pre_fk_repair_*.zip` créé avant toute action
+- Transaction unique avec ROLLBACK auto en cas d'erreur
+- Backend : le paramètre `include_delete` est requis sur l'endpoint apply pour activer les suppressions — par défaut `false`
+
+### Côté résultat
+
+Le modal après réparation montre maintenant 4 compteurs : `NULLifiées`, `supprimées`, `ignorées`, `restantes` — pour que tu vois exactement ce qui s'est passé.
+
 ## v7.3.0 — Réparation auto des FK + étiquettes Parc paramétrables
 
 Deux ajustements demandés à l'usage. Aucun lien entre les deux mais on les ship ensemble pour éviter de fragmenter en micro-versions.

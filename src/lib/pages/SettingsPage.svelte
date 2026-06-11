@@ -449,13 +449,17 @@
   // ── v7.3.0 — FK repair flow (preview → confirm → apply) ────────
   let fkRepairPreview = null;     // { actions, summary } from /db-fk-repair-preview
   let fkRepairLoading = false;
-  let fkRepairResult = null;      // { applied, skipped, remaining_violations, backup }
+  let fkRepairResult = null;      // { applied, deleted, skipped, remaining_violations, backup }
   let fkRepairConfirming = false; // are we showing the modal?
+  // v7.3.1 — explicit opt-in required to also delete orphan rows on NOT NULL
+  // FK columns. Reset to false each time the modal opens, never sticky.
+  let fkConfirmDelete = false;
 
   async function openFkRepairModal() {
     fkRepairLoading = true;
     fkRepairResult = null;
     fkRepairPreview = null;
+    fkConfirmDelete = false;
     try {
       const res = await fetch(`${API}/db-fk-repair-preview`, { method: 'POST' });
       fkRepairPreview = await res.json();
@@ -470,7 +474,8 @@
     fkRepairLoading = true;
     fkRepairResult = null;
     try {
-      const res = await fetch(`${API}/db-fk-repair-apply`, { method: 'POST' });
+      const url = `${API}/db-fk-repair-apply?include_delete=${fkConfirmDelete ? 'true' : 'false'}`;
+      const res = await fetch(url, { method: 'POST' });
       if (!res.ok) {
         const txt = await res.text();
         throw new Error(txt);
@@ -488,6 +493,7 @@
     fkRepairConfirming = false;
     fkRepairPreview = null;
     fkRepairResult = null;
+    fkConfirmDelete = false;
   }
 
   // ── Backup ────────────────────────────────────────────
@@ -1536,11 +1542,11 @@
               </div>
               <div class="fk-stat ok">
                 <div class="fk-stat-v">{fkRepairPreview.summary.set_null}</div>
-                <div class="fk-stat-k">seront mises à NULL</div>
+                <div class="fk-stat-k">à NULLifier</div>
               </div>
-              <div class="fk-stat warn">
-                <div class="fk-stat-v">{fkRepairPreview.summary.skip}</div>
-                <div class="fk-stat-k">ignorées (NOT NULL)</div>
+              <div class="fk-stat" class:err={fkRepairPreview.summary.delete > 0}>
+                <div class="fk-stat-v">{fkRepairPreview.summary.delete}</div>
+                <div class="fk-stat-k">orphelines (NOT NULL)</div>
               </div>
             </div>
 
@@ -1549,17 +1555,31 @@
               <ul>
                 <li>Sauvegarde complète <code>pre_fk_repair_*.zip</code> créée avant toute action</li>
                 <li>Modifications dans une transaction unique (ROLLBACK en cas d'erreur)</li>
-                <li>Lignes mises à NULL — jamais supprimées</li>
-                <li>Colonnes NOT NULL ignorées (à corriger manuellement si besoin)</li>
+                <li>Lignes nullables mises à NULL (jamais supprimées)</li>
+                <li>Suppression des lignes orphelines uniquement si tu coches explicitement ci-dessous</li>
               </ul>
             </div>
+
+            {#if fkRepairPreview.summary.delete > 0}
+              <!-- v7.3.1 — Explicit opt-in for destructive deletion of NOT NULL orphans. -->
+              <label class="fk-confirm-delete">
+                <input type="checkbox" bind:checked={fkConfirmDelete} />
+                <span>
+                  <strong>Supprimer aussi les {fkRepairPreview.summary.delete} ligne(s) orpheline(s)</strong>
+                  sur colonnes NOT NULL (impossible de NULLifier).
+                  <em>Ces données seront définitivement perdues. La sauvegarde automatique reste un filet de sécurité.</em>
+                </span>
+              </label>
+            {/if}
 
             <details class="fk-details">
               <summary>Voir les {fkRepairPreview.actions.length} actions détaillées</summary>
               <div class="fk-action-list">
                 {#each fkRepairPreview.actions as a}
-                  <div class="fk-action-row" class:skip={a.action === 'skip'}>
-                    <span class="fk-action-tag">{a.action === 'set_null' ? '→ NULL' : 'IGNORÉ'}</span>
+                  <div class="fk-action-row" class:skip={a.action === 'skip'} class:delete={a.action === 'delete'}>
+                    <span class="fk-action-tag">
+                      {a.action === 'set_null' ? '→ NULL' : a.action === 'delete' ? 'SUPPRIMER' : 'IGNORÉ'}
+                    </span>
                     <span class="fk-action-table">{a.table}</span>
                     <span class="fk-action-rowid">rowid={a.rowid}</span>
                     <span class="fk-action-col">{a.fk_column}</span>
@@ -1573,8 +1593,16 @@
               <button class="btn-db" on:click={closeFkRepairModal} disabled={fkRepairLoading}>
                 Annuler
               </button>
-              <button class="btn-db btn-db-warn" on:click={applyFkRepair} disabled={fkRepairLoading || fkRepairPreview.summary.set_null === 0}>
-                {fkRepairLoading ? '⏳ Réparation...' : '💾 Sauvegarder et réparer'}
+              <button class="btn-db btn-db-warn"
+                      on:click={applyFkRepair}
+                      disabled={fkRepairLoading || (fkRepairPreview.summary.set_null === 0 && !fkConfirmDelete) || (fkRepairPreview.summary.set_null === 0 && fkRepairPreview.summary.delete === 0)}>
+                {#if fkRepairLoading}
+                  ⏳ Réparation...
+                {:else if fkConfirmDelete && fkRepairPreview.summary.delete > 0}
+                  💾 Sauvegarder et réparer (NULL + supprimer)
+                {:else}
+                  💾 Sauvegarder et réparer (NULL uniquement)
+                {/if}
               </button>
             </div>
           </div>
@@ -1589,10 +1617,14 @@
       {:else}
         <!-- RESULT PHASE -->
         <div class="fk-preview-body">
-          <div class="fk-summary">
+          <div class="fk-summary fk-summary-4">
             <div class="fk-stat ok">
               <div class="fk-stat-v">{(fkRepairResult.applied || []).length}</div>
-              <div class="fk-stat-k">réparées</div>
+              <div class="fk-stat-k">NULLifiées</div>
+            </div>
+            <div class="fk-stat" class:err={(fkRepairResult.deleted || []).length > 0}>
+              <div class="fk-stat-v">{(fkRepairResult.deleted || []).length}</div>
+              <div class="fk-stat-k">supprimées</div>
             </div>
             <div class="fk-stat warn">
               <div class="fk-stat-v">{(fkRepairResult.skipped || []).length}</div>
@@ -2943,8 +2975,30 @@
     align-items: baseline;
   }
   .fk-action-row.skip { opacity: 0.6; }
+  .fk-action-row.delete { background: rgba(239, 68, 68, 0.06); }
   .fk-action-tag { font-weight: 700; color: #22C55E; }
   .fk-action-row.skip .fk-action-tag { color: #F59E0B; }
+  .fk-action-row.delete .fk-action-tag { color: #EF4444; }
+
+  /* v7.3.1 — 4-column summary on the result screen */
+  .fk-summary.fk-summary-4 { grid-template-columns: repeat(4, 1fr); }
+
+  /* v7.3.1 — explicit delete confirmation row */
+  .fk-confirm-delete {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 12px 14px; border-radius: 8px;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    color: var(--text-primary); font-size: 13px;
+    cursor: pointer; line-height: 1.5;
+  }
+  .fk-confirm-delete input[type="checkbox"] {
+    margin-top: 2px; flex-shrink: 0; cursor: pointer;
+    width: 16px; height: 16px;
+    accent-color: #EF4444;
+  }
+  .fk-confirm-delete strong { color: #EF4444; }
+  .fk-confirm-delete em { color: var(--text-muted); font-style: italic; }
   .fk-action-table { color: var(--text-heading); font-weight: 600; }
   .fk-action-rowid { color: var(--text-muted); }
   .fk-action-col { color: var(--accent); }

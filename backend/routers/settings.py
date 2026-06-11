@@ -407,8 +407,13 @@ def _resolve_fk_actions(con: sqlite3.Connection) -> list[dict]:
             action = "set_null"
             reason = f"Mettre {fk_col} = NULL"
         else:
-            action = "skip"
-            reason = f"Colonne {fk_col} NOT NULL \u2014 pas de r\u00e9paration automatique"
+            # v7.3.1 \u2014 Don't bury this in "skip". When the FK column is NOT
+            # NULL the orphan row can't be NULLified, so the only meaningful
+            # repair is to DELETE the row. We surface it as such, and the
+            # apply endpoint only does it if the user explicitly opts in via
+            # include_delete=true (forces an explicit confirmation in the UI).
+            action = "delete"
+            reason = f"Colonne {fk_col} NOT NULL \u2014 la ligne orpheline doit \u00eatre supprim\u00e9e"
 
         actions.append({
             "table": table, "rowid": rowid, "parent_table": parent_table,
@@ -430,11 +435,16 @@ async def db_fk_repair_preview():
         summary = {
             "total": len(actions),
             "set_null": sum(1 for a in actions if a["action"] == "set_null"),
-            "skip": sum(1 for a in actions if a["action"] == "skip"),
+            "delete":   sum(1 for a in actions if a["action"] == "delete"),
+            "skip":     sum(1 for a in actions if a["action"] == "skip"),
         }
         return {
             "ok": True,
-            "result": f"{summary['set_null']} ligne(s) seront mises \u00e0 NULL, {summary['skip']} ignor\u00e9es",
+            "result": (
+                f"{summary['set_null']} ligne(s) \u00e0 NULLifier, "
+                f"{summary['delete']} ligne(s) orpheline(s) \u00e0 supprimer (NOT NULL), "
+                f"{summary['skip']} ignor\u00e9e(s)"
+            ),
             "actions": actions,
             "summary": summary,
         }
@@ -443,18 +453,25 @@ async def db_fk_repair_preview():
 
 
 @router.post("/db-fk-repair-apply")
-async def db_fk_repair_apply():
-    """Apply the soft repair (set FK to NULL). Creates a fresh backup first.
+async def db_fk_repair_apply(include_delete: bool = False):
+    """Apply the FK repair. Creates a fresh backup first.
+
+    Two modes (controlled by the include_delete query param):
+      - `include_delete=false` (default): only soft repair (UPDATE col = NULL
+        for nullable FK columns). NOT NULL violations are reported in
+        `skipped` for visibility but the DB rows are not touched.
+      - `include_delete=true`: ALSO delete the orphan rows for NOT NULL
+        violations. This is destructive and the UI must surface a strong
+        explicit confirmation before sending it.
 
     Safety stack (every layer must hold for the user to stay safe):
       1. _do_backup() snapshots the DB + config + assets to a ZIP under
          backups/pre_fk_repair_<timestamp>.zip. If this fails, we abort
          immediately and surface 500.
-      2. The actual UPDATE statements run inside a single transaction
+      2. The actual UPDATE/DELETE statements run inside a single transaction
          (BEGIN / COMMIT). Any exception triggers ROLLBACK \u2014 DB stays
          identical to pre-call state.
-      3. NOT NULL columns are never auto-modified (would require DELETE).
-      4. After commit we re-run PRAGMA foreign_key_check so the response
+      3. After commit we re-run PRAGMA foreign_key_check so the response
          tells the truth about remaining violations.
     """
     if not DB_PATH.exists():
@@ -473,26 +490,25 @@ async def db_fk_repair_apply():
         if not actions:
             return {
                 "ok": True, "result": "Rien \u00e0 r\u00e9parer",
-                "applied": [], "skipped": [],
+                "applied": [], "deleted": [], "skipped": [],
                 "remaining_violations": 0,
                 "backup": backup_name,
             }
 
         applied: list[dict] = []
+        deleted: list[dict] = []
         skipped: list[dict] = []
         con.execute("BEGIN")
         try:
             for a in actions:
+                table = a["table"]
+                col = a["fk_column"]
+                # Defensive identifier check before interpolating into SQL.
+                if not (table.replace("_", "").isalnum()):
+                    skipped.append({**a, "reason": "Nom de table invalide"})
+                    continue
                 if a["action"] == "set_null":
-                    table = a["table"]
-                    col = a["fk_column"]
-                    # Validate identifiers against the actual schema before
-                    # interpolating into SQL. PRAGMA results are SQLite-owned
-                    # so they're safe, but better defensive.
-                    if not table.isidentifier() and "_" not in table:
-                        skipped.append({**a, "reason": "Nom de table invalide"})
-                        continue
-                    if not col.replace("_", "a").isalnum():
+                    if not col.replace("_", "").isalnum():
                         skipped.append({**a, "reason": "Nom de colonne invalide"})
                         continue
                     con.execute(
@@ -500,6 +516,18 @@ async def db_fk_repair_apply():
                         (a["rowid"],),
                     )
                     applied.append(a)
+                elif a["action"] == "delete":
+                    if include_delete:
+                        con.execute(
+                            f"DELETE FROM {table} WHERE rowid = ?",
+                            (a["rowid"],),
+                        )
+                        deleted.append(a)
+                    else:
+                        skipped.append({
+                            **a,
+                            "reason": "Suppression non confirm\u00e9e (case d\u00e9coch\u00e9e)",
+                        })
                 else:
                     skipped.append(a)
             con.execute("COMMIT")
@@ -515,8 +543,12 @@ async def db_fk_repair_apply():
         remaining = con.execute("PRAGMA foreign_key_check").fetchall()
         return {
             "ok": True,
-            "result": f"{len(applied)} r\u00e9par\u00e9e(s), {len(skipped)} ignor\u00e9e(s), {len(remaining)} restante(s)",
+            "result": (
+                f"{len(applied)} NULLifi\u00e9e(s), {len(deleted)} supprim\u00e9e(s), "
+                f"{len(skipped)} ignor\u00e9e(s), {len(remaining)} restante(s)"
+            ),
             "applied": applied,
+            "deleted": deleted,
             "skipped": skipped,
             "remaining_violations": len(remaining),
             "backup": backup_name,
