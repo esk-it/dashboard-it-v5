@@ -90,6 +90,374 @@ export const whatsNew = {
   },
 };
 
+// v7.4.0 — Module help registry. Available via the "?" button in the navbar
+// (always visible). Different from `whatsNew` which is one-shot per version :
+// help is permanent reference content, whatsNew is "hey look at this new
+// thing". Each entry: { title, emoji, description, sections[], tips[] }.
+// Sections each have a label + bullet list of features.
+export const moduleHelp = {
+  home: {
+    title: 'Accueil',
+    emoji: '🏠',
+    description: "Tableau de bord d'entrée. Synthèse de ce qui demande ton attention aujourd'hui.",
+    sections: [
+      {
+        label: 'À quoi ça sert',
+        items: [
+          "Voir d'un coup d'œil tes tâches en cours, dossiers actifs, événements du jour",
+          "Repérer ce qui est en retard ou à relancer",
+          "Accéder rapidement aux modules les plus utilisés",
+        ],
+      },
+    ],
+    tips: [
+      "Les cards sont réorganisables — fais glisser pour mettre ce qui t'intéresse en haut",
+      "Clique sur n'importe quelle carte pour aller directement au module concerné",
+    ],
+  },
+  tasks: {
+    title: 'Tâches',
+    emoji: '✅',
+    description: "Gestion des tâches IT au quotidien. Liste + Kanban + Calendrier selon ton humeur.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "3 vues : Liste, Kanban (par statut), Calendrier (par échéance)",
+          "Statuts : à faire / en cours / terminé (la coche binaire est conservée pour compat)",
+          "Catégories, priorités, dates d'échéance, sites (NDK/SU/NDE)",
+          "Tâches récurrentes (quotidien, hebdo, mensuel)",
+          "Checklist sous-tâches avec progression",
+          "Dépendances entre tâches (visibles sur le Gantt des Projets)",
+          "Liaison à un projet pour le retrouver dans le contexte du projet",
+        ],
+      },
+    ],
+    tips: [
+      "Ctrl+N ouvre la création rapide d'une tâche depuis n'importe où",
+      "Les tâches en retard remontent automatiquement dans les alertes (cloche en haut)",
+      "Les templates de tâches accélèrent la création des tâches répétitives (clic droit sur une tâche pour en faire un template)",
+    ],
+  },
+  projects: {
+    title: 'Projets',
+    emoji: '🎯',
+    description: "Projets IT pluri-tâches avec Gantt, budget et journal d'activité.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "Gantt drag-to-edit avec dépendances et jalons",
+          "Budget en 3 niveaux : Prévu / Engagé / Facturé",
+          "Tâches liées au projet, rattachement de prestataires et documents",
+          "Export PDF complet (header, budget, Gantt, tâches, etc)",
+          "Duplication de projet (recopie tâches, dates effacées)",
+        ],
+      },
+    ],
+    tips: [
+      "L'helper « % d'un devis » dans le budget est utile pour les acomptes",
+      "Le Gantt accepte le drag pour déplacer une barre et le drag du bord droit pour redimensionner",
+    ],
+  },
+  planning: {
+    title: 'Planning',
+    emoji: '📅',
+    description: "Agenda + interventions + maintenances planifiées. Sync bidirectionnelle Google Calendar.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "Vue mois, semaine, jour",
+          "Types d'événements : intervention, maintenance, rendez-vous, autre",
+          "Sync bidirectionnelle Google Calendar (last-write-wins)",
+          "Lien entre événement et tâche",
+          "Filtrage par personne et par site",
+        ],
+      },
+    ],
+    tips: [
+      "Les événements créés ici remontent automatiquement sur Google",
+      "Pour reconfigurer la sync : Paramètres → Google",
+    ],
+  },
+  documents: {
+    title: 'Documents (Dossiers)',
+    emoji: '📁',
+    description: "Suivi des achats IT par dossier. Du devis à la facture, tout regroupé.",
+    sections: [
+      {
+        label: 'Le modèle « Dossier »',
+        items: [
+          "Un dossier = un cas d'achat (ex: renouvellement licences)",
+          "Cycle de vie : demande → devis → BPA → commande → livré → archive",
+          "Tous les docs liés (Devis, BPA, Facture) groupés sur la même fiche",
+          "Activity feed : statuts, notes, dates clés",
+        ],
+      },
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Référence interne auto (DEV-2026-001, FAC-2026-042)",
+          "Filtres par période, prestataire, statut",
+          "Tri par date du doc le plus récent ou ancien",
+          "Import drag-and-drop avec détection auto du prestataire",
+          "Preview document intégré (œil)",
+          "Flag « Acompte » sur les factures",
+        ],
+      },
+    ],
+    tips: [
+      "Pour rattacher un doc existant à un autre dossier : utilise le bouton « Rattacher » plutôt que de réimporter",
+      "Le bouton « Cleanup orphelins » dans les paramètres avancés purge les rows DB sans fichier",
+    ],
+  },
+  email: {
+    title: 'Email',
+    emoji: '📧',
+    description: "Client mail intégré pour la boîte Gmail principale. Cache offline.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Lecture, réponse, transfert avec CC/BCC",
+          "Pièces jointes téléchargeables",
+          "Cache local pour consultation hors-ligne",
+          "Drafts locaux (sauvegarde auto)",
+          "Filtres / labels Gmail",
+        ],
+      },
+    ],
+    tips: [
+      "Reply-all préremplit correctement les CC depuis le message d'origine",
+      "Les emails avec PDF facture peuvent être importés en doc via le bouton dédié",
+    ],
+  },
+  news: {
+    title: 'Actualités',
+    emoji: '🌐',
+    description: "Lecteur RSS pour suivre les flux IT (cybersécurité, Microsoft, Google, etc).",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Lecteur de flux RSS configurables (Paramètres → RSS)",
+          "Filtrage par catégorie et par source",
+          "Marquage lu / non lu",
+        ],
+      },
+    ],
+    tips: [
+      "Ajoute tes flux préférés dans Paramètres → RSS",
+    ],
+  },
+  parc: {
+    title: 'Parc',
+    emoji: '🖥️',
+    description: "Inventaire du parc IT (PC, serveurs, switches, imprimantes…). Sync GLPI.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "Inventaire par site / bâtiment / salle",
+          "Types : PC, Portable, Serveur, Switch, Imprimante, AP Wi-Fi…",
+          "Sync GLPI (lecture inventaire externe)",
+          "Étiquettes QR imprimables (formats Avery / Apli configurables)",
+          "Audit intelligent (équipements sans salle, sans serial, etc.)",
+          "Suivi garantie et date d'achat",
+        ],
+      },
+    ],
+    tips: [
+      "Pour les étiquettes : utilise « Page de calibrage » avant la première impression",
+      "GLPI fournit l'inventaire des PC, le reste se rentre à la main",
+    ],
+  },
+  chromebooks: {
+    title: 'Chromebooks',
+    emoji: '💻',
+    description: "Mini-MDM pour les Chromebooks des profs. Sync avec Google Admin Directory.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "Sync automatique avec Google Workspace (OU paramétrable)",
+          "Association auto chromebook ↔ prof (via dernier utilisateur connecté)",
+          "Statuts locaux : en service, à rendre, rendu, en panne, à effacer, stock",
+          "Historique des affectations",
+          "Onglet Profs avec statut local (présent/partant/arrivant)",
+          "Alerte fin de support OS Google",
+        ],
+      },
+    ],
+    tips: [
+      "Lance « Synchroniser Google » après une mise à jour du module",
+      "Pour les chromebooks utilisés par des non-profs : l'email s'affiche tel quel, pas de panique",
+      "Le bouton « Ouvrir dans Google Admin » dans le détail file directement vers la console Google",
+    ],
+  },
+  suppliers: {
+    title: 'Prestataires',
+    emoji: '📇',
+    description: "Mini-CRM des fournisseurs IT avec KPIs, contacts et historique.",
+    sections: [
+      {
+        label: 'Fonctionnalités clés',
+        items: [
+          "KPIs auto : engagé total / YTD, dossiers actifs, dernière interaction",
+          "Statut relationnel auto : actif / dormant / inactif / jamais utilisé",
+          "Contacts secondaires (plusieurs interlocuteurs par presta)",
+          "Catalogue des services rendus (types de docs)",
+          "Timeline d'activité",
+          "Domaines avec couleurs (réseau, sécurité, etc.)",
+        ],
+      },
+    ],
+    tips: [
+      "Filtre « Statut dormant » pour identifier les prestas à relancer",
+      "Le logo du presta s'affiche partout où il apparaît (cards de dossiers, etc.)",
+    ],
+  },
+  security: {
+    title: 'Sécurité',
+    emoji: '🛡️',
+    description: "Suivi des incidents sécurité, alertes WithSecure et audits.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Alertes WithSecure (devices infectés, alertes EDR)",
+          "Audit des comptes (mots de passe expirés, comptes inactifs)",
+          "Suivi des actions de remédiation",
+        ],
+      },
+    ],
+  },
+  monitoring: {
+    title: 'Monitoring',
+    emoji: '📡',
+    description: "État live du parc via Zabbix : hosts up/down, alertes actives.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Liste des problèmes actifs sur Zabbix",
+          "Filtrage par sévérité et par host",
+          "Accusé de réception (ack) directement depuis l'interface",
+        ],
+      },
+    ],
+    tips: [
+      "Les problèmes critiques remontent dans les alertes (cloche en haut)",
+    ],
+  },
+  wiki: {
+    title: 'Procédures (Wiki)',
+    emoji: '📖',
+    description: "Base de connaissance interne : procédures, notes, guides.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Articles avec éditeur riche (HTML)",
+          "Catégories pour organiser",
+          "Recherche full-text",
+          "Versioning des modifications",
+        ],
+      },
+    ],
+  },
+  changelog: {
+    title: 'Changelog',
+    emoji: '📋',
+    description: "Journal des changements importants effectués sur l'infrastructure.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Entrées par catégorie (Réseau, Serveur, Sécurité, Application…)",
+          "Date, auteur, description courte",
+          "Filtrage et export",
+        ],
+      },
+    ],
+    tips: [
+      "Trace les changements significatifs : utile pour expliquer un comportement bizarre 6 mois plus tard",
+    ],
+  },
+  launcher: {
+    title: 'Lanceur',
+    emoji: '🚀',
+    description: "Raccourcis vers les outils web utilisés au quotidien.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Liens vers des outils web (consoles admin, dashboards, etc.)",
+          "Catégories",
+          "Favoris en premier",
+          "Icônes personnalisables (emoji ou URL d'image)",
+        ],
+      },
+    ],
+  },
+  tools: {
+    title: 'Outils',
+    emoji: '🔧',
+    description: "Outils techniques : générateurs, convertisseurs, calculatrices IT.",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Générateur de mots de passe sécurisés",
+          "Calculateur de sous-réseaux (CIDR)",
+          "Convertisseur de timestamps",
+          "Autres utilitaires IT",
+        ],
+      },
+    ],
+  },
+  users: {
+    title: 'Utilisateurs',
+    emoji: '👥',
+    description: "Gestion des utilisateurs du programme DashboardIT (seulement si plusieurs personnes l'utilisent).",
+    sections: [
+      {
+        label: 'Fonctionnalités',
+        items: [
+          "Création / édition / suppression de comptes",
+          "Rôles (admin / user)",
+          "Reset de mot de passe",
+        ],
+      },
+    ],
+  },
+  settings: {
+    title: 'Paramètres',
+    emoji: '⚙️',
+    description: "Configuration du programme : thème, intégrations, sauvegarde, sécurité DB.",
+    sections: [
+      {
+        label: 'Sections clés',
+        items: [
+          "Général : nom utilisateur, modules activés, ordre des cards Home",
+          "Thème : clair / sombre / glass + couleur d'accent",
+          "Intégrations : Google (Gmail/Calendar/Admin Directory), GLPI, Zabbix, WithSecure",
+          "RSS : ajouter/supprimer des flux",
+          "Établissements : codes, logos, couleurs (NDK/SU/NDE)",
+          "Sécurité DB : intégrité, FK check, VACUUM, réparation des FK orphelines",
+          "Sauvegardes : manuelles, auto (intervalle configurable), restauration",
+        ],
+      },
+    ],
+    tips: [
+      "Les sauvegardes auto sont créées toutes les 6 heures par défaut",
+      "Avant toute opération destructive (FK repair, restore), une sauvegarde est créée automatiquement",
+    ],
+  },
+};
+
+
 // Cached set of seen module keys. Loaded once at module load from localStorage.
 function _loadSeen() {
   try {

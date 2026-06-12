@@ -4,6 +4,39 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.4.0 — Bouton d'aide « ? » contextuel sur chaque module
+
+Demande que tu m'avais faite il y a quelques itérations (« un petit ? placé de manière discrète sur chaque module, et quand on clique l'explication du module s'ouvre »). Voilà.
+
+### Comment ça marche
+
+- Icône **« ? »** dans la topbar à droite, entre le toggle thème et la cloche notifications
+- **Toujours visible**, sur tous les modules
+- Au clic : modal qui montre l'aide **contextuelle au module actuel** (détecté via la page courante)
+- Touche **Échap** ou clic sur le fond pour fermer
+
+### Contenu
+
+Chaque module a son entrée d'aide structurée :
+- **Titre + emoji** (cohérent avec la sidebar)
+- **Description courte** (1-2 lignes)
+- **Sections de fonctionnalités** clés
+- **Astuces** quand pertinent (encart avec couleur d'accent)
+
+Aide rédigée pour les 17 modules : Accueil, Tâches, Projets, Planning, Dossiers, Email, Actualités, Parc, Chromebooks, Prestataires, Sécurité, Monitoring, Procédures, Changelog, Lanceur, Outils, Utilisateurs, Paramètres.
+
+### Différence avec le « NEW »
+
+Le badge `NEW` + modal « Quoi de neuf » existant reste là — c'est **one-shot par version** (disparaît dès que tu cliques). Le bouton « ? » est **permanent** : référence accessible en permanence, peu importe que tu aies vu la nouveauté ou pas.
+
+### Technique
+
+- Nouveau composant `HelpModal.svelte` réutilisable
+- Registre `moduleHelp` dans `navigation.js` (à côté de `whatsNew`)
+- Détection du module courant via `currentPage` + `navItems`
+
+Si tu remarques qu'un module n'a pas d'aide écrite ou que le contenu est imprécis, dis-le moi, je rallonge / corrige en quelques minutes.
+
 ## v7.3.1 — Réparation FK : option de suppression des orphelins NOT NULL
 
 **Bug v7.3.0** : tes 7 violations étaient toutes sur des colonnes `NOT NULL` (typiquement `dossier_comments.dossier_id`, `task_dependencies.*`, etc — des FK qui ne peuvent pas être NULLifiées par définition). Comme la v7.3.0 ne faisait que du soft repair (`UPDATE col = NULL`), il n'y avait rien à NULLifier → le bouton « Sauvegarder et réparer » restait grisé et tu te retrouvais bloqué.

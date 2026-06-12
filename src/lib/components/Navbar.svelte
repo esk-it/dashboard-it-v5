@@ -5,7 +5,8 @@
   import { currentUser, logout } from '../stores/auth.js';
   import { isOnline } from '../stores/health.js';
   import { api } from '../api/client.js';
-  import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays, AlertTriangle, AlertCircle, Info, WifiOff, Activity, Database } from 'lucide-svelte';
+  import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays, AlertTriangle, AlertCircle, Info, WifiOff, Activity, Database, HelpCircle } from 'lucide-svelte';
+  import HelpModal from './HelpModal.svelte';
   import { success, error as toastError, info as toastInfo, mail as toastMail, alert_critical as toastCritical } from '../stores/toast.js';
 
   const dispatch = createEventDispatcher();
@@ -34,6 +35,9 @@
 
   // Get current page label for breadcrumb
   $: currentLabel = navItems.find(i => i.path === $currentPage)?.label || 'Dashboard';
+  // v7.4.0 — current module key for the contextual help modal.
+  $: currentModuleKey = navItems.find(i => i.path === $currentPage)?.key || 'home';
+  let showHelpModal = false;
 
   // Aggregate alerts grouped by severity. Recomputed reactively from each
   // source. We keep the bell as the single hub for actionable notifications;
@@ -296,6 +300,11 @@
         {/if}
       </div>
 
+      <!-- v7.4.0 — Help button: contextual help for the current module -->
+      <div class="header-icon" on:click={() => showHelpModal = true} title="Aide ({currentLabel})">
+        <HelpCircle size={20} />
+      </div>
+
       <!-- ═══ Notifications (Bell) ═══ -->
       <div class="header-icon-wrapper">
         <div class="header-icon" on:click={() => toggleDropdown('notif')}>
@@ -492,6 +501,9 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="dropdown-backdrop" on:click={closeAllDropdowns}></div>
 {/if}
+
+<!-- v7.4.0 — Contextual help modal. Module key derived from $currentPage. -->
+<HelpModal bind:open={showHelpModal} moduleKey={currentModuleKey} />
 
 <script context="module">
   function getAvatarColor(name) {
