@@ -16,6 +16,7 @@
   import GaugeChart from '../components/cards/GaugeChart.svelte';
   import ZabbixCard from '../components/cards/ZabbixCard.svelte';
   import ProjectsCard from '../components/cards/ProjectsCard.svelte';
+  import AttentionCard from '../components/cards/AttentionCard.svelte';
 
   const JOURS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
   const MOIS = ['janvier', 'f\u00e9vrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'ao\u00fbt', 'septembre', 'octobre', 'novembre', 'd\u00e9cembre'];
@@ -46,6 +47,7 @@
   let gaugeChart;
   let zabbixCard;
   let projectsCard;
+  let attentionCard;
 
   $: greeting = getGreeting();
   $: username = $settings.username || 'Utilisateur';
@@ -105,6 +107,7 @@
     if (activityCard?.refresh) activityCard.refresh();
     if (gaugeChart?.refresh) gaugeChart.refresh();
     if (zabbixCard?.refresh) zabbixCard.refresh();
+    if (attentionCard?.refresh) attentionCard.refresh();
     success('Donn\u00e9es actualis\u00e9es');
   }
 
@@ -180,21 +183,11 @@
     </div>
   </header>
 
-  <!-- ═══ Alert banners ═══ -->
-  {#if kpiOverdue > 0}
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="ya-alert ya-alert--danger" on:click={() => currentPage.set(kpiOverdueProjects > 0 ? '/projects' : '/tasks')} style="cursor:pointer">
-      <span class="ya-alert__icon">⚠️</span>
-      <span class="ya-alert__text">
-        <strong>{kpiOverdue} tache{kpiOverdue > 1 ? 's' : ''} en retard</strong>
-        {#if kpiOverdueProjects > 0}
-          — dont <strong>{kpiOverdueProjects}</strong> sur un projet
-        {/if}
-        — Action requise
-      </span>
-    </div>
-  {/if}
+  <!-- v7.5.0 — Cross-module attention feed (replaces the standalone overdue
+       banner — overdue tasks are now part of this richer list). -->
+  <div class="attention-row">
+    <AttentionCard bind:this={attentionCard} />
+  </div>
 
   <!-- ═══ ROW 1: 4 YashAdmin-style KPI cards ═══ -->
   <div class="row">
@@ -587,6 +580,9 @@
     filter: brightness(1.15);
     box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.4);
   }
+
+  /* v7.5.0 — Attention feed lives above the KPI grid */
+  .attention-row { margin-bottom: 1.563rem; }
 
   /* ═══ 12-column Grid System ═══ */
   .row {

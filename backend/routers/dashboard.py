@@ -343,3 +343,189 @@ async def recent_activity(limit: int = Query(15, ge=1, le=50), db=Depends(get_ra
     # Sort all by date descending
     activities.sort(key=lambda a: a.get("date") or "", reverse=True)
     return activities[:limit]
+
+
+# ── v7.5.0 — Attention feed (cross-module alerts on the home) ────────────────
+
+
+@router.get("/attention")
+async def attention_items(db=Depends(get_raw_db)):
+    """Aggregated list of items requiring user attention across every module.
+
+    Sources surfaced (when relevant data is present in the DB):
+      - Overdue tasks: due_date < today and not done
+      - Stale dossiers: status != 'archive', no comment activity in 30 days,
+        and the dossier itself was created > 30 days ago
+      - Devis received without BPA: status='devis_recu' for > 14 days
+      - Chromebooks support ending soon: support_end_date < today + 180d
+      - Parc warranty ending soon: warranty_end < today + 60d
+      - Backups: most recent automatic backup > 7 days old
+
+    Each item has shape:
+        { severity, kind, icon, title, sub, target, count }
+    `target` is the page path the UI should navigate to on click.
+    Severity is one of: 'critical' (red), 'warning' (orange), 'info' (blue).
+    """
+    today = date.today()
+    today_iso = today.isoformat()
+    items: list[dict] = []
+
+    # ── 1. Overdue tasks ────────────────────────────────────────────
+    try:
+        row = await db.execute_fetchall(
+            "SELECT COUNT(*) FROM tasks "
+            "WHERE done = 0 AND due_date IS NOT NULL AND due_date != '' "
+            "AND due_date < ?",
+            (today_iso,),
+        )
+        overdue_tasks = row[0][0]
+        if overdue_tasks > 0:
+            items.append({
+                "severity": "critical",
+                "kind": "tasks_overdue",
+                "icon": "AlertTriangle",
+                "title": f"{overdue_tasks} tâche{'s' if overdue_tasks > 1 else ''} en retard",
+                "sub": "À traiter ou reporter",
+                "target": "/tasks",
+                "count": overdue_tasks,
+            })
+    except Exception:
+        pass
+
+    # ── 2. Stale dossiers (no activity in 30 days) ─────────────────
+    try:
+        threshold = (today - timedelta(days=30)).isoformat()
+        rows = await db.execute_fetchall(
+            """SELECT d.id, d.title FROM dossiers d
+               WHERE d.status NOT IN ('archive')
+                 AND d.created_at < ?
+                 AND NOT EXISTS (
+                     SELECT 1 FROM dossier_comments c
+                     WHERE c.dossier_id = d.id AND c.created_at >= ?
+                 )
+               LIMIT 20""",
+            (threshold, threshold),
+        )
+        n = len(rows)
+        if n > 0:
+            items.append({
+                "severity": "warning",
+                "kind": "dossiers_stale",
+                "icon": "Folder",
+                "title": f"{n} dossier{'s' if n > 1 else ''} sans activité depuis 30 j",
+                "sub": "À relancer auprès du prestataire ou archiver",
+                "target": "/documents",
+                "count": n,
+            })
+    except Exception:
+        pass
+
+    # ── 3. Devis en attente de BPA depuis > 14 jours ───────────────
+    try:
+        threshold = (today - timedelta(days=14)).isoformat()
+        row = await db.execute_fetchall(
+            "SELECT COUNT(*) FROM dossiers "
+            "WHERE status = 'devis_recu' AND updated_at < ?",
+            (threshold,),
+        )
+        n = row[0][0]
+        if n > 0:
+            items.append({
+                "severity": "info",
+                "kind": "devis_pending_bpa",
+                "icon": "FileText",
+                "title": f"{n} devis en attente de BPA",
+                "sub": "Plus de 14 jours sans transition vers le BPA",
+                "target": "/documents",
+                "count": n,
+            })
+    except Exception:
+        pass
+
+    # ── 4. Chromebooks fin de support proche ───────────────────────
+    try:
+        threshold = (today + timedelta(days=180)).isoformat()
+        row = await db.execute_fetchall(
+            "SELECT COUNT(*) FROM chromebooks "
+            "WHERE support_end_date IS NOT NULL AND support_end_date != '' "
+            "AND support_end_date <= ?",
+            (threshold,),
+        )
+        n = row[0][0]
+        if n > 0:
+            items.append({
+                "severity": "warning",
+                "kind": "chromebooks_support_soon",
+                "icon": "Laptop",
+                "title": f"{n} Chromebook{'s' if n > 1 else ''} fin de support sous 6 mois",
+                "sub": "À anticiper pour la rentrée prochaine",
+                "target": "/chromebooks",
+                "count": n,
+            })
+    except Exception:
+        pass
+
+    # ── 5. Garanties Parc proches d'expiration ─────────────────────
+    try:
+        threshold = (today + timedelta(days=60)).isoformat()
+        row = await db.execute_fetchall(
+            "SELECT COUNT(*) FROM parc_equipment "
+            "WHERE warranty_end IS NOT NULL AND warranty_end != '' "
+            "AND warranty_end > ? AND warranty_end <= ?",
+            (today_iso, threshold),
+        )
+        n = row[0][0]
+        if n > 0:
+            items.append({
+                "severity": "info",
+                "kind": "parc_warranty_soon",
+                "icon": "Shield",
+                "title": f"{n} équipement{'s' if n > 1 else ''} : garantie sous 60 j",
+                "sub": "Décider renouvellement ou remplacement",
+                "target": "/parc",
+                "count": n,
+            })
+    except Exception:
+        pass
+
+    # ── 6. Backups : > 7 jours sans backup auto ────────────────────
+    try:
+        import os as _os
+        if _os.environ.get("ITMANAGER_DATA_DIR"):
+            backup_dir = (
+                __import__("pathlib").Path(_os.environ["ITMANAGER_DATA_DIR"])
+                / "backups"
+            )
+        else:
+            backup_dir = (
+                __import__("pathlib").Path(__file__).resolve().parent.parent
+                / "backups"
+            )
+        if backup_dir.exists():
+            autos = sorted(
+                backup_dir.glob("auto_backup_*.zip"),
+                key=lambda p: p.stat().st_mtime,
+                reverse=True,
+            )
+            if autos:
+                last = autos[0]
+                age_days = (
+                    datetime.now() - datetime.fromtimestamp(last.stat().st_mtime)
+                ).days
+                if age_days >= 7:
+                    items.append({
+                        "severity": "warning",
+                        "kind": "backup_stale",
+                        "icon": "Database",
+                        "title": f"Pas de sauvegarde auto depuis {age_days} j",
+                        "sub": "Vérifier la configuration dans Paramètres",
+                        "target": "/settings",
+                        "count": 1,
+                    })
+    except Exception:
+        pass
+
+    # Sort by severity priority (critical first), then by item kind.
+    severity_rank = {"critical": 0, "warning": 1, "info": 2}
+    items.sort(key=lambda i: (severity_rank.get(i["severity"], 99), i["kind"]))
+    return {"items": items, "total": len(items)}

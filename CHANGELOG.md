@@ -4,6 +4,49 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.5.0 — Home enrichie « À regarder » + Création rapide polie
+
+Deux ajustements quotidiens utiles.
+
+### Card « À regarder » sur la Home
+
+Nouveau composant qui remplace l'ancienne bannière rouge « X tâches en retard » et l'enrichit en un **feed cross-module** des items qui demandent ton attention. Visible en haut de la Home.
+
+6 sources scannées :
+
+| Source                                          | Sévérité  | Quand                                           |
+| ----------------------------------------------- | --------- | ----------------------------------------------- |
+| Tâches en retard                                | critique  | due_date < aujourd'hui et non terminées         |
+| Dossiers sans activité                          | warning   | pas de commentaire depuis 30 j, non archivé     |
+| Devis en attente de BPA                         | info      | status = devis_recu depuis plus de 14 j         |
+| Chromebooks fin de support proche               | warning   | support_end_date < dans 6 mois                  |
+| Garanties Parc qui expirent                     | info      | warranty_end dans les 60 prochains jours        |
+| Sauvegarde auto trop vieille                    | warning   | dernier auto_backup > 7 j                       |
+
+Chaque item :
+- **Bordure colorée à gauche** selon sa sévérité (rouge / orange / bleu)
+- **Icône** typée
+- **Titre + sous-texte** explicatif
+- **Click → navigation** directe vers le module concerné
+
+Quand il n'y a rien à signaler : message vert « Tout va bien — rien à signaler pour le moment ».
+
+Backend : nouvel endpoint `GET /api/dashboard/attention`.
+
+### Création rapide (Ctrl+N) — polish
+
+Le composant existait déjà mais avait deux défauts :
+
+1. **Style en dur sur fond sombre** — illisible en thème clair. Refondu en variables CSS thème-aware (`--bg-card`, `--bg-input`, `--text-heading`, etc).
+2. **Manquait la création rapide de Dossier** — c'est l'entité la plus utilisée pour les achats. Ajouté : tu tapes un titre, ça crée un dossier en statut `demande_envoyee` et tu enrichis après.
+
+Ajouts utiles :
+
+- **Filtre rapide en haut** : tape « doc » → filtre sur Dossier / Document
+- **Raccourcis numériques 1-8** : touche `1` = nouvelle tâche, `2` = nouveau dossier, etc. Affichés discrètement à gauche de chaque action
+- **Auto-focus** sur le filtre dès l'ouverture, Enter sur un seul résultat lance directement l'action
+- **Échap intelligent** : si tu es dans le formulaire de création, ça revient à la liste ; sinon ça ferme
+
 ## v7.4.0 — Bouton d'aide « ? » contextuel sur chaque module
 
 Demande que tu m'avais faite il y a quelques itérations (« un petit ? placé de manière discrète sur chaque module, et quand on clique l'explication du module s'ouvre »). Voilà.
