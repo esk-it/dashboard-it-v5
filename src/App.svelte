@@ -17,13 +17,13 @@
   import ChangePasswordPage from './lib/pages/ChangePasswordPage.svelte';
   import HomePage from './lib/pages/HomePage.svelte';
   import PlaceholderPage from './lib/pages/PlaceholderPage.svelte';
-  import PlanningPage from './lib/pages/PlanningPage.svelte';
+  // v7.6.0 — Modules désactivés (PlanningPage, EmailPage, ChangelogPage,
+  // ToolsPage). Fichiers conservés sur disque pour réactivation facile
+  // (un revert de cet import + route suffit).
   import TasksPage from './lib/pages/TasksPage.svelte';
   import ProjectsPage from './lib/pages/ProjectsPage.svelte';
   import DossiersPage from './lib/pages/DossiersPage.svelte';
-  import EmailPage from './lib/pages/EmailPage.svelte';
   import NewsPage from './lib/pages/NewsPage.svelte';
-  import ChangelogPage from './lib/pages/ChangelogPage.svelte';
   import WikiPage from './lib/pages/WikiPage.svelte';
   import SuppliersPage from './lib/pages/SuppliersPage.svelte';
   import ParcPage from './lib/pages/ParcPage.svelte';
@@ -31,7 +31,6 @@
   import SecurityPage from './lib/pages/SecurityPage.svelte';
   import MonitoringPage from './lib/pages/MonitoringPage.svelte';
   import LauncherPage from './lib/pages/LauncherPage.svelte';
-  import ToolsPage from './lib/pages/ToolsPage.svelte';
   import UsersPage from './lib/pages/UsersPage.svelte';
   import SettingsPage from './lib/pages/SettingsPage.svelte';
 
@@ -131,16 +130,12 @@
       <HomePage />
     {:else if $currentPage === '/news'}
       <NewsPage />
-    {:else if $currentPage === '/planning'}
-      <PlanningPage />
     {:else if $currentPage === '/tasks'}
       <TasksPage />
     {:else if $currentPage === '/projects'}
       <ProjectsPage />
     {:else if $currentPage === '/documents'}
       <DossiersPage />
-    {:else if $currentPage === '/email'}
-      <EmailPage />
     {:else if $currentPage === '/suppliers'}
       <SuppliersPage />
     {:else if $currentPage === '/parc'}
@@ -151,14 +146,10 @@
       <SecurityPage />
     {:else if $currentPage === '/wiki'}
       <WikiPage />
-    {:else if $currentPage === '/changelog'}
-      <ChangelogPage />
     {:else if $currentPage === '/monitoring'}
       <MonitoringPage />
     {:else if $currentPage === '/launcher'}
       <LauncherPage />
-    {:else if $currentPage === '/tools'}
-      <ToolsPage />
     {:else if $currentPage === '/users'}
       <UsersPage />
     {:else if $currentPage === '/settings'}

@@ -4,6 +4,36 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.6.0 — Cleanup : retrait de 4 modules sous-utilisés
+
+Décision sur la base de l'usage réel : **Email**, **Planning**, **Changelog** et **Outils** sont retirés de la navigation. Raisons :
+
+- **Email** et **Planning** font doublon avec Gmail / Google Calendar — utilisés directement dans le navigateur, jamais via le dashboard
+- **Changelog** et **Outils** n'ont jamais été ouverts en pratique
+- Moins de bruit dans la sidebar = focus sur ce qui sert vraiment
+
+### Ce qui change
+
+**Sidebar** : 4 entrées retirées (flag `hidden: true` sur leurs items de nav). Tu passes de 17 à 13 modules visibles.
+
+**Topbar** : icônes **Mail** et **Calendar/Agenda** retirées (avec leur dropdown + le polling toutes les 15s). Allègement notable de la Navbar et fin du polling Gmail inutile en arrière-plan.
+
+**Cloche** : la section info « événements aujourd'hui » est retirée. Critiques + tâches en retard + monitoring + backup âgé restent.
+
+**App.svelte** : les 4 imports et routes correspondants sont retirés (bundle plus léger).
+
+**Aide « ? »** : les 4 entrées sont retirées du registre — plus d'aide affichée pour ces modules.
+
+### Ce qui reste intact
+
+- **Code des pages** : `EmailPage.svelte`, `PlanningPage.svelte`, `ChangelogPage.svelte`, `ToolsPage.svelte` restent sur disque. Pour réactiver un module, il suffit d'enlever `hidden: true` dans `navigation.js` et de re-câbler import + route dans `App.svelte`. Trivial.
+- **Backend** : routers Gmail / Planning / Changelog / Outils inchangés. Aucun trafic frontend → coût zéro. La **sync bidirectionnelle Google Calendar** continue de fonctionner si tu en as besoin (les événements créés via API restent synchronisés).
+- **Cards Home** : les cards qui affichent passivement des événements (`EventsCard`, etc) restent — ce sont des résumés, pas du double-emploi.
+
+### Reversion facile si tu changes d'avis
+
+Un seul commit à revert si tu veux tout remettre. Les fichiers .svelte n'ont pas bougé, les imports/routes sont juste commentés dans App.svelte.
+
 ## v7.5.0 — Home enrichie « À regarder » + Création rapide polie
 
 Deux ajustements quotidiens utiles.

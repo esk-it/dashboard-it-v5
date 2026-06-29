@@ -5,25 +5,22 @@
   import { currentUser, logout } from '../stores/auth.js';
   import { isOnline } from '../stores/health.js';
   import { api } from '../api/client.js';
-  import { Home, Search, Sun, Moon, Bell, Mail, ChevronDown, Lock, LogOut, User, CalendarDays, AlertTriangle, AlertCircle, Info, WifiOff, Activity, Database, HelpCircle } from 'lucide-svelte';
+  // v7.6.0 — Modules Email + Planning désactivés : icônes Mail et
+  // CalendarDays retirées des imports, ainsi que le toast `mail`.
+  import { Home, Search, Sun, Moon, Bell, ChevronDown, Lock, LogOut, User, AlertTriangle, AlertCircle, Info, WifiOff, Activity, Database, HelpCircle } from 'lucide-svelte';
   import HelpModal from './HelpModal.svelte';
-  import { success, error as toastError, info as toastInfo, mail as toastMail, alert_critical as toastCritical } from '../stores/toast.js';
+  import { success, error as toastError, info as toastInfo, alert_critical as toastCritical } from '../stores/toast.js';
 
   const dispatch = createEventDispatcher();
 
   let showUserDropdown = false;
   let showNotifDropdown = false;
-  let showMailDropdown = false;
-  let showCalDropdown = false;
 
-  // Data for dropdowns
-  let unreadMails = [];
-  let unreadCount = 0;
-  let upcomingEvents = [];
-  let todayEventCount = 0;
+  // v7.6.0 — Mail + Calendar dropdowns retirés (modules désactivés).
+  // L'état correspondant (showMailDropdown, unreadMails, upcomingEvents, …)
+  // a été nettoyé.
 
   // Change detection for notifications
-  let prevUnreadCount = -1; // -1 = first load, skip notification
   let prevProblemCount = -1;
   let overdueTasks = [];
   let refreshTimer;
@@ -64,13 +61,9 @@
     return out;
   })();
 
-  $: infoAlerts = (() => {
-    const today = new Date().toISOString().slice(0, 10);
-    return upcomingEvents
-      .filter(e => (e.date_start || '').startsWith(today))
-      .slice(0, 3)
-      .map(e => ({ kind: 'event', icon: 'CalendarDays', title: e.title || '(sans titre)', sub: formatEventTime(e.time_start), meta: "Aujourd'hui", target: '/planning' }));
-  })();
+  // v7.6.0 — Module Planning désactivé : plus d'alertes "événements
+  // du jour" dans la cloche.
+  $: infoAlerts = [];
 
   $: totalNotifCount = criticalAlerts.length + importantAlerts.length + infoAlerts.length;
 
@@ -93,65 +86,18 @@
   function closeAllDropdowns() {
     showUserDropdown = false;
     showNotifDropdown = false;
-    showMailDropdown = false;
-    showCalDropdown = false;
   }
 
   function toggleDropdown(which) {
-    const wasOpen = which === 'notif' ? showNotifDropdown : which === 'mail' ? showMailDropdown : which === 'cal' ? showCalDropdown : showUserDropdown;
+    const wasOpen = which === 'notif' ? showNotifDropdown : showUserDropdown;
     closeAllDropdowns();
     if (which === 'notif') showNotifDropdown = !wasOpen;
-    else if (which === 'mail') showMailDropdown = !wasOpen;
-    else if (which === 'cal') showCalDropdown = !wasOpen;
     else if (which === 'user') showUserDropdown = !wasOpen;
   }
 
   // ── Data fetching ──
-  async function triggerMailSync() {
-    // Background sync: trigger incremental sync then refresh preview
-    try { await api.post('/api/gmail/sync'); } catch {}
-  }
-
-  async function fetchMailPreview() {
-    try {
-      const { count } = await api.get('/api/gmail/unread-count');
-      const newCount = count || 0;
-      // Detect new unread mails (skip first load)
-      if (prevUnreadCount >= 0 && newCount > prevUnreadCount) {
-        const diff = newCount - prevUnreadCount;
-        toastMail(`${diff} nouveau${diff > 1 ? 'x' : ''} mail${diff > 1 ? 's' : ''} non lu${diff > 1 ? 's' : ''}`);
-      }
-      prevUnreadCount = newCount;
-      unreadCount = newCount;
-      if (unreadCount > 0) {
-        const data = await api.get('/api/gmail/messages?folder=inbox&max_results=20');
-        unreadMails = (data.messages || []).filter(m => m.unread).slice(0, 5);
-      } else {
-        unreadMails = [];
-      }
-    } catch {
-      unreadCount = 0;
-      unreadMails = [];
-    }
-  }
-
-  async function fetchCalendarPreview() {
-    try {
-      const now = new Date();
-      const start = now.toISOString().slice(0, 10);
-      const end = new Date(now.getTime() + 7 * 86400000).toISOString().slice(0, 10);
-      const data = await api.get(`/api/google-calendar/events?start=${start}&end=${end}`);
-      const allEvents = data.events || [];
-      // Sort by date
-      allEvents.sort((a, b) => (a.date_start || '').localeCompare(b.date_start || ''));
-      upcomingEvents = allEvents.slice(0, 5);
-      // Count today's events
-      todayEventCount = allEvents.filter(e => (e.date_start || '').startsWith(start)).length;
-    } catch {
-      upcomingEvents = [];
-      todayEventCount = 0;
-    }
-  }
+  // v7.6.0 — fetchMailPreview / fetchCalendarPreview / triggerMailSync retirées
+  // (modules Email et Planning désactivés).
 
   async function fetchOverdueTasks() {
     try {
@@ -206,56 +152,20 @@
 
   async function fetchAll() {
     await Promise.all([
-      fetchMailPreview(),
-      fetchCalendarPreview(),
       fetchOverdueTasks(),
       fetchMonitoringAlerts(),
       fetchBackupStatus(),
     ]);
   }
 
-  async function syncAndRefresh() {
-    await triggerMailSync();
-    await fetchAll();
-  }
-
-  // Helpers
-  function parseFromName(from) {
-    if (!from) return 'Inconnu';
-    const match = from.match(/^"?([^"<]+?)"?\s*</) || from.match(/^([^<@]+)/);
-    return match ? match[1].trim() || from.split('@')[0] : from.split('@')[0] || 'Inconnu';
-  }
-
-  function formatRelativeDate(internalDate) {
-    if (!internalDate) return '';
-    const d = new Date(Number(internalDate));
-    const now = new Date();
-    const diffH = (now - d) / 3600000;
-    if (diffH < 1) return `${Math.floor((now - d) / 60000)}min`;
-    if (diffH < 24 && d.getDate() === now.getDate()) return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-  }
-
-  function formatEventDate(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    const now = new Date();
-    if (d.toDateString() === now.toDateString()) return "Aujourd'hui";
-    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
-    if (d.toDateString() === tomorrow.toDateString()) return 'Demain';
-    return d.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
-  }
-
-  function formatEventTime(timeStr) {
-    if (!timeStr) return 'Journee';
-    return timeStr.slice(0, 5);
-  }
+  // v7.6.0 — Helpers parseFromName/formatRelativeDate/formatEventDate/Time
+  // retirés (utilisés uniquement par les dropdowns Mail et Calendar).
 
   onMount(() => {
-    // Initial: trigger background mail sync + fetch all previews
-    syncAndRefresh();
-    // Auto-refresh every 15s (sync mail + update badges)
-    refreshTimer = setInterval(syncAndRefresh, 15000);
+    // Initial fetch (taches en retard, monitoring, backup age)
+    fetchAll();
+    // Auto-refresh toutes les 30 s
+    refreshTimer = setInterval(fetchAll, 30000);
   });
 
   onDestroy(() => {
@@ -389,84 +299,9 @@
         {/if}
       </div>
 
-      <!-- ═══ Mail (Envelope) ═══ -->
-      <div class="header-icon-wrapper">
-        <div class="header-icon" on:click={() => toggleDropdown('mail')}>
-          <Mail size={20} />
-          {#if unreadCount > 0}
-            <span class="icon-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
-          {/if}
-        </div>
-        {#if showMailDropdown}
-          <div class="icon-dropdown">
-            <div class="icon-dropdown__header">
-              <span class="icon-dropdown__title">Emails</span>
-              {#if unreadCount > 0}
-                <span class="icon-dropdown__count">{unreadCount} non lu{unreadCount > 1 ? 's' : ''}</span>
-              {/if}
-            </div>
-            <div class="icon-dropdown__list">
-              {#if unreadMails.length === 0}
-                <div class="icon-dropdown__empty">Aucun email non lu</div>
-              {/if}
-              {#each unreadMails as mail}
-                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
-                  <div class="icon-dropdown__item-avatar" style="background:{getAvatarColor(parseFromName(mail.from))}">
-                    {parseFromName(mail.from).charAt(0).toUpperCase()}
-                  </div>
-                  <div class="icon-dropdown__item-content">
-                    <span class="icon-dropdown__item-title">{parseFromName(mail.from)}</span>
-                    <span class="icon-dropdown__item-sub">{mail.subject || '(sans objet)'}</span>
-                  </div>
-                  <span class="icon-dropdown__item-time">{formatRelativeDate(mail.internalDate)}</span>
-                </div>
-              {/each}
-            </div>
-            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/email'); }}>
-              Voir toute la boite mail
-            </div>
-          </div>
-        {/if}
-      </div>
-
-      <!-- ═══ Calendar ═══ -->
-      <div class="header-icon-wrapper">
-        <div class="header-icon" on:click={() => toggleDropdown('cal')}>
-          <CalendarDays size={20} />
-          {#if todayEventCount > 0}
-            <span class="icon-badge">{todayEventCount}</span>
-          {/if}
-        </div>
-        {#if showCalDropdown}
-          <div class="icon-dropdown">
-            <div class="icon-dropdown__header">
-              <span class="icon-dropdown__title">Agenda</span>
-              {#if todayEventCount > 0}
-                <span class="icon-dropdown__count">{todayEventCount} aujourd'hui</span>
-              {/if}
-            </div>
-            <div class="icon-dropdown__list">
-              {#if upcomingEvents.length === 0}
-                <div class="icon-dropdown__empty">Aucun evenement a venir</div>
-              {/if}
-              {#each upcomingEvents as evt}
-                <div class="icon-dropdown__item" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
-                  <div class="icon-dropdown__item-icon" style="background:rgba(139,92,246,0.1);color:#8B5CF6">
-                    <CalendarDays size={14} />
-                  </div>
-                  <div class="icon-dropdown__item-content">
-                    <span class="icon-dropdown__item-title">{evt.title || '(sans titre)'}</span>
-                    <span class="icon-dropdown__item-sub">{formatEventDate(evt.date_start)} {evt.all_day ? '' : formatEventTime(evt.time_start)}</span>
-                  </div>
-                </div>
-              {/each}
-            </div>
-            <div class="icon-dropdown__footer" on:click={() => { closeAllDropdowns(); currentPage.set('/planning'); }}>
-              Voir le planning
-            </div>
-          </div>
-        {/if}
-      </div>
+      <!-- v7.6.0 — Icônes Mail + Agenda retirées (modules Email et
+           Planning désactivés). On utilise Gmail/Google Calendar dans le
+           navigateur, pas besoin du double dans le dashboard. -->
 
       <!-- Profile dropdown -->
       <div class="profile-dropdown" on:click={() => toggleDropdown('user')}>
@@ -497,7 +332,7 @@
   </div>
 </div>
 
-{#if showUserDropdown || showNotifDropdown || showMailDropdown || showCalDropdown}
+{#if showUserDropdown || showNotifDropdown}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="dropdown-backdrop" on:click={closeAllDropdowns}></div>
 {/if}

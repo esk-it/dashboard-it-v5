@@ -46,8 +46,10 @@
     currentPage.set(path);
   }
 
-  $: mainItems = navItems.filter(item => !item.bottom);
-  $: bottomItems = navItems.filter(item => item.bottom);
+  // v7.6.0 — `hidden: true` ecarte les modules desactives (email, planning,
+  // changelog, outils) sans les supprimer du code.
+  $: mainItems = navItems.filter(item => !item.bottom && !item.hidden);
+  $: bottomItems = navItems.filter(item => item.bottom && !item.hidden);
 </script>
 
 <!-- Nav Header (logo area) -->

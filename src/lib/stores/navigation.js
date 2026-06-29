@@ -6,14 +6,19 @@ export const sidebarOpen = writable(true);
 // Flat list of nav items with section markers (`type: 'section'`) and a
 // `bottom: true` flag for items that render in the bottom group of the
 // sidebar (Outils / Utilisateurs / Paramètres).
+//
+// v7.6.0 — `hidden: true` retire l'item de la sidebar. Utilisé pour les
+// modules désactivés (Email, Planning, Changelog, Outils) qui font doublon
+// avec les outils Google ou ne sont pas utilisés. Le code des pages reste
+// sur disque pour un revert facile si besoin.
 export const navItems = [
   { type: 'section', label: 'VOTRE ENTREPRISE' },
   { key: 'home',      path: '/',           icon: 'Home',         label: 'Accueil',     emoji: '\u{1F3E0}' },
   { key: 'tasks',     path: '/tasks',      icon: 'CheckSquare',  label: 'Tâches',      emoji: '✅' },
   { key: 'projects',  path: '/projects',   icon: 'Target',       label: 'Projets',     emoji: '\u{1F3AF}' },
-  { key: 'planning',  path: '/planning',   icon: 'Calendar',     label: 'Planning',    emoji: '\u{1F4C5}' },
+  { key: 'planning',  path: '/planning',   icon: 'Calendar',     label: 'Planning',    emoji: '\u{1F4C5}', hidden: true },
   { key: 'documents', path: '/documents',  icon: 'FileText',     label: 'Documents',   emoji: '\u{1F4C1}' },
-  { key: 'email',     path: '/email',      icon: 'Mail',         label: 'Email',       emoji: '\u{1F4E7}' },
+  { key: 'email',     path: '/email',      icon: 'Mail',         label: 'Email',       emoji: '\u{1F4E7}', hidden: true },
   { key: 'news',      path: '/news',       icon: 'Globe',        label: 'Actualités',  emoji: '\u{1F310}' },
 
   { type: 'section', label: 'NOS OUTILS' },
@@ -23,10 +28,10 @@ export const navItems = [
   { key: 'security',   path: '/security',   icon: 'Shield',         label: 'Sécurité',    emoji: '\u{1F6E1}️' },
   { key: 'monitoring', path: '/monitoring', icon: 'Activity',       label: 'Monitoring',  emoji: '\u{1F4E1}' },
   { key: 'wiki',       path: '/wiki',       icon: 'BookOpen',       label: 'Procédures',  emoji: '\u{1F4D6}' },
-  { key: 'changelog',  path: '/changelog',  icon: 'ClipboardList',  label: 'Changelog',   emoji: '\u{1F4CB}' },
+  { key: 'changelog',  path: '/changelog',  icon: 'ClipboardList',  label: 'Changelog',   emoji: '\u{1F4CB}', hidden: true },
   { key: 'launcher',   path: '/launcher',   icon: 'Rocket',         label: 'Lanceur',     emoji: '\u{1F680}' },
 
-  { key: 'tools',     path: '/tools',     icon: 'Wrench',   label: 'Outils',       emoji: '\u{1F527}', bottom: true },
+  { key: 'tools',     path: '/tools',     icon: 'Wrench',   label: 'Outils',       emoji: '\u{1F527}', bottom: true, hidden: true },
   { key: 'users',     path: '/users',     icon: 'Users',    label: 'Utilisateurs', emoji: '\u{1F465}', bottom: true },
   { key: 'settings',  path: '/settings',  icon: 'Settings', label: 'Paramètres',   emoji: '⚙️',        bottom: true },
 ];
@@ -160,27 +165,6 @@ export const moduleHelp = {
       "Le Gantt accepte le drag pour déplacer une barre et le drag du bord droit pour redimensionner",
     ],
   },
-  planning: {
-    title: 'Planning',
-    emoji: '📅',
-    description: "Agenda + interventions + maintenances planifiées. Sync bidirectionnelle Google Calendar.",
-    sections: [
-      {
-        label: 'Fonctionnalités clés',
-        items: [
-          "Vue mois, semaine, jour",
-          "Types d'événements : intervention, maintenance, rendez-vous, autre",
-          "Sync bidirectionnelle Google Calendar (last-write-wins)",
-          "Lien entre événement et tâche",
-          "Filtrage par personne et par site",
-        ],
-      },
-    ],
-    tips: [
-      "Les événements créés ici remontent automatiquement sur Google",
-      "Pour reconfigurer la sync : Paramètres → Google",
-    ],
-  },
   documents: {
     title: 'Documents (Dossiers)',
     emoji: '📁',
@@ -210,27 +194,6 @@ export const moduleHelp = {
     tips: [
       "Pour rattacher un doc existant à un autre dossier : utilise le bouton « Rattacher » plutôt que de réimporter",
       "Le bouton « Cleanup orphelins » dans les paramètres avancés purge les rows DB sans fichier",
-    ],
-  },
-  email: {
-    title: 'Email',
-    emoji: '📧',
-    description: "Client mail intégré pour la boîte Gmail principale. Cache offline.",
-    sections: [
-      {
-        label: 'Fonctionnalités',
-        items: [
-          "Lecture, réponse, transfert avec CC/BCC",
-          "Pièces jointes téléchargeables",
-          "Cache local pour consultation hors-ligne",
-          "Drafts locaux (sauvegarde auto)",
-          "Filtres / labels Gmail",
-        ],
-      },
-    ],
-    tips: [
-      "Reply-all préremplit correctement les CC depuis le message d'origine",
-      "Les emails avec PDF facture peuvent être importés en doc via le bouton dédié",
     ],
   },
   news: {
@@ -367,24 +330,6 @@ export const moduleHelp = {
       },
     ],
   },
-  changelog: {
-    title: 'Changelog',
-    emoji: '📋',
-    description: "Journal des changements importants effectués sur l'infrastructure.",
-    sections: [
-      {
-        label: 'Fonctionnalités',
-        items: [
-          "Entrées par catégorie (Réseau, Serveur, Sécurité, Application…)",
-          "Date, auteur, description courte",
-          "Filtrage et export",
-        ],
-      },
-    ],
-    tips: [
-      "Trace les changements significatifs : utile pour expliquer un comportement bizarre 6 mois plus tard",
-    ],
-  },
   launcher: {
     title: 'Lanceur',
     emoji: '🚀',
@@ -397,22 +342,6 @@ export const moduleHelp = {
           "Catégories",
           "Favoris en premier",
           "Icônes personnalisables (emoji ou URL d'image)",
-        ],
-      },
-    ],
-  },
-  tools: {
-    title: 'Outils',
-    emoji: '🔧',
-    description: "Outils techniques : générateurs, convertisseurs, calculatrices IT.",
-    sections: [
-      {
-        label: 'Fonctionnalités',
-        items: [
-          "Générateur de mots de passe sécurisés",
-          "Calculateur de sous-réseaux (CIDR)",
-          "Convertisseur de timestamps",
-          "Autres utilitaires IT",
         ],
       },
     ],
