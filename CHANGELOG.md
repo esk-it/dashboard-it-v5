@@ -4,6 +4,42 @@ Toutes les versions notables. Pour le détail complet, voir les messages de comm
 
 ---
 
+## v7.7.0 — Dossiers : refonte visuelle (pipeline, stepper, tableau de bord)
+
+Refonte validée via le mockup `docs/dossiers-redesign-v2-mockup.html`. Première des 3 releases du plan (v7.7 visuel → v7.8 tiroir + nudges → v7.9 import-first).
+
+### Barre pipeline
+
+- Le cycle de vie complet (Demande → Devis → BPA → Commandé → Livré → Archivé) est désormais une **barre de segments chevronnés toujours visible** sous la topbar, avec le nombre de dossiers dans chaque étape
+- **Chaque segment est cliquable** : clic = filtre la liste sur ce statut, re-clic = retour à tous. Le segment actif prend la couleur du statut
+- **KPIs financiers de l'année** accolés à droite : Engagé (BPA) et Facturé
+- L'ancien groupe de filtres « État du dossier » de la colonne gauche disparaît (redondant)
+
+### Cards repensées — stepper fusionné
+
+- La ligne de progression à points et les 3 colonnes de montants **fusionnent en un stepper** : chaque étape (Devis / BPA / Facture) porte sa coche ✓ et son montant
+- Cards ~40 % moins hautes → **~8 dossiers visibles au lieu de 4-5**
+- **Bordure gauche colorée** selon le statut du dossier
+- **Badge « ⏰ À relancer »** orange animé quand `next_action_date` est dépassée (le champ existait en base mais n'était pas visible sur la liste)
+- **Écart facture vs engagé signalé en rouge** : si la facture dépasse le BPA de plus de 5 %, le montant passe en rouge avec le pourcentage d'écart (+X %)
+- Le compteur de documents remonte dans la ligne méta, la date reste en bas à droite du stepper
+
+### Panneau droit intelligent
+
+Quand aucun dossier n'est sélectionné, fini le « Sélectionne un dossier » vide. À la place, un **tableau de bord** :
+
+- **Vue d'ensemble de l'année** : Engagé / Facturé / En attente de facturation
+- **Top 3 prestataires** par montant engagé, avec barres proportionnelles (clic = filtre la liste sur ce presta)
+- **Liste « À relancer »** : dossiers avec action prévue dépassée ou devis sans réponse depuis 14 j (clic = ouvre le dossier)
+
+### Vue compacte
+
+Nouveau **toggle ▤ / ☰ dans la topbar** : bascule entre la vue cards et un **tableau dense** type relevé bancaire (statut, dossier, étab, devis, BPA, facturé, docs, date). 15+ dossiers visibles d'un coup, idéal pour les revues de fin d'année. Le choix est mémorisé localement.
+
+### Backend
+
+`GET /api/dossiers/stats/summary` enrichi : `finance` (engagé/facturé YTD calculés depuis les documents, la valeur validée prime sur la déclarée), `top_suppliers` (top 3 par engagé), `relance_list` (max 5, deux sources : next_action_date dépassée + devis stale 14 j).
+
 ## v7.6.0 — Cleanup : retrait de 4 modules sous-utilisés
 
 Décision sur la base de l'usage réel : **Email**, **Planning**, **Changelog** et **Outils** sont retirés de la navigation. Raisons :

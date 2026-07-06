@@ -102,6 +102,30 @@
   // Preview modal — iframe pointing at /api/documents/{id}/preview
   let previewDoc = null;
 
+  // v7.7.0 — vue cards / compacte (table dense). Persistée localement.
+  let viewMode = localStorage.getItem('dossiers.viewMode') || 'cards';
+  $: try { localStorage.setItem('dossiers.viewMode', viewMode); } catch {}
+
+  // v7.7.0 — badge « À relancer » : next_action_date dépassée sur un
+  // dossier encore actif.
+  const _todayIso = new Date().toISOString().slice(0, 10);
+  function relanceDays(d) {
+    if (!d.next_action_date || d.status === 'livre' || d.status === 'archive') return null;
+    if (d.next_action_date > _todayIso) return null;
+    const days = Math.floor((new Date(_todayIso) - new Date(d.next_action_date)) / 86400000);
+    return days;
+  }
+
+  // v7.7.0 — écart facture vs engagé (>5 % => signalé en rouge sur la card).
+  function factureEcart(d) {
+    const bpa = d.summary?.bpa_total || 0;
+    const fact = d.summary?.facture_total || 0;
+    if (bpa > 0 && fact > bpa * 1.05) {
+      return Math.round(((fact - bpa) / bpa) * 100);
+    }
+    return null;
+  }
+
   // Doc edit dialog (replaces what was only doable in the old flat view).
   let editingDoc = null;  // null = closed; doc object when open
   let editDocForm = {
@@ -674,37 +698,50 @@
         {#each SORT_OPTIONS as opt}<option value={opt.value}>{opt.label}</option>{/each}
       </select>
     </label>
+    <div class="ds-view-toggle">
+      <button class:active={viewMode === 'cards'} on:click={() => viewMode = 'cards'} title="Vue cards">▤</button>
+      <button class:active={viewMode === 'compact'} on:click={() => viewMode = 'compact'} title="Vue compacte">☰</button>
+    </div>
     <button class="ds-btn-primary" on:click={openCreateDialog}>
       + Nouveau dossier
     </button>
   </header>
 
+  <!-- ─── v7.7.0 — PIPELINE BAR ───
+       L'état d'avancement de tous les dossiers, toujours visible.
+       Chaque segment est cliquable et filtre la liste (re-clic = reset).
+       Remplace l'ancien groupe de filtres « État du dossier ». -->
+  <div class="ds-pipeline-wrap">
+    <div class="ds-pipeline">
+      {#each STATUSES as s}
+        <div
+          class="ds-pl-seg"
+          class:active={filterStatus === s.value}
+          style="--seg-color:{s.color}"
+          on:click={() => filterStatus = (filterStatus === s.value ? '' : s.value)}
+          title={s.hint}
+        >
+          <div class="ds-pl-count">{stats.per_status?.[s.value] || 0}</div>
+          <div class="ds-pl-label">{s.shortLabel}</div>
+        </div>
+      {/each}
+    </div>
+    <div class="ds-pl-kpis">
+      <div class="ds-plk">
+        <div class="ds-plk-v">{fmtEur(stats.finance?.engaged_ytd)}</div>
+        <div class="ds-plk-k">Engagé {stats.finance?.year || ''}</div>
+      </div>
+      <div class="ds-plk">
+        <div class="ds-plk-v ds-plk-v--green">{fmtEur(stats.finance?.factured_ytd)}</div>
+        <div class="ds-plk-k">Facturé</div>
+      </div>
+    </div>
+  </div>
+
   <div class="ds-layout">
 
-    <!-- ─── FILTERS ─── -->
+    <!-- ─── FILTERS (l'état a déménagé dans la pipeline bar) ─── -->
     <aside class="ds-filters">
-      <div class="ds-filter-section">
-        <h3>État du dossier</h3>
-        <div class="ds-filter-item" class:active={filterStatus === ''} on:click={() => filterStatus = ''}>
-          <span>Tous</span>
-          <span class="ds-count">{stats.total}</span>
-        </div>
-        {#each STATUSES as s}
-          <div
-            class="ds-filter-item"
-            class:active={filterStatus === s.value}
-            on:click={() => filterStatus = s.value}
-            title={s.hint}
-          >
-            <span class="ds-filter-icon">
-              <span class="ds-filter-dot" style="background:{s.color}"></span>
-              {s.label}
-            </span>
-            <span class="ds-count">{stats.per_status?.[s.value] || 0}</span>
-          </div>
-        {/each}
-      </div>
-
       <div class="ds-filter-section">
         <h3>Établissement</h3>
         <div class="ds-filter-item" class:active={filterSite === ''} on:click={() => filterSite = ''}>
@@ -766,13 +803,47 @@
             Aucun dossier. Clique sur "+ Nouveau dossier" pour démarrer.
           {/if}
         </div>
+      {:else if viewMode === 'compact'}
+        <!-- ─── v7.7.0 — VUE COMPACTE (table dense) ─── -->
+        <table class="ds-ctable">
+          <thead>
+            <tr>
+              <th>Statut</th>
+              <th>Dossier</th>
+              <th>Étab</th>
+              <th class="r">Devis</th>
+              <th class="r">BPA</th>
+              <th class="r">Facturé</th>
+              <th class="r">Docs</th>
+              <th class="r">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {#each dossiers as d (d.id)}
+              {@const status = statusInfo(d.status)}
+              {@const ecart = factureEcart(d)}
+              <tr class:selected={selectedDossierId === d.id} on:click={() => selectDossier(d.id)}>
+                <td><span class="ds-status-pill" style="background:{status.color}22;color:{status.color}">{status.shortLabel}</span></td>
+                <td class="t-title">{relanceDays(d) !== null ? '⏰ ' : ''}{d.title}</td>
+                <td>{d.site || '—'}</td>
+                <td class="r t-amt" class:t-dim={!d.summary?.devis_total}>{fmtEur(d.summary?.devis_total)}</td>
+                <td class="r t-amt" class:t-dim={!d.summary?.bpa_total}>{fmtEur(d.summary?.bpa_total)}</td>
+                <td class="r t-amt" class:t-dim={!d.summary?.facture_total} style:color={ecart !== null ? 'var(--danger)' : ''}>{fmtEur(d.summary?.facture_total)}</td>
+                <td class="r">{d.summary?.doc_count || 0}</td>
+                <td class="r">{d.last_doc_date ? formatDate(d.last_doc_date) : formatRelative(d.updated_at)}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
       {:else}
         {#each dossiers as d (d.id)}
           {@const status = statusInfo(d.status)}
-          {@const steps = timelineSteps(d)}
+          {@const rDays = relanceDays(d)}
+          {@const ecart = factureEcart(d)}
           <article
             class="ds-card"
             class:selected={selectedDossierId === d.id}
+            style="--st-color:{status.color}"
             on:click={() => selectDossier(d.id)}
           >
             <div class="ds-card__top">
@@ -795,47 +866,54 @@
                     <span class="dot">·</span>
                     <span class="ds-card__project">🎯 {d.project.title}</span>
                   {/if}
+                  <span class="dot">·</span>
+                  <span>{d.summary?.doc_count || 0} doc{(d.summary?.doc_count || 0) > 1 ? 's' : ''}</span>
                 </div>
               </div>
+              {#if rDays !== null}
+                <span class="ds-relance-pill" title={d.next_action_label || 'Action prévue dépassée'}>
+                  ⏰ À relancer{rDays > 0 ? ` · ${rDays} j` : ''}
+                </span>
+              {/if}
               <span class="ds-status-pill" style="background:{status.color}22;color:{status.color}">
                 {status.shortLabel}
               </span>
             </div>
 
-            <div class="ds-timeline-mini">
-              {#each steps as step, i}
-                <span class="ds-tl-dot"
-                  class:done={step.done}
-                  style:--c={DOC_TYPE_COLORS[step.type] || '#6B7280'}
-                ></span>
-                {#if i < steps.length - 1}
-                  <span class="ds-tl-line" class:done={step.done}></span>
+            <!-- v7.7.0 — stepper fusionné : étapes + montants en une ligne -->
+            <div class="ds-steps">
+              <div class="ds-step" class:done={d.summary?.devis_total > 0}>
+                <div class="ds-step-head">
+                  <span class="ds-step-dot">{d.summary?.devis_total > 0 ? '✓' : ''}</span>
+                  <span class="ds-step-label">Devis</span>
+                </div>
+                <div class="ds-step-amt">{fmtEur(d.summary?.devis_total)}</div>
+              </div>
+              <div class="ds-step-conn" class:done={d.summary?.bpa_total > 0}></div>
+              <div class="ds-step" class:done={d.summary?.bpa_total > 0}>
+                <div class="ds-step-head">
+                  <span class="ds-step-dot">{d.summary?.bpa_total > 0 ? '✓' : ''}</span>
+                  <span class="ds-step-label">BPA</span>
+                </div>
+                <div class="ds-step-amt">{fmtEur(d.summary?.bpa_total)}</div>
+              </div>
+              <div class="ds-step-conn" class:done={d.summary?.facture_total > 0}></div>
+              <div class="ds-step" class:done={d.summary?.facture_total > 0}>
+                <div class="ds-step-head">
+                  <span class="ds-step-dot">{d.summary?.facture_total > 0 ? '✓' : ''}</span>
+                  <span class="ds-step-label">Facture</span>
+                </div>
+                <div class="ds-step-amt" style:color={ecart !== null ? 'var(--danger)' : ''}>
+                  {fmtEur(d.summary?.facture_total)}{#if ecart !== null}<small class="ds-ecart">+{ecart} %</small>{/if}
+                </div>
+              </div>
+              <div class="ds-step-date">
+                {#if d.last_doc_date}
+                  <span title={`Document le plus récent : ${formatDate(d.last_doc_date)}`}>📅 {formatDate(d.last_doc_date)}</span>
+                {:else}
+                  <span title={`Modifié ${formatDate(d.updated_at)}`}>{formatRelative(d.updated_at)}</span>
                 {/if}
-              {/each}
-            </div>
-
-            <div class="ds-amounts">
-              <div class="ds-amount">
-                <span class="ds-amount__label">Devis</span>
-                <span class="ds-amount__value" class:muted={!d.summary?.devis_total}>{fmtEur(d.summary?.devis_total)}</span>
               </div>
-              <div class="ds-amount">
-                <span class="ds-amount__label">Engagé (BPA)</span>
-                <span class="ds-amount__value" class:muted={!d.summary?.bpa_total}>{fmtEur(d.summary?.bpa_total)}</span>
-              </div>
-              <div class="ds-amount">
-                <span class="ds-amount__label">Facturé</span>
-                <span class="ds-amount__value" class:muted={!d.summary?.facture_total} style:color={d.summary?.facture_total ? 'var(--success)' : ''}>{fmtEur(d.summary?.facture_total)}</span>
-              </div>
-            </div>
-
-            <div class="ds-card__footer">
-              <span>{d.summary?.doc_count || 0} document{(d.summary?.doc_count || 0) > 1 ? 's' : ''}</span>
-              {#if d.last_doc_date}
-                <span class="muted" title={`Document le plus récent : ${formatDate(d.last_doc_date)}`}>📅 {formatDate(d.last_doc_date)}</span>
-              {:else}
-                <span class="muted" title={`Modifié ${formatDate(d.updated_at)}`}>Modifié {formatRelative(d.updated_at)}</span>
-              {/if}
             </div>
           </article>
         {/each}
@@ -845,9 +923,57 @@
     <!-- ─── DETAIL PANEL ─── -->
     <aside class="ds-detail">
       {#if !selectedDossier}
-        <div class="ds-detail__empty">
-          <span class="ds-detail__empty-icon">📂</span>
-          <p>Sélectionne un dossier pour voir son contenu.</p>
+        <!-- ─── v7.7.0 — TABLEAU DE BORD (état de repos) ───
+             Remplace le « Sélectionne un dossier » vide. -->
+        <div class="ds-dash">
+          <div class="ds-dash-card">
+            <div class="ds-dash-title">Vue d'ensemble {stats.finance?.year || ''}</div>
+            <div class="ds-dash-stats">
+              <div class="ds-ds">
+                <div class="ds-ds-v">{fmtEur(stats.finance?.engaged_ytd)}</div>
+                <div class="ds-ds-k">Engagé (BPA)</div>
+              </div>
+              <div class="ds-ds">
+                <div class="ds-ds-v ds-ds-v--green">{fmtEur(stats.finance?.factured_ytd)}</div>
+                <div class="ds-ds-k">Facturé</div>
+              </div>
+              <div class="ds-ds ds-ds--full">
+                <div class="ds-ds-v ds-ds-v--amber">{fmtEur(Math.max((stats.finance?.engaged_ytd || 0) - (stats.finance?.factured_ytd || 0), 0))}</div>
+                <div class="ds-ds-k">En attente de facturation</div>
+              </div>
+            </div>
+          </div>
+
+          {#if stats.top_suppliers?.length}
+            {@const maxEngaged = stats.top_suppliers[0]?.engaged || 1}
+            <div class="ds-dash-card">
+              <div class="ds-dash-title">Top prestataires (engagé)</div>
+              {#each stats.top_suppliers as tp}
+                <div class="ds-tp-row" on:click={() => filterSupplier = tp.id}>
+                  <span class="ds-tp-name">{tp.name}</span>
+                  <span class="ds-tp-bar-wrap"><span class="ds-tp-bar" style="width:{Math.max(Math.round((tp.engaged / maxEngaged) * 100), 3)}%"></span></span>
+                  <span class="ds-tp-amt">{fmtEur(tp.engaged)}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          {#if stats.relance_list?.length}
+            <div class="ds-dash-card">
+              <div class="ds-dash-title">⏰ À relancer ({stats.relance_list.length})</div>
+              {#each stats.relance_list as rl}
+                <div class="ds-rl-item" on:click={() => selectDossier(rl.id)}>
+                  <div class="ds-rl-body">
+                    <div class="ds-rl-t">{rl.title}</div>
+                    <div class="ds-rl-s">{rl.reason} — {rl.days} j</div>
+                  </div>
+                  <span class="ds-rl-arrow">→</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <p class="ds-dash-hint">Clique sur un dossier pour voir son détail.</p>
         </div>
       {:else}
         {@const status = statusInfo(selectedDossier.status)}
@@ -2258,5 +2384,298 @@
     border: none;
     background: rgba(0, 0, 0, 0.04);
     border-radius: 0 0 12px 12px;
+  }
+
+  /* ═══════════════════════════════════════════════════════════
+     v7.7.0 — Refonte visuelle (pipeline / stepper / dashboard /
+     vue compacte). Validée via docs/dossiers-redesign-v2-mockup.html
+     ═══════════════════════════════════════════════════════════ */
+
+  /* ── Toggle vue cards / compacte (topbar) ── */
+  .ds-view-toggle {
+    display: flex; gap: 2px;
+    background: var(--bg-input);
+    border: 1px solid var(--border-card);
+    border-radius: 8px; padding: 3px;
+  }
+  .ds-view-toggle button {
+    background: transparent; border: none;
+    color: var(--text-muted); font-size: 14px;
+    padding: 5px 12px; border-radius: 6px; cursor: pointer;
+    line-height: 1;
+  }
+  .ds-view-toggle button.active {
+    background: var(--accent); color: #fff;
+  }
+
+  /* ── Pipeline bar ── */
+  .ds-pipeline-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 16px;
+    margin-bottom: 14px;
+  }
+  .ds-pipeline { display: flex; flex: 1; }
+  .ds-pl-seg {
+    flex: 1;
+    position: relative;
+    padding: 8px 8px 8px 20px;
+    cursor: pointer;
+    background: var(--bg-input);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+    margin-left: -7px;
+    text-align: center;
+    transition: filter 0.12s;
+    user-select: none;
+  }
+  .ds-pl-seg:first-child {
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+    margin-left: 0;
+    border-radius: 8px 0 0 8px;
+    padding-left: 12px;
+  }
+  .ds-pl-seg:hover { filter: brightness(0.95); }
+  .ds-pl-seg::before {
+    content: '';
+    position: absolute; top: 7px; right: 18px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--seg-color);
+  }
+  .ds-pl-count {
+    font-size: 18px; font-weight: 800;
+    color: var(--text-heading);
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .ds-pl-label {
+    font-size: 9.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+  .ds-pl-seg.active { background: var(--seg-color); }
+  .ds-pl-seg.active .ds-pl-count { color: #fff; }
+  .ds-pl-seg.active .ds-pl-label { color: rgba(255,255,255,0.85); }
+  .ds-pl-seg.active::before { background: rgba(255,255,255,0.6); }
+
+  .ds-pl-kpis {
+    display: flex; gap: 20px;
+    border-left: 1px solid var(--border-card);
+    padding-left: 18px;
+  }
+  .ds-plk { text-align: right; }
+  .ds-plk-v {
+    font-size: 16px; font-weight: 800;
+    color: var(--text-heading);
+    font-variant-numeric: tabular-nums;
+  }
+  .ds-plk-v--green { color: var(--success); }
+  .ds-plk-k {
+    font-size: 9.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+
+  /* ── Card : bordure statut + badge relance ── */
+  .ds-card { border-left: 3px solid var(--st-color, var(--border-card)); }
+  .ds-relance-pill {
+    font-size: 10.5px; font-weight: 700;
+    padding: 3px 10px; border-radius: 999px;
+    background: rgba(234, 88, 12, 0.14); color: #C2410C;
+    white-space: nowrap; flex-shrink: 0;
+    animation: ds-pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+
+  /* ── Stepper fusionné ── */
+  .ds-steps {
+    display: flex; align-items: flex-start;
+    padding-top: 2px;
+  }
+  .ds-step { min-width: 96px; }
+  .ds-step-head {
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 2px;
+  }
+  .ds-step-dot {
+    width: 15px; height: 15px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800;
+    background: transparent;
+    border: 2px dashed var(--border-card);
+    color: #fff;
+    flex-shrink: 0;
+    box-sizing: border-box;
+  }
+  .ds-step.done .ds-step-dot {
+    background: var(--accent);
+    border: none;
+  }
+  .ds-step-label {
+    font-size: 9px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+  .ds-step.done .ds-step-label { color: var(--text-heading); }
+  .ds-step-amt {
+    font-size: 14.5px; font-weight: 750;
+    color: var(--text-heading);
+    padding-left: 21px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ds-step:not(.done) .ds-step-amt {
+    color: var(--text-muted); opacity: 0.55; font-weight: 500;
+  }
+  .ds-ecart {
+    font-size: 10px; font-weight: 700;
+    color: var(--danger); margin-left: 4px;
+  }
+  .ds-step-conn {
+    flex: 1; height: 2px;
+    margin: 7px 8px 0;
+    background: var(--border-card);
+    border-radius: 2px;
+    min-width: 16px;
+  }
+  .ds-step-conn.done { background: var(--accent); opacity: 0.35; }
+  .ds-step-date {
+    margin-left: auto;
+    align-self: flex-end;
+    font-size: 11px; color: var(--text-muted);
+    white-space: nowrap;
+    padding-left: 10px;
+  }
+
+  /* ── Vue compacte (table) ── */
+  .ds-ctable {
+    width: 100%;
+    background: var(--bg-card);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    border-collapse: separate; border-spacing: 0;
+    overflow: hidden;
+    font-size: 12.5px;
+  }
+  .ds-ctable th {
+    text-align: left; padding: 9px 12px;
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--text-muted);
+    background: var(--bg-input);
+    border-bottom: 1px solid var(--border-card);
+  }
+  .ds-ctable th.r, .ds-ctable td.r { text-align: right; }
+  .ds-ctable td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-card);
+    color: var(--text-primary);
+    white-space: nowrap;
+  }
+  .ds-ctable tbody tr { cursor: pointer; }
+  .ds-ctable tbody tr:hover td { background: var(--bg-hover); }
+  .ds-ctable tbody tr.selected td { background: rgba(var(--accent-rgb), 0.08); }
+  .ds-ctable tbody tr:last-child td { border-bottom: none; }
+  .ds-ctable .t-title {
+    font-weight: 650; color: var(--text-heading);
+    max-width: 300px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ds-ctable .t-amt {
+    font-weight: 700; color: var(--text-heading);
+    font-variant-numeric: tabular-nums;
+  }
+  .ds-ctable .t-dim { color: var(--text-muted); opacity: 0.5; font-weight: 400; }
+
+  /* ── Tableau de bord (panneau droit au repos) ── */
+  .ds-dash {
+    display: flex; flex-direction: column; gap: 12px;
+    padding: 4px 2px;
+  }
+  .ds-dash-card {
+    background: var(--bg-input);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .ds-dash-title {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--text-muted);
+    margin-bottom: 11px;
+  }
+  .ds-dash-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 9px;
+  }
+  .ds-ds {
+    background: var(--bg-card);
+    border-radius: 9px;
+    padding: 10px 12px;
+  }
+  .ds-ds--full { grid-column: 1 / -1; }
+  .ds-ds-v {
+    font-size: 17px; font-weight: 800;
+    color: var(--text-heading); line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+  }
+  .ds-ds-v--green { color: var(--success); }
+  .ds-ds-v--amber { color: var(--warning); }
+  .ds-ds-k {
+    font-size: 9.5px; font-weight: 650;
+    text-transform: uppercase; letter-spacing: 0.4px;
+    color: var(--text-muted); margin-top: 2px;
+  }
+
+  .ds-tp-row {
+    display: flex; align-items: center; gap: 9px;
+    margin-bottom: 8px; cursor: pointer;
+  }
+  .ds-tp-row:last-child { margin-bottom: 0; }
+  .ds-tp-row:hover .ds-tp-name { color: var(--accent); }
+  .ds-tp-name {
+    font-size: 12px; font-weight: 600;
+    color: var(--text-heading);
+    width: 76px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ds-tp-bar-wrap {
+    flex: 1; height: 6px;
+    background: var(--bg-card);
+    border-radius: 4px; overflow: hidden;
+  }
+  .ds-tp-bar {
+    display: block; height: 100%;
+    background: var(--accent);
+    border-radius: 4px; opacity: 0.75;
+  }
+  .ds-tp-amt {
+    font-size: 11.5px; font-weight: 700;
+    color: var(--text-heading);
+    width: 64px; text-align: right; flex-shrink: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ds-rl-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 8px 10px; border-radius: 8px;
+    background: rgba(234, 88, 12, 0.07);
+    border: 1px solid rgba(234, 88, 12, 0.25);
+    cursor: pointer; margin-bottom: 7px;
+  }
+  .ds-rl-item:last-child { margin-bottom: 0; }
+  .ds-rl-item:hover { border-color: rgba(234, 88, 12, 0.55); }
+  .ds-rl-body { flex: 1; min-width: 0; }
+  .ds-rl-t {
+    font-size: 12px; font-weight: 650;
+    color: var(--text-heading);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ds-rl-s { font-size: 10.5px; color: #C2410C; }
+  .ds-rl-arrow { color: #C2410C; font-weight: 800; flex-shrink: 0; }
+
+  .ds-dash-hint {
+    text-align: center;
+    font-size: 11px; color: var(--text-muted);
+    margin: 2px 0 0;
   }
 </style>

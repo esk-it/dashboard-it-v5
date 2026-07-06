@@ -373,6 +373,91 @@ async def stats_summary(db=Depends(get_raw_db)):
         )
         livraison_attendue = livraison_rows[0][0] if livraison_rows else 0
 
+        # ── v7.7.0 — Financial KPIs for the pipeline bar + dashboard ──
+        # "Engagé" = BPA/BON docs, "Facturé" = FACTURE docs, current year on
+        # doc_date (fallback created_at). Accepted amount wins over declared,
+        # same rule as _doc_summary_for_dossier.
+        year = str(datetime.now().year)
+        fin_rows = await db.execute_fetchall(
+            """SELECT UPPER(COALESCE(doc_type,'')),
+                      SUM(CASE WHEN COALESCE(amount_accepted,0) > 0
+                               THEN amount_accepted ELSE COALESCE(amount,0) END)
+               FROM documents
+               WHERE dossier_id IS NOT NULL
+                 AND substr(COALESCE(doc_date, created_at), 1, 4) = ?
+               GROUP BY UPPER(COALESCE(doc_type,''))""",
+            (year,),
+        )
+        engaged_ytd = 0.0
+        factured_ytd = 0.0
+        for dtype, total_amt in fin_rows:
+            if dtype in ("BPA", "BON"):
+                engaged_ytd += total_amt or 0
+            elif dtype == "FACTURE":
+                factured_ytd += total_amt or 0
+
+        # Top 3 suppliers by engaged amount this year (dashboard bars).
+        top_rows = await db.execute_fetchall(
+            """SELECT s.id, s.name, COALESCE(s.logo_path,''),
+                      SUM(CASE WHEN COALESCE(doc.amount_accepted,0) > 0
+                               THEN doc.amount_accepted ELSE COALESCE(doc.amount,0) END) AS engaged
+               FROM documents doc
+               JOIN dossiers d ON d.id = doc.dossier_id
+               JOIN suppliers s ON s.id = d.supplier_id
+               WHERE UPPER(COALESCE(doc.doc_type,'')) IN ('BPA','BON')
+                 AND substr(COALESCE(doc.doc_date, doc.created_at), 1, 4) = ?
+               GROUP BY s.id, s.name
+               ORDER BY engaged DESC
+               LIMIT 3""",
+            (year,),
+        )
+        top_suppliers = [
+            {"id": r[0], "name": r[1], "logo_path": r[2], "engaged": r[3] or 0}
+            for r in top_rows
+        ]
+
+        # Relance list for the dashboard panel (max 5). Two sources:
+        #   1. Explicit next_action_date in the past
+        #   2. Devis reçu sans mouvement depuis 14 jours
+        relance_list: list[dict] = []
+        rows1 = await db.execute_fetchall(
+            """SELECT id, title, COALESCE(next_action_label,''),
+                      CAST(julianday(?) - julianday(next_action_date) AS INTEGER)
+               FROM dossiers
+               WHERE next_action_date IS NOT NULL AND next_action_date <= ?
+                 AND status NOT IN ('livre','archive')
+               ORDER BY next_action_date ASC LIMIT 5""",
+            (today, today),
+        )
+        seen_ids = set()
+        for r in rows1:
+            relance_list.append({
+                "id": r[0], "title": r[1],
+                "reason": r[2] or "Action prévue dépassée",
+                "days": max(r[3] or 0, 0),
+            })
+            seen_ids.add(r[0])
+        if len(relance_list) < 5:
+            rows2 = await db.execute_fetchall(
+                """SELECT id, title,
+                          CAST(julianday(?) - julianday(updated_at) AS INTEGER)
+                   FROM dossiers
+                   WHERE status = 'devis_recu'
+                     AND julianday(?) - julianday(updated_at) >= 14
+                   ORDER BY updated_at ASC LIMIT 5""",
+                (today, today),
+            )
+            for r in rows2:
+                if r[0] in seen_ids:
+                    continue
+                relance_list.append({
+                    "id": r[0], "title": r[1],
+                    "reason": "Devis reçu sans réponse",
+                    "days": r[2] or 0,
+                })
+                if len(relance_list) >= 5:
+                    break
+
         return {
             "total": total,
             "per_status": per_status,
@@ -380,10 +465,21 @@ async def stats_summary(db=Depends(get_raw_db)):
                 "a_relancer": a_relancer,
                 "livraison_attendue": livraison_attendue,
             },
+            "finance": {
+                "engaged_ytd": engaged_ytd,
+                "factured_ytd": factured_ytd,
+                "year": year,
+            },
+            "top_suppliers": top_suppliers,
+            "relance_list": relance_list,
         }
     except Exception as e:
         logger.warning(f"dossier stats failed: {e}")
-        return {"total": 0, "per_status": {}, "smart": {}}
+        return {
+            "total": 0, "per_status": {}, "smart": {},
+            "finance": {"engaged_ytd": 0, "factured_ytd": 0, "year": ""},
+            "top_suppliers": [], "relance_list": [],
+        }
 
 
 # ── Detail ─────────────────────────────────────────────────

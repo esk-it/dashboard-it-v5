@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Dossiers v2 (proposition visuelle)</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════
+     MOCKUP — proposition de refonte visuelle du module Documents
+     Thème clair calqué sur l'app (cream + violet).
+     ═══════════════════════════════════════════════════════════ */
+  :root {
+    --bg: #F3F0EC;
+    --card: #ffffff;
+    --border: #E7E2D9;
+    --border-strong: #D8D2C6;
+    --heading: #374557;
+    --text: #4A5568;
+    --muted: #8B94A3;
+    --accent: #452B90;
+    --accent-soft: #EDE9F8;
+    --accent-rgb: 69, 43, 144;
+
+    /* Couleurs de cycle de vie */
+    --st-demande: #64748B;
+    --st-devis:   #D97706;
+    --st-bpa:     #7C3AED;
+    --st-cmd:     #2563EB;
+    --st-livre:   #16A34A;
+    --st-arch:    #94A3B8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13.5px;
+    min-width: 1200px;
+    padding-bottom: 60px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── Bandeau mockup ─────────────────────────────────────── */
+  .mock-banner {
+    background: #1C2340;
+    color: #fff;
+    padding: 14px 28px;
+    display: flex; align-items: center; gap: 18px;
+    position: sticky; top: 0; z-index: 50;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  .mock-banner h1 { font-size: 15px; font-weight: 700; }
+  .mock-banner .tag {
+    background: #F8B940; color: #1C2340;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+    padding: 3px 10px; border-radius: 999px; text-transform: uppercase;
+  }
+  .mock-banner .spacer { flex: 1; }
+  .view-toggle {
+    display: flex; background: rgba(255,255,255,0.1);
+    border-radius: 9px; padding: 3px; gap: 2px;
+  }
+  .view-toggle button {
+    background: transparent; border: none; color: rgba(255,255,255,0.65);
+    font: inherit; font-size: 12.5px; font-weight: 600;
+    padding: 6px 16px; border-radius: 7px; cursor: pointer;
+  }
+  .view-toggle button.active { background: #fff; color: #1C2340; }
+
+  /* Légende des annotations */
+  .legend {
+    max-width: 1400px; margin: 16px auto 0; padding: 0 28px;
+    display: flex; flex-wrap: wrap; gap: 10px 22px;
+    font-size: 12px; color: var(--muted);
+  }
+  .legend b { color: var(--heading); font-weight: 600; }
+  .anno {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--accent); color: #fff;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+    vertical-align: middle;
+  }
+
+  .page { max-width: 1400px; margin: 14px auto 0; padding: 0 28px; }
+
+  /* ═══ ① BARRE PIPELINE ══════════════════════════════════ */
+  .pipeline-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 18px;
+    box-shadow: 0 2px 8px rgba(55, 69, 87, 0.04);
+    margin-bottom: 16px;
+  }
+  .pipeline { display: flex; flex: 1; gap: 0; }
+  .pl-seg {
+    flex: 1;
+    position: relative;
+    padding: 9px 10px 9px 22px;
+    cursor: pointer;
+    background: #F7F5F1;
+    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%, 13px 50%);
+    margin-left: -8px;
+    transition: filter 0.12s;
+    user-select: none;
+    text-align: center;
+  }
+  .pl-seg:first-child {
+    clip-path: polygon(0 0, calc(100% - 13px) 0, 100% 50%, calc(100% - 13px) 100%, 0 100%);
+    margin-left: 0;
+    border-radius: 8px 0 0 8px;
+    padding-left: 14px;
+  }
+  .pl-seg:hover { filter: brightness(0.96); }
+  .pl-count {
+    font-size: 19px; font-weight: 800; color: var(--heading);
+    line-height: 1.1;
+  }
+  .pl-label {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--muted);
+  }
+  .pl-seg.active { outline: none; }
+  .pl-seg.active .pl-count { color: #fff; }
+  .pl-seg.active .pl-label { color: rgba(255,255,255,0.8); }
+  .pl-seg[data-st="demande"].active { background: var(--st-demande); }
+  .pl-seg[data-st="devis"].active   { background: var(--st-devis); }
+  .pl-seg[data-st="bpa"].active     { background: var(--st-bpa); }
+  .pl-seg[data-st="cmd"].active     { background: var(--st-cmd); }
+  .pl-seg[data-st="livre"].active   { background: var(--st-livre); }
+  .pl-seg[data-st="arch"].active    { background: var(--st-arch); }
+  /* pastille discrète de couleur par étape (état repos) */
+  .pl-seg::before {
+    content: '';
+    position: absolute; top: 8px; right: 20px;
+    width: 7px; height: 7px; border-radius: 50%;
+  }
+  .pl-seg[data-st="demande"]::before { background: var(--st-demande); }
+  .pl-seg[data-st="devis"]::before   { background: var(--st-devis); }
+  .pl-seg[data-st="bpa"]::before     { background: var(--st-bpa); }
+  .pl-seg[data-st="cmd"]::before     { background: var(--st-cmd); }
+  .pl-seg[data-st="livre"]::before   { background: var(--st-livre); }
+  .pl-seg[data-st="arch"]::before    { background: var(--st-arch); }
+  .pl-seg.active::before { background: rgba(255,255,255,0.6); }
+
+  .pipeline-kpis {
+    display: flex; gap: 22px; padding-left: 6px;
+    border-left: 1px solid var(--border);
+    padding-left: 20px;
+  }
+  .plk { text-align: right; }
+  .plk-v { font-size: 16.5px; font-weight: 800; color: var(--heading); }
+  .plk-v.green { color: var(--st-livre); }
+  .plk-k { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
+
+  /* ═══ LAYOUT 3 COLONNES ═════════════════════════════════ */
+  .layout { display: grid; grid-template-columns: 205px 1fr 330px; gap: 16px; align-items: start; }
+
+  /* ── Filtres (allégés : l'état a déménagé dans la pipeline) ── */
+  .filters {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 18px;
+  }
+  .f-group label {
+    display: block; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--muted); margin-bottom: 8px;
+  }
+  .f-search {
+    display: flex; align-items: center; gap: 7px;
+    background: #F7F5F1; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px;
+    color: var(--muted); font-size: 12.5px;
+  }
+  .f-pill {
+    display: flex; align-items: center; gap: 7px;
+    padding: 6px 9px; border-radius: 7px;
+    font-size: 12.5px; color: var(--text); cursor: pointer;
+  }
+  .f-pill:hover { background: #F7F5F1; }
+  .f-pill.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  .f-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .f-count { margin-left: auto; font-size: 11px; color: var(--muted); }
+
+  /* ═══ ② CARDS DOSSIER ═══════════════════════════════════ */
+  .list-col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .list-head {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 0 4px;
+  }
+  .list-head .lh-count { font-size: 13px; font-weight: 700; color: var(--heading); }
+  .list-head .lh-sub { font-size: 12px; color: var(--muted); }
+
+  .dcard {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left-width: 3px;
+    border-radius: 12px;
+    padding: 12px 16px 11px;
+    cursor: pointer;
+    transition: box-shadow 0.15s, transform 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .dcard:hover {
+    box-shadow: 0 6px 20px rgba(55, 69, 87, 0.10);
+    transform: translateY(-1px);
+  }
+  .dcard[data-st="devis"] { border-left-color: var(--st-devis); }
+  .dcard[data-st="bpa"]   { border-left-color: var(--st-bpa); }
+  .dcard[data-st="cmd"]   { border-left-color: var(--st-cmd); }
+  .dcard[data-st="livre"] { border-left-color: var(--st-livre); }
+
+  .dc-top { display: flex; align-items: center; gap: 11px; margin-bottom: 10px; }
+  .dc-logo {
+    width: 34px; height: 34px; border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11.5px; font-weight: 800; color: #fff;
+    flex-shrink: 0;
+  }
+  .dc-titles { flex: 1; min-width: 0; }
+  .dc-title {
+    font-size: 14px; font-weight: 650; color: var(--heading);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 1px;
+  }
+  .dc-meta {
+    font-size: 11.5px; color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dc-meta .sep { opacity: 0.5; }
+  .etab { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+  .etab i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .etab.ndk i { background: #3B82F6; } .etab.ndk { color: #3B82F6; }
+  .etab.su  i { background: #16A34A; } .etab.su  { color: #16A34A; }
+  .etab.nde i { background: #D97706; } .etab.nde { color: #D97706; }
+
+  .chip {
+    font-size: 10.5px; font-weight: 700;
+    padding: 3.5px 11px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 5px;
+    flex-shrink: 0;
+  }
+  .chip i { width: 6px; height: 6px; border-radius: 50%; }
+  .chip.devis { background: #FEF3E2; color: #B45309; } .chip.devis i { background: var(--st-devis); }
+  .chip.bpa   { background: #F1EAFE; color: #6D28D9; } .chip.bpa i   { background: var(--st-bpa); }
+  .chip.cmd   { background: #E7F0FE; color: #1D4ED8; } .chip.cmd i   { background: var(--st-cmd); }
+  .chip.livre { background: #E8F7EC; color: #15803D; } .chip.livre i { background: var(--st-livre); }
+
+  /* ③ badge relance */
+  .chip.relance {
+    background: #FEE9E0; color: #C2410C;
+    animation: pulse-soft 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse-soft { 0%,100% { opacity: 1; } 50% { opacity: 0.75; } }
+
+  /* ── ② Stepper fusionné montants ─────────────────────── */
+  .dc-steps { display: flex; align-items: flex-start; }
+  .step { min-width: 108px; }
+  .step-head { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .step-dot {
+    width: 16px; height: 16px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9.5px; font-weight: 800;
+    flex-shrink: 0;
+  }
+  .step.done .step-dot { background: var(--accent); color: #fff; }
+  .step.pending .step-dot {
+    background: transparent; border: 2px dashed var(--border-strong);
+    width: 12px; height: 12px;
+  }
+  .step-label {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .step.done .step-label { color: var(--heading); }
+  .step-amt {
+    font-size: 15.5px; font-weight: 750; color: var(--heading);
+    padding-left: 22px;
+  }
+  .step.pending .step-amt { color: var(--border-strong); font-weight: 500; }
+  .step-amt small { font-size: 10.5px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+  .step-conn {
+    flex: 1; height: 2px; margin: 7px 10px 0;
+    background: var(--border);
+    border-radius: 2px;
+    min-width: 22px;
+  }
+  .step-conn.done { background: var(--accent); opacity: 0.35; }
+
+  .dc-foot {
+    display: flex; align-items: center; margin-left: auto; gap: 14px;
+    font-size: 11.5px; color: var(--muted);
+    padding-top: 5px;
+  }
+  .dc-foot .overdue { color: #DC2626; font-weight: 700; }
+
+  /* ═══ ⑤ VUE COMPACTE (TABLE) ════════════════════════════ */
+  .compact { display: none; }
+  body.mode-compact .cards-view { display: none; }
+  body.mode-compact .compact { display: block; }
+  .ctable {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    border-collapse: separate; border-spacing: 0;
+    overflow: hidden;
+    font-size: 12.5px;
+  }
+  .ctable th {
+    text-align: left; padding: 10px 14px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.6px;
+    text-transform: uppercase; color: var(--muted);
+    background: #FAF8F4;
+    border-bottom: 1px solid var(--border);
+  }
+  .ctable th.r, .ctable td.r { text-align: right; }
+  .ctable td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #F1EDE6;
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .ctable tr:last-child td { border-bottom: none; }
+  .ctable tbody tr { cursor: pointer; }
+  .ctable tbody tr:hover td { background: #FAF8F3; }
+  .ctable .t-title { font-weight: 650; color: var(--heading); max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+  .ctable .t-amt { font-weight: 700; color: var(--heading); }
+  .ctable .t-dim { color: var(--border-strong); }
+
+  /* ═══ ④ PANNEAU DROIT : TABLEAU DE BORD ═════════════════ */
+  .dash {
+    display: flex; flex-direction: column; gap: 12px;
+    position: sticky; top: 74px;
+  }
+  .dash-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 16px 18px;
+  }
+  .dash-title {
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--muted); margin-bottom: 12px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dash-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .ds {
+    background: #FAF8F4; border-radius: 10px; padding: 11px 13px;
+  }
+  .ds.full { grid-column: 1 / -1; }
+  .ds-v { font-size: 19px; font-weight: 800; color: var(--heading); line-height: 1.15; }
+  .ds-v.green { color: var(--st-livre); }
+  .ds-v.amber { color: var(--st-devis); }
+  .ds-k { font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.4px; color: var(--muted); margin-top: 2px; }
+
+  .tp-row { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+  .tp-row:last-child { margin-bottom: 0; }
+  .tp-logo {
+    width: 24px; height: 24px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; color: #fff; flex-shrink: 0;
+  }
+  .tp-name { font-size: 12.5px; font-weight: 600; color: var(--heading); width: 74px; flex-shrink: 0; }
+  .tp-bar-wrap { flex: 1; height: 7px; background: #F1EDE6; border-radius: 4px; overflow: hidden; }
+  .tp-bar { height: 100%; background: var(--accent); border-radius: 4px; opacity: 0.75; }
+  .tp-amt { font-size: 12px; font-weight: 700; color: var(--heading); width: 66px; text-align: right; flex-shrink: 0; }
+
+  .rl-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 11px; border-radius: 9px;
+    background: #FEF6F1; border: 1px solid #FADFCF;
+    cursor: pointer; margin-bottom: 8px;
+  }
+  .rl-item:last-child { margin-bottom: 0; }
+  .rl-item:hover { border-color: #F0B48F; }
+  .rl-ico { font-size: 15px; }
+  .rl-body { flex: 1; min-width: 0; }
+  .rl-t { font-size: 12.5px; font-weight: 650; color: var(--heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rl-s { font-size: 11px; color: #C2410C; }
+  .rl-arrow { color: #C2410C; font-weight: 800; }
+
+  .empty-hint {
+    text-align: center; font-size: 12px; color: var(--muted);
+    padding: 4px 10px 2px; line-height: 1.5;
+  }
+
+  /* ═══ Notes bas de page ═════════════════════════════════ */
+  .notes {
+    max-width: 1400px; margin: 34px auto 0; padding: 0 28px;
+  }
+  .notes-card {
+    background: #1C2340; color: rgba(255,255,255,0.85);
+    border-radius: 14px; padding: 22px 26px;
+    font-size: 13px; line-height: 1.65;
+  }
+  .notes-card h2 { font-size: 14px; color: #fff; margin-bottom: 12px; }
+  .notes-card ul { padding-left: 20px; }
+  .notes-card li { margin-bottom: 7px; }
+  .notes-card b { color: #F8B940; }
+</style>
+</head>
+<body>
+
+<!-- ══ Bandeau mockup ══ -->
+<div class="mock-banner">
+  <h1>Module Documents · Dossiers</h1>
+  <span class="tag">Mockup v2 — proposition</span>
+  <div class="spacer"></div>
+  <div class="view-toggle">
+    <button class="active" onclick="setMode('cards', this)">Vue cards</button>
+    <button onclick="setMode('compact', this)">Vue compacte</button>
+  </div>
+</div>
+
+<div class="legend">
+  <span><span class="anno">1</span> <b>Barre pipeline</b> cliquable — remplace le filtre « État »</span>
+  <span><span class="anno">2</span> <b>Stepper fusionné</b> — étapes + montants en une ligne</span>
+  <span><span class="anno">3</span> <b>Badge « À relancer »</b> visible sur la card</span>
+  <span><span class="anno">4</span> <b>Panneau droit</b> = tableau de bord quand rien n'est sélectionné</span>
+  <span><span class="anno">5</span> <b>Vue compacte</b> — toggle en haut à droite</span>
+</div>
+
+<div class="page">
+
+  <!-- ══ ① Pipeline bar ══ -->
+  <div class="pipeline-wrap">
+    <span class="anno" title="Barre pipeline">1</span>
+    <div class="pipeline">
+      <div class="pl-seg" data-st="demande" onclick="filterSt(this)">
+        <div class="pl-count">0</div><div class="pl-label">Demande</div>
+      </div>
+      <div class="pl-seg" data-st="devis" onclick="filterSt(this)">
+        <div class="pl-count">1</div><div class="pl-label">Devis</div>
+      </div>
+      <div class="pl-seg" data-st="bpa" onclick="filterSt(this)">
+        <div class="pl-count">1</div><div class="pl-label">BPA signé</div>
+      </div>
+      <div class="pl-seg" data-st="cmd" onclick="filterSt(this)">
+        <div class="pl-count">2</div><div class="pl-label">Commandé</div>
+      </div>
+      <div class="pl-seg" data-st="livre" onclick="filterSt(this)">
+        <div class="pl-count">13</div><div class="pl-label">Livré</div>
+      </div>
+      <div class="pl-seg" data-st="arch" onclick="filterSt(this)">
+        <div class="pl-count">0</div><div class="pl-label">Archivé</div>
+      </div>
+    </div>
+    <div class="pipeline-kpis">
+      <div class="plk">
+        <div class="plk-v num">40 111 €</div>
+        <div class="plk-k">Engagé 2026</div>
+      </div>
+      <div class="plk">
+        <div class="plk-v num green">20 307 €</div>
+        <div class="plk-k">Facturé</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ Layout 3 colonnes ══ -->
+  <div class="layout">
+
+    <!-- Filtres (allégés) -->
+    <aside class="filters">
+      <div class="f-group">
+        <div class="f-search">🔍 Rechercher…</div>
+      </div>
+      <div class="f-group">
+        <label>Établissement</label>
+        <div class="f-pill on">Tous <span class="f-count">17</span></div>
+        <div class="f-pill"><span class="f-dot" style="background:#3B82F6"></span> NDK <span class="f-count">9</span></div>
+        <div class="f-pill"><span class="f-dot" style="background:#16A34A"></span> SU <span class="f-count">5</span></div>
+        <div class="f-pill"><span class="f-dot" style="background:#D97706"></span> NDE <span class="f-count">3</span></div>
+      </div>
+      <div class="f-group">
+        <label>Prestataire</label>
+        <div class="f-pill on">Tous</div>
+        <div class="f-pill"><span class="f-dot" style="background:#F5C518"></span> SC Micro <span class="f-count">11</span></div>
+        <div class="f-pill"><span class="f-dot" style="background:#0E9594"></span> Ageona <span class="f-count">2</span></div>
+        <div class="f-pill"><span class="f-dot" style="background:#D64545"></span> ARCEM <span class="f-count">2</span></div>
+        <div class="f-pill" style="color:var(--muted); font-style:italic;">+ 6 autres</div>
+      </div>
+      <div class="f-group">
+        <label>Période</label>
+        <div class="f-pill on">Toutes</div>
+        <div class="f-pill">30 derniers jours</div>
+        <div class="f-pill">Cette année (2026)</div>
+        <div class="f-pill">2025</div>
+      </div>
+    </aside>
+
+    <!-- Liste centrale -->
+    <main class="list-col">
+      <div class="list-head">
+        <span class="lh-count">17 dossiers</span>
+        <span class="lh-sub">triés par activité récente</span>
+        <span class="anno" style="margin-left:auto" title="Stepper fusionné">2</span>
+      </div>
+
+      <!-- ── VUE CARDS ── -->
+      <div class="cards-view" id="cardsView">
+
+        <!-- Card 1 : Devis reçu + À RELANCER -->
+        <div class="dcard" data-st="devis" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#0E9594">AG</div>
+            <div class="dc-titles">
+              <div class="dc-title">Ageona — Renouvellement firewall Stormshield</div>
+              <div class="dc-meta">
+                Ageona <span class="sep">·</span>
+                <span class="etab ndk"><i></i>NDK</span> <span class="sep">·</span>
+                1 document
+              </div>
+            </div>
+            <span class="chip relance" title="next_action_date dépassée">⏰ À relancer · 18 j</span>
+            <span class="chip devis"><i></i>Devis reçu</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">4 320 €</div>
+            </div>
+            <div class="step-conn"></div>
+            <div class="step pending">
+              <div class="step-head"><span class="step-dot"></span><span class="step-label">BPA</span></div>
+              <div class="step-amt">—</div>
+            </div>
+            <div class="step-conn"></div>
+            <div class="step pending">
+              <div class="step-head"><span class="step-dot"></span><span class="step-label">Facture</span></div>
+              <div class="step-amt">—</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 15/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2 : BPA signé -->
+        <div class="dcard" data-st="bpa" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#D64545">AR</div>
+            <div class="dc-titles">
+              <div class="dc-title">ARCEM — Vidéoprojecteurs salles NDE</div>
+              <div class="dc-meta">
+                ARCEM <span class="sep">·</span>
+                <span class="etab nde"><i></i>NDE</span> <span class="sep">·</span>
+                2 documents
+              </div>
+            </div>
+            <span class="chip bpa"><i></i>BPA signé</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">6 840 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">6 840 €</div>
+            </div>
+            <div class="step-conn"></div>
+            <div class="step pending">
+              <div class="step-head"><span class="step-dot"></span><span class="step-label">Facture</span></div>
+              <div class="step-amt">—</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 22/08/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3 : Commandé -->
+        <div class="dcard" data-st="cmd" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#F5C518; color:#403500">SC</div>
+            <div class="dc-titles">
+              <div class="dc-title">SC Micro — PC Coordinateurs SU 2 postes fixes</div>
+              <div class="dc-meta">
+                SC Micro <span class="sep">·</span>
+                <span class="etab su"><i></i>SU</span> <span class="sep">·</span>
+                2 documents
+              </div>
+            </div>
+            <span class="chip cmd"><i></i>Commandé</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">1 798 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">1 798 €</div>
+            </div>
+            <div class="step-conn"></div>
+            <div class="step pending">
+              <div class="step-head"><span class="step-dot"></span><span class="step-label">Facture</span></div>
+              <div class="step-amt">—</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 30/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 4 : Commandé -->
+        <div class="dcard" data-st="cmd" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#F5C518; color:#403500">SC</div>
+            <div class="dc-titles">
+              <div class="dc-title">SC Micro — Chromebox BTS</div>
+              <div class="dc-meta">
+                SC Micro <span class="sep">·</span>
+                <span class="etab ndk"><i></i>NDK</span> <span class="sep">·</span>
+                2 documents
+              </div>
+            </div>
+            <span class="chip cmd"><i></i>Commandé</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">11 256 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">11 256 €</div>
+            </div>
+            <div class="step-conn"></div>
+            <div class="step pending">
+              <div class="step-head"><span class="step-dot"></span><span class="step-label">Facture</span></div>
+              <div class="step-amt">—</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 30/06/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 5 : Livré complet -->
+        <div class="dcard" data-st="livre" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#F5C518; color:#403500">SC</div>
+            <div class="dc-titles">
+              <div class="dc-title">SC Micro — Chromebox/Chromebook CDI SU</div>
+              <div class="dc-meta">
+                SC Micro <span class="sep">·</span>
+                <span class="etab su"><i></i>SU</span> <span class="sep">·</span>
+                3 documents
+              </div>
+            </div>
+            <span class="chip livre"><i></i>Livré</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">19 165 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">19 165 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Facture</span></div>
+              <div class="step-amt num">19 165 €</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 01/07/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 6 : Livré, facture > devis (écart signalé) -->
+        <div class="dcard" data-st="livre" style="margin-bottom:10px">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#F5C518; color:#403500">SC</div>
+            <div class="dc-titles">
+              <div class="dc-title">SC Micro — M365</div>
+              <div class="dc-meta">
+                SC Micro <span class="sep">·</span>
+                <span class="etab ndk"><i></i>NDK</span> <span class="sep">·</span>
+                3 documents
+              </div>
+            </div>
+            <span class="chip livre"><i></i>Livré</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">877 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">877 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Facture</span></div>
+              <div class="step-amt num" style="color:#DC2626">967 € <small style="color:#DC2626">+10 %</small></div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 10/03/2026</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 7 : Livré petit montant, échéance passée (visuel rouge) -->
+        <div class="dcard" data-st="livre">
+          <div class="dc-top">
+            <div class="dc-logo" style="background:#F5C518; color:#403500">SC</div>
+            <div class="dc-titles">
+              <div class="dc-title">SC Micro — KVM Bureau info</div>
+              <div class="dc-meta">
+                SC Micro <span class="sep">·</span>
+                <span class="etab ndk"><i></i>NDK</span> <span class="sep">·</span>
+                1 document
+              </div>
+            </div>
+            <span class="chip livre"><i></i>Livré</span>
+          </div>
+          <div class="dc-steps">
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Devis</span></div>
+              <div class="step-amt num">175 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">BPA</span></div>
+              <div class="step-amt num">175 €</div>
+            </div>
+            <div class="step-conn done"></div>
+            <div class="step done">
+              <div class="step-head"><span class="step-dot">✓</span><span class="step-label">Facture</span></div>
+              <div class="step-amt num">175 €</div>
+            </div>
+            <div class="dc-foot">
+              <span>📅 17/12/2025</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── ⑤ VUE COMPACTE ── -->
+      <div class="compact">
+        <table class="ctable">
+          <thead>
+            <tr>
+              <th>Statut</th>
+              <th>Dossier</th>
+              <th>Étab</th>
+              <th class="r">Devis</th>
+              <th class="r">BPA</th>
+              <th class="r">Facturé</th>
+              <th class="r">Docs</th>
+              <th class="r">Échéance</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="chip devis"><i></i>Devis</span></td>
+              <td class="t-title">Ageona — Renouvellement firewall Stormshield ⏰</td>
+              <td><span class="etab ndk"><i></i>NDK</span></td>
+              <td class="r t-amt num">4 320 €</td>
+              <td class="r t-dim">—</td>
+              <td class="r t-dim">—</td>
+              <td class="r">1</td>
+              <td class="r num">15/06/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip bpa"><i></i>BPA</span></td>
+              <td class="t-title">ARCEM — Vidéoprojecteurs salles NDE</td>
+              <td><span class="etab nde"><i></i>NDE</span></td>
+              <td class="r t-amt num">6 840 €</td>
+              <td class="r t-amt num">6 840 €</td>
+              <td class="r t-dim">—</td>
+              <td class="r">2</td>
+              <td class="r num">22/08/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip cmd"><i></i>Commandé</span></td>
+              <td class="t-title">SC Micro — PC Coordinateurs SU 2 postes fixes</td>
+              <td><span class="etab su"><i></i>SU</span></td>
+              <td class="r t-amt num">1 798 €</td>
+              <td class="r t-amt num">1 798 €</td>
+              <td class="r t-dim">—</td>
+              <td class="r">2</td>
+              <td class="r num">30/06/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip cmd"><i></i>Commandé</span></td>
+              <td class="t-title">SC Micro — Chromebox BTS</td>
+              <td><span class="etab ndk"><i></i>NDK</span></td>
+              <td class="r t-amt num">11 256 €</td>
+              <td class="r t-amt num">11 256 €</td>
+              <td class="r t-dim">—</td>
+              <td class="r">2</td>
+              <td class="r num">30/06/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip livre"><i></i>Livré</span></td>
+              <td class="t-title">SC Micro — Chromebox/Chromebook CDI SU</td>
+              <td><span class="etab su"><i></i>SU</span></td>
+              <td class="r t-amt num">19 165 €</td>
+              <td class="r t-amt num">19 165 €</td>
+              <td class="r t-amt num">19 165 €</td>
+              <td class="r">3</td>
+              <td class="r num">01/07/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip livre"><i></i>Livré</span></td>
+              <td class="t-title">SC Micro — M365</td>
+              <td><span class="etab ndk"><i></i>NDK</span></td>
+              <td class="r t-amt num">877 €</td>
+              <td class="r t-amt num">877 €</td>
+              <td class="r t-amt num" style="color:#DC2626">967 €</td>
+              <td class="r">3</td>
+              <td class="r num">10/03/2026</td>
+            </tr>
+            <tr>
+              <td><span class="chip livre"><i></i>Livré</span></td>
+              <td class="t-title">SC Micro — KVM Bureau info</td>
+              <td><span class="etab ndk"><i></i>NDK</span></td>
+              <td class="r t-amt num">175 €</td>
+              <td class="r t-amt num">175 €</td>
+              <td class="r t-amt num">175 €</td>
+              <td class="r">1</td>
+              <td class="r num">17/12/2025</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- ══ ④ Panneau droit : tableau de bord ══ -->
+    <aside class="dash">
+      <div class="dash-card">
+        <div class="dash-title"><span class="anno">4</span> Vue d'ensemble 2026</div>
+        <div class="dash-stats">
+          <div class="ds">
+            <div class="ds-v num">40 111 €</div>
+            <div class="ds-k">Engagé (BPA)</div>
+          </div>
+          <div class="ds">
+            <div class="ds-v num green">20 307 €</div>
+            <div class="ds-k">Facturé</div>
+          </div>
+          <div class="ds full">
+            <div class="ds-v num amber">19 894 €</div>
+            <div class="ds-k">En attente de facturation</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-title">Top prestataires (engagé)</div>
+        <div class="tp-row">
+          <div class="tp-logo" style="background:#F5C518; color:#403500">SC</div>
+          <div class="tp-name">SC Micro</div>
+          <div class="tp-bar-wrap"><div class="tp-bar" style="width:100%"></div></div>
+          <div class="tp-amt num">33 271 €</div>
+        </div>
+        <div class="tp-row">
+          <div class="tp-logo" style="background:#D64545">AR</div>
+          <div class="tp-name">ARCEM</div>
+          <div class="tp-bar-wrap"><div class="tp-bar" style="width:21%"></div></div>
+          <div class="tp-amt num">6 840 €</div>
+        </div>
+        <div class="tp-row">
+          <div class="tp-logo" style="background:#0E9594">AG</div>
+          <div class="tp-name">Ageona</div>
+          <div class="tp-bar-wrap"><div class="tp-bar" style="width:0%"></div></div>
+          <div class="tp-amt num">0 €</div>
+        </div>
+      </div>
+
+      <div class="dash-card">
+        <div class="dash-title">⏰ À relancer (1)</div>
+        <div class="rl-item">
+          <span class="rl-ico">🔥</span>
+          <div class="rl-body">
+            <div class="rl-t">Renouvellement firewall Stormshield</div>
+            <div class="rl-s">Devis reçu il y a 18 jours — sans réponse</div>
+          </div>
+          <span class="rl-arrow">→</span>
+        </div>
+      </div>
+
+      <div class="empty-hint">
+        Ce tableau de bord s'affiche quand aucun dossier n'est sélectionné.<br>
+        Un clic sur un dossier le remplace par le détail habituel.
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- ══ Notes de conception ══ -->
+<div class="notes">
+  <div class="notes-card">
+    <h2>Ce qui change par rapport à la version actuelle</h2>
+    <ul>
+      <li><b>① Barre pipeline en haut</b> — l'état d'avancement de tous les dossiers devient visible en permanence (avant : enterré dans le filtre gauche). Chaque segment est cliquable et filtre la liste. Les deux KPIs financiers de l'année sont accolés à droite.</li>
+      <li><b>② Cards 2× plus denses</b> — la ligne de progression à points + les 3 colonnes de montants fusionnent en un seul « stepper » : chaque étape (Devis / BPA / Facture) porte sa coche et son montant. ~8 dossiers visibles au lieu de 4-5.</li>
+      <li><b>③ Badge « À relancer »</b> — le champ next_action_date existe déjà en base mais n'était pas visible sur la liste. Badge orange animé + compteur de jours.</li>
+      <li><b>④ Panneau droit intelligent</b> — au lieu du « Sélectionne un dossier » vide : vue d'ensemble financière de l'année, top prestataires, liste des relances. Cliquer sur un dossier affiche le détail comme avant.</li>
+      <li><b>⑤ Vue compacte</b> — toggle vers un tableau dense type relevé bancaire : 15+ dossiers visibles, colonnes triables, parfait pour les revues de fin d'année.</li>
+      <li><b>Détails transverses</b> — montants avec séparateurs de milliers et chiffres tabulaires, écart facture/devis signalé en rouge (+10 %), bordure gauche colorée par statut, chips de statut avec fond teinté lisible dans les deux thèmes.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+  // Toggle vue cards / compacte
+  function setMode(mode, btn) {
+    document.body.classList.toggle('mode-compact', mode === 'compact');
+    document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
+  // Filtre par segment pipeline (démo)
+  function filterSt(seg) {
+    const st = seg.dataset.st;
+    const wasActive = seg.classList.contains('active');
+    document.querySelectorAll('.pl-seg').forEach(s => s.classList.remove('active'));
+    if (wasActive) {
+      document.querySelectorAll('.dcard').forEach(c => c.style.display = '');
+      return;
+    }
+    seg.classList.add('active');
+    document.querySelectorAll('.dcard').forEach(c => {
+      c.style.display = (c.dataset.st === st) ? '' : 'none';
+    });
+  }
+</script>
+</body>
+</html>
